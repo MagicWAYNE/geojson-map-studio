@@ -22,6 +22,7 @@ function syncFs() {
 let timer = 0
 onMounted(() => {
   fmt()
+  syncFs()
   timer = window.setInterval(fmt, 1000)
   document.addEventListener('fullscreenchange', syncFs)
 })
@@ -52,7 +53,7 @@ async function toggleFs() {
 .header { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; z-index: 20; pointer-events: none; }
 .layer { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; object-fit: cover; }
 .timer {
-  position: absolute; left: 1600px; top: 34px; width: 260px;
+  position: absolute; left: 1576px; top: 34px; width: 300px; white-space: nowrap;
   font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
 }
 .fs-btn { position: absolute; left: 1852px; top: 30px; width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }

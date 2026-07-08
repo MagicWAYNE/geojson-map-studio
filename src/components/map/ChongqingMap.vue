@@ -97,7 +97,7 @@ function buildOption(data: DistrictMapItem[]): EChartsOption {
           shadowColor: 'rgba(0,165,255,0.45)',
           shadowBlur: 10
         },
-        label: { show: true, color: '#a5bde5', fontSize: 11, fontFamily: 'OPPOSans-R' },
+        label: { show: false, color: '#a5bde5', fontSize: 11, fontFamily: 'OPPOSans-R' },
         emphasis: {
           label: { show: true, color: '#fff', fontSize: 13, fontWeight: 'bold' },
           itemStyle: {

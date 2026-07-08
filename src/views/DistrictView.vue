@@ -50,6 +50,7 @@ const ORG_COLUMNS: ScrollColumn[] = [
 
 async function load() {
   try {
+    error.value = ''
     notFound.value = false
     detail.value = await getDistrictDetail(props.name)
     if (!detail.value) {
@@ -74,7 +75,10 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
     <HeaderBar />
     <div class="back" @click="router.push('/')">‹ 返回总览</div>
 
-    <div v-if="error" class="center-tip">{{ error }}</div>
+    <div v-if="error" class="center-tip">
+      <p>{{ error }}</p>
+      <button @click="router.push('/')">返回主屏</button>
+    </div>
     <div v-else-if="notFound" class="center-tip">
       <p>未找到该区县：{{ name }}</p>
       <button @click="router.push('/')">返回主屏</button>

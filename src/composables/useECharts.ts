@@ -20,7 +20,10 @@ export function useECharts(el: Ref<HTMLElement | null>) {
   }
 
   function tryInit() {
-    if (!el.value) return
+    if (!el.value) {
+      if (chart.value) dispose()
+      return
+    }
     if (chart.value) {
       if (chart.value.getDom() === el.value) return
       dispose() // 容器被 v-if 重建，旧实例挂在游离节点上
