@@ -1,5 +1,5 @@
 import type {
-  ApiEnvelope, ChuzhiItem, DashboardData, DxData, HgpxItem, JeFenbuItem,
+  ApiEnvelope, ChuzhiItem, DashboardData, DistrictDetail, DistrictMapItem, DxData, HgpxItem, JeFenbuItem,
   KejifunengItem, TjzxData, XYItem, ZuzhizhixiaoItem, ZzglData
 } from '@/types'
 import dashboardRaw from '@/mocks/dashboard_data.json'
@@ -13,6 +13,8 @@ import dxmonthRaw from '@/mocks/dxmonth_list.json'
 import chuzhiRaw from '@/mocks/chuzhi_list.json'
 import hgpxRaw from '@/mocks/hgpx_list.json'
 import jeFenbuRaw from '@/mocks/je_fenbu_list.json'
+import districtMapRaw from '@/mocks/district_map.json'
+import districtDetailRaw from '@/mocks/district_detail.json'
 
 /** 模拟网络延迟，保持异步接口形态与真实后端一致 */
 const delay = (ms = 120) => new Promise<void>((r) => setTimeout(r, ms))
@@ -76,4 +78,15 @@ export async function getHgpxList(): Promise<HgpxItem[]> {
 export async function getJeFenbuList(): Promise<JeFenbuItem[]> {
   await delay()
   return unwrap<JeFenbuItem[]>(jeFenbuRaw)
+}
+
+export async function getDistrictMapData(): Promise<DistrictMapItem[]> {
+  await delay()
+  return districtMapRaw as DistrictMapItem[]
+}
+
+export async function getDistrictDetail(name: string): Promise<DistrictDetail | null> {
+  await delay()
+  const all = districtDetailRaw as unknown as Record<string, DistrictDetail>
+  return all[name] ?? null
 }
