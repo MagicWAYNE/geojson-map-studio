@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import HeaderBar from '@/components/layout/HeaderBar.vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
+import KpiPanel from '@/components/panels/KpiPanel.vue'
+import AmountTablePanel from '@/components/panels/AmountTablePanel.vue'
 import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
 </script>
@@ -12,7 +14,8 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
     <HeaderBar />
 
     <!-- 槽位：Task 12 地图 <ChongqingMap class="pos-map" /> -->
-    <!-- 槽位：Task 7 <KpiPanel class="pos-kpi" /> + <AmountTablePanel class="pos-amount" /> -->
+    <KpiPanel class="pos-kpi" />
+    <AmountTablePanel class="pos-amount" />
 
     <SectionTitle class="pos-quality-title" title="质效分析" />
     <!-- 槽位：Task 8 <QualityPanel class="pos-quality" /> -->
