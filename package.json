@@ -1,0 +1,26 @@
+{
+  "name": "cqbigscreen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "gen:mocks": "node scripts/gen-district-mocks.mjs",
+    "gen:map": "node scripts/geojson-to-svg.mjs"
+  },
+  "dependencies": {
+    "echarts": "^5.6.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "d3-geo": "^3.1.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
+  }
+}

@@ -96,6 +96,7 @@ dist
 *.local
 .DS_Store
 .gstack/
+orignal-assets/
 ```
 
 - [ ] **Step 2: 写 package.json**
@@ -231,7 +232,7 @@ cp $SRC/svg/872bb5f4a88906c76f202e42aed9d93a-bd70962ae4.svg src/assets/svg/rank-
 cp $SRC/svg/bee160127913725572262e8c9bd51833-5097736b79.svg src/assets/svg/rank-3.svg
 ls src/assets/fonts src/assets/images src/assets/svg src/assets/video
 ```
-Expected: 无 cp 报错；ls 显示 4 字体 + 21 图片 + 4 svg + 1 视频。
+Expected: 无 cp 报错；ls 显示 4 字体 + 19 图片 + 4 svg + 1 视频。
 
 - [ ] **Step 5: 写样式**
 
@@ -837,6 +838,15 @@ if (existsSync(CACHE)) {
   mkdirSync('scripts/data', { recursive: true })
   writeFileSync(CACHE, JSON.stringify(geojson))
   console.log(`已缓存 GeoJSON → ${CACHE}`)
+}
+
+// 阿里 Atlas GeoJSON 的环绕向与 d3-geo 球面语义相反（不修会导致质心全部坍缩到画布中心）：
+// 统一反转所有 Polygon/MultiPolygon 的环（仅内存中，不改缓存文件）
+for (const f of geojson.features) {
+  const g = f.geometry
+  if (g.type === 'Polygon') g.coordinates = g.coordinates.map((ring) => ring.slice().reverse())
+  else if (g.type === 'MultiPolygon')
+    g.coordinates = g.coordinates.map((poly) => poly.map((ring) => ring.slice().reverse()))
 }
 
 // 名称断言：GeoJSON 区县名与 DISTRICTS（mock 数据 key）双向一致
