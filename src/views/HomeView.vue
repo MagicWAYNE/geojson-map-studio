@@ -8,6 +8,8 @@ import TechPanel from '@/components/panels/TechPanel.vue'
 import OrgPanel from '@/components/panels/OrgPanel.vue'
 import SocialPanel from '@/components/panels/SocialPanel.vue'
 import InquiryPanel from '@/components/panels/InquiryPanel.vue'
+import DisposalPanel from '@/components/panels/DisposalPanel.vue'
+import TrainingPanel from '@/components/panels/TrainingPanel.vue'
 import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
 </script>
@@ -30,7 +32,8 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
 
     <SectionTitle class="pos-inquiry-title" title="电询转办分析" />
     <InquiryPanel class="pos-inquiry" />
-    <!-- 槽位：Task 11 <DisposalPanel class="pos-disposal" /> <TrainingPanel class="pos-training" /> -->
+    <DisposalPanel class="pos-disposal" />
+    <TrainingPanel class="pos-training" />
 
     <div class="footer">指导监督单位：南岸区人民法院 南岸区司法局</div>
   </div>
