@@ -15,20 +15,26 @@ function fmt() {
   now.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} 星期${WEEK[d.getDay()]}`
 }
 
+function syncFs() {
+  isFs.value = !!document.fullscreenElement
+}
+
 let timer = 0
 onMounted(() => {
   fmt()
   timer = window.setInterval(fmt, 1000)
+  document.addEventListener('fullscreenchange', syncFs)
 })
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  document.removeEventListener('fullscreenchange', syncFs)
+})
 
 async function toggleFs() {
   if (document.fullscreenElement) {
     await document.exitFullscreen()
-    isFs.value = false
   } else {
     await document.documentElement.requestFullscreen()
-    isFs.value = true
   }
 }
 </script>
