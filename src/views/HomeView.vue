@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChongqingMap from '@/components/map/ChongqingMap.vue'
 import HeaderBar from '@/components/layout/HeaderBar.vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
 import KpiPanel from '@/components/panels/KpiPanel.vue'
@@ -20,7 +21,7 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
     <img class="bg-terrain" :src="bgTerrain" alt="" />
     <HeaderBar />
 
-    <!-- 槽位：Task 12 地图 <ChongqingMap class="pos-map" /> -->
+    <ChongqingMap class="pos-map" />
     <KpiPanel class="pos-kpi" />
     <AmountTablePanel class="pos-amount" />
 
