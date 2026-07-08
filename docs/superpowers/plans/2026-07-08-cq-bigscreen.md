@@ -840,6 +840,15 @@ if (existsSync(CACHE)) {
   console.log(`已缓存 GeoJSON → ${CACHE}`)
 }
 
+// 阿里 Atlas GeoJSON 的环绕向与 d3-geo 球面语义相反（不修会导致质心全部坍缩到画布中心）：
+// 统一反转所有 Polygon/MultiPolygon 的环（仅内存中，不改缓存文件）
+for (const f of geojson.features) {
+  const g = f.geometry
+  if (g.type === 'Polygon') g.coordinates = g.coordinates.map((ring) => ring.slice().reverse())
+  else if (g.type === 'MultiPolygon')
+    g.coordinates = g.coordinates.map((poly) => poly.map((ring) => ring.slice().reverse()))
+}
+
 // 名称断言：GeoJSON 区县名与 DISTRICTS（mock 数据 key）双向一致
 const names = geojson.features.map((f) => f.properties.name)
 const got = new Set(names)
