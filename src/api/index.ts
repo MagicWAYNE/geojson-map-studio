@@ -88,5 +88,5 @@ export async function getDistrictMapData(): Promise<DistrictMapItem[]> {
 export async function getDistrictDetail(name: string): Promise<DistrictDetail | null> {
   await delay()
   const all = districtDetailRaw as unknown as Record<string, DistrictDetail>
-  return all[name] ?? null
+  return Object.hasOwn(all, name) ? all[name] : null
 }
