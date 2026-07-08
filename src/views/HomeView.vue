@@ -4,6 +4,9 @@ import SectionTitle from '@/components/layout/SectionTitle.vue'
 import KpiPanel from '@/components/panels/KpiPanel.vue'
 import AmountTablePanel from '@/components/panels/AmountTablePanel.vue'
 import QualityPanel from '@/components/panels/QualityPanel.vue'
+import TechPanel from '@/components/panels/TechPanel.vue'
+import OrgPanel from '@/components/panels/OrgPanel.vue'
+import SocialPanel from '@/components/panels/SocialPanel.vue'
 import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
 </script>
@@ -20,7 +23,9 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
 
     <SectionTitle class="pos-quality-title" title="质效分析" />
     <QualityPanel class="pos-quality" />
-    <!-- 槽位：Task 9 <TechPanel class="pos-tech" /> <OrgPanel class="pos-org" /> <SocialPanel class="pos-social" /> -->
+    <TechPanel class="pos-tech" />
+    <OrgPanel class="pos-org" />
+    <SocialPanel class="pos-social" />
 
     <SectionTitle class="pos-inquiry-title" title="电询转办分析" />
     <!-- 槽位：Task 10 <InquiryPanel class="pos-inquiry" /> -->
