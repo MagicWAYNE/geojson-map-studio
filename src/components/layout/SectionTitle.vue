@@ -28,7 +28,7 @@ defineProps<{ title: string }>()
 }
 .section-title span {
   position: absolute; left: 43px; top: 4px;
-  font-family: 'YouSheBiaoTiHei'; font-size: 28px; font-style: italic; letter-spacing: 2px;
+  font-family: 'YouSheBiaoTiHei'; font-size: 28px; letter-spacing: 2px;
   background: linear-gradient(180deg, #b0dbfa, #ffffff);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
