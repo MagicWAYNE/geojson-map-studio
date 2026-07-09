@@ -43,9 +43,9 @@ const KPI_CARDS: KpiCard[] = [
 
 const ORG_COLUMNS: ScrollColumn[] = [
   { key: 'lx', title: '调解组织', width: '40%' },
-  { key: 'rs', title: '人员', width: '15%', align: 'center' },
-  { key: 'dx', title: '电询', width: '15%', align: 'center', color: '#edd892' },
-  { key: 'bwt', title: '被委托案', width: '30%', align: 'center' }
+  { key: 'rs', title: '人员', width: '15%', align: 'center', numeric: true },
+  { key: 'dx', title: '电询', width: '15%', align: 'center', color: '#edd892', numeric: true },
+  { key: 'bwt', title: '被委托案', width: '30%', align: 'center', numeric: true }
 ]
 
 async function load() {

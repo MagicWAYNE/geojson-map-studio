@@ -6,9 +6,9 @@ import type { ScrollColumn } from '@/types'
 import { getHgpxList } from '@/api'
 
 const columns: ScrollColumn[] = [
-  { key: 'idx', title: '序号', width: '10%', align: 'center' },
+  { key: 'idx', title: '序号', width: '10%', align: 'center', numeric: true },
   { key: 'zt', title: '培训主题', width: '55%' },
-  { key: 'rs', title: '参与人数', width: '15%', align: 'center', color: '#edd892' },
+  { key: 'rs', title: '参与人数', width: '15%', align: 'center', color: '#edd892', numeric: true },
   { key: 'rq', title: '时间', width: '20%', align: 'center' }
 ]
 

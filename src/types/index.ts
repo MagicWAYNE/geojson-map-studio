@@ -143,4 +143,6 @@ export interface ScrollColumn {
   width: string
   align?: 'left' | 'center' | 'right'
   color?: string
+  /** 纯数字列（数量/金额/比率等）用 Bebas 渲染；日期时间列勿开 */
+  numeric?: boolean
 }

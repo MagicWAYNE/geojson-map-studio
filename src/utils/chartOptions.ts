@@ -3,7 +3,23 @@ import type { EChartsOption } from 'echarts'
 import type { XYItem } from '@/types'
 
 const AXIS_LABEL = { color: '#90a3c8', fontSize: 12, fontFamily: 'OPPOSans-R' }
+/** 数值轴刻度用 Bebas（类目轴是月份/省份等文字，保持 OPPOSans） */
+const VALUE_AXIS_LABEL = { color: '#90a3c8', fontSize: 12, fontFamily: 'Bebas' }
 const SPLIT_LINE = { lineStyle: { color: 'rgba(144,163,200,0.15)' } }
+
+/** axis 触发的 tooltip：数值部分用 Bebas 渲染 */
+function axisTooltipFormatter(params: unknown): string {
+  const list = (Array.isArray(params) ? params : [params]) as {
+    name: string
+    marker: string
+    seriesName: string
+    value: number | string
+  }[]
+  return [
+    list[0]?.name ?? '',
+    ...list.map((p) => `${p.marker}${p.seriesName}：<span style="font-family:Bebas">${p.value}</span>`)
+  ].join('<br/>')
+}
 
 /** colorField 去重（保留首次出现顺序）作为系列名 */
 function seriesNames(list: XYItem[]): string[] {
@@ -35,7 +51,8 @@ export function buildDoubleBarOption(list: XYItem[], opts: { xLabelInterval?: nu
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(6,18,40,0.92)', borderColor: '#2483FF',
-      textStyle: { color: '#fff', fontSize: 12 }
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter: axisTooltipFormatter
     },
     xAxis: {
       type: 'category', data: cats,
@@ -43,7 +60,7 @@ export function buildDoubleBarOption(list: XYItem[], opts: { xLabelInterval?: nu
       axisLine: { lineStyle: { color: 'rgba(144,163,200,0.3)' } },
       axisTick: { show: false }
     },
-    yAxis: { type: 'value', axisLabel: AXIS_LABEL, splitLine: SPLIT_LINE },
+    yAxis: { type: 'value', axisLabel: VALUE_AXIS_LABEL, splitLine: SPLIT_LINE },
     series: names.map((nm, idx) => ({
       name: nm, type: 'bar' as const, barWidth: 5, barGap: '60%',
       data: seriesData(list, nm, cats),
@@ -75,7 +92,8 @@ export function buildMultiLineOption(
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(6,18,40,0.92)', borderColor: '#2483FF',
-      textStyle: { color: '#fff', fontSize: 12 }
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter: axisTooltipFormatter
     },
     xAxis: {
       type: 'category', data: cats, boundaryGap: false,
@@ -83,7 +101,7 @@ export function buildMultiLineOption(
       axisLine: { lineStyle: { color: 'rgba(144,163,200,0.3)' } },
       axisTick: { show: false }
     },
-    yAxis: { type: 'value', axisLabel: AXIS_LABEL, splitLine: SPLIT_LINE },
+    yAxis: { type: 'value', axisLabel: VALUE_AXIS_LABEL, splitLine: SPLIT_LINE },
     series: names.map((nm) => {
       const color = seriesColors[nm] ?? '#2e82db'
       return {

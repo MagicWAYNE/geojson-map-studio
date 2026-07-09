@@ -43,6 +43,7 @@ const scrollStyle = computed(() =>
           <span
             v-for="c in columns"
             :key="c.key"
+            :class="{ num: c.numeric }"
             :style="{ width: c.width, textAlign: c.align ?? 'left', color: c.color }"
           >{{ r[c.key] }}</span>
         </div>
@@ -64,6 +65,7 @@ const scrollStyle = computed(() =>
 .tbody { overflow: hidden; }
 .rows.scrolling { animation: scroll-up linear infinite; }
 .row { display: flex; align-items: center; font-size: 13px; color: #fff; font-family: 'OPPOSans-R'; }
+.row span.num { font-family: Bebas, 'OPPOSans-R', sans-serif; }
 .row:nth-child(odd) { background: rgba(36, 131, 255, 0.06); }
 @keyframes scroll-up {
   from { transform: translateY(0); }
