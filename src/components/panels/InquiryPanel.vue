@@ -57,7 +57,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
         </div>
       </div>
       <div class="big" style="top: 93px">
-        <img :src="iconSmall1" alt="" />
+        <img class="icon-dense" :src="iconSmall1" alt="" />
         <div>
           <div class="title">累计转办</div>
           <div class="value">
@@ -82,6 +82,8 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 .inquiry-panel { position: relative; width: 492px; height: 360px; }
 .big { position: absolute; left: 12px; display: flex; align-items: center; gap: 10px; }
 .big img { width: 52px; height: 52px; }
+/* icon-small-1 素材主体无留白（144 画布系图标主体仅占 40%），加内边距使视觉大小一致 */
+.big img.icon-dense { padding: 14px; }
 .mini { position: absolute; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 5px; }
 .value { display: flex; align-items: baseline; gap: 5px; }
