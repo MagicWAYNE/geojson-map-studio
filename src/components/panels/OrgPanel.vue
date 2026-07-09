@@ -44,7 +44,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
         <NumberFlop :value="num(data?.zzgl_nl)" :decimals="1" :font-size="18" color="#edd892" />
       </div>
       <div class="mini" style="top: 34px">
-        <span>大专学历及以上</span>
+        <span>大专及以上</span>
         <NumberFlop :value="num(data?.zzgl_xl)" :decimals="0" :font-size="18" color="#edd892" />
         <span class="unit">%</span>
       </div>
