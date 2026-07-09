@@ -5,6 +5,7 @@ import { getDashboardData } from '@/api'
 import type { DashboardData } from '@/types'
 import iconCase from '@/assets/images/icon-kpi-case.png'
 import iconMoney from '@/assets/images/icon-kpi-money.png'
+import kpiDeco from '@/assets/images/kpi-deco.png'
 
 interface KpiItem {
   key: keyof DashboardData
@@ -42,6 +43,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
     <div v-if="error" class="err">{{ error }}</div>
     <template v-else>
       <div class="row" style="top: 0">
+        <img class="deco" :src="kpiDeco" alt="" />
         <img class="icon" :src="iconCase" alt="" />
         <div v-for="it in ROW1" :key="it.key" class="item" :style="{ left: it.x + 'px' }">
           <div class="title">{{ it.title }}</div>
@@ -52,6 +54,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
         </div>
       </div>
       <div class="row" style="top: 101px">
+        <img class="deco" :src="kpiDeco" alt="" />
         <img class="icon" :src="iconMoney" alt="" />
         <div v-for="it in ROW2" :key="it.key" class="item" :style="{ left: it.x + 'px' }">
           <div class="title">{{ it.title }}</div>
@@ -68,6 +71,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 <style scoped>
 .kpi-panel { position: relative; width: 748px; height: 178px; }
 .row { position: absolute; left: 0; width: 748px; height: 77px; }
+.deco { position: absolute; left: 0; top: 3px; width: 260px; height: 74px; }
 .icon { position: absolute; left: 4px; top: 4px; width: 68px; height: 68px; }
 .item { position: absolute; top: 2px; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 8px; }
