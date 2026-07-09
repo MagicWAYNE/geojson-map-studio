@@ -7,10 +7,10 @@ import { getZuzhizhixiaoList } from '@/api'
 
 const columns: ScrollColumn[] = [
   { key: 'lx', title: '组织单位', width: '34%' },
-  { key: 'rs', title: '调解人员', width: '15%', align: 'center' },
-  { key: 'dx', title: '电询数量', width: '15%', align: 'center', color: '#edd892' },
-  { key: 'bwt', title: '被委托案', width: '18%', align: 'center' },
-  { key: 'bl', title: '被询比率', width: '18%', align: 'center', color: '#00DEFF' }
+  { key: 'rs', title: '调解人员', width: '15%', align: 'center', numeric: true },
+  { key: 'dx', title: '电询数量', width: '15%', align: 'center', color: '#edd892', numeric: true },
+  { key: 'bwt', title: '被委托案', width: '18%', align: 'center', numeric: true },
+  { key: 'bl', title: '被询比率', width: '18%', align: 'center', color: '#00DEFF', numeric: true }
 ]
 
 const rows = ref<Record<string, unknown>[]>([])
