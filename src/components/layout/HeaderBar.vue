@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import headerImg from '@/assets/images/header-bar.png'
-import headerVideo from '@/assets/video/header-bg.webm'
 import fsIn from '@/assets/images/fullscreen-in.png'
 import fsOut from '@/assets/images/fullscreen-out.png'
 
@@ -42,8 +41,8 @@ async function toggleFs() {
 
 <template>
   <header class="header">
-    <video class="layer" :src="headerVideo" autoplay loop muted playsinline />
     <img class="layer" :src="headerImg" alt="" />
+    <div class="scan" aria-hidden="true"></div>
     <div class="timer">{{ now }}</div>
     <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
   </header>
@@ -52,6 +51,48 @@ async function toggleFs() {
 <style scoped>
 .header { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; z-index: 20; pointer-events: none; }
 .layer { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; object-fit: cover; }
+/* 扫光只在 header-bar.png 的可见像素上显形：容器用图自身做 mask，光带在容器内部平移 */
+.scan {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 174px;
+  overflow: hidden;
+  -webkit-mask-image: url('@/assets/images/header-bar.png');
+  mask-image: url('@/assets/images/header-bar.png');
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  mix-blend-mode: screen;
+}
+.scan::before, .scan::after {
+  content: '';
+  position: absolute; top: -20%; height: 140%;
+  animation: header-scan 6.5s linear infinite;
+}
+/* 氛围光晕：宽而弱 */
+.scan::before {
+  left: -260px; width: 520px;
+  background: linear-gradient(100deg,
+    transparent 0%, rgba(90, 160, 255, 0.06) 35%,
+    rgba(140, 200, 255, 0.16) 50%,
+    rgba(90, 160, 255, 0.06) 65%, transparent 100%);
+  filter: blur(14px);
+  transform: skewX(-18deg);
+}
+/* 核心亮线：窄而柔 */
+.scan::after {
+  left: -110px; width: 220px;
+  background: linear-gradient(100deg,
+    transparent 0%, rgba(120, 180, 255, 0.10) 30%,
+    rgba(200, 230, 255, 0.45) 50%,
+    rgba(120, 180, 255, 0.14) 70%, transparent 100%);
+  filter: blur(6px);
+  transform: skewX(-18deg);
+}
+/* 5s 扫过全宽，其余 1.5s 停顿 */
+@keyframes header-scan {
+  /* 起点 -350px 保证光带（含 skew 偏移与 blur 扩散）完全在画面外，避免循环起始在左缘闪现 */
+  0% { transform: translateX(-350px) skewX(-18deg); }
+  76.923% { transform: translateX(2300px) skewX(-18deg); }
+  100% { transform: translateX(2300px) skewX(-18deg); }
+}
 .timer {
   position: absolute; left: 1576px; top: 34px; width: 300px; white-space: nowrap;
   font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
