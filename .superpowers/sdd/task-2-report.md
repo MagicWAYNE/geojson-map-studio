@@ -103,3 +103,32 @@ npm run build: exit 0 (built in 11.29s)
 ### TDD applicability
 
 The test was added before any production-code change. Its first run failed because the required per-file `happy-dom` environment was not installed (`ERR_MODULE_NOT_FOUND` for `happy-dom`). After adding the explicitly permitted test-only dependency, it passed against the existing `parseSvgRegions` implementation. No production code was needed or changed; manufacturing a RED result by breaking working geometry logic would not have been applicable to this coverage-only review fix.
+
+## Review Fix 2
+
+### Compatibility correction
+
+Replaced the test-only dependency `happy-dom@20.10.6` with exact `happy-dom@15.11.7`; no project-level `engines` declaration was added.
+
+### Engine evidence
+
+```bash
+node --input-type=module -e 'import installed from "./node_modules/happy-dom/package.json" with { type: "json" }; import lock from "./package-lock.json" with { type: "json" }; console.log(JSON.stringify({installed:{version:installed.version,engines:installed.engines},lock:lock.packages["node_modules/happy-dom"]?.engines,projectEngines:lock.packages[""]?.engines ?? null}))'
+npm ls happy-dom --depth=0
+```
+
+```text
+{"installed":{"version":"15.11.7","engines":{"node":">=18.0.0"}},"lock":{"node":">=18.0.0"},"projectEngines":null}
+└── happy-dom@15.11.7
+```
+
+This confirms both installed package metadata and the lockfile accept Node 18, with no project Node >=20 contract.
+
+### Verification results
+
+```text
+npm test -- src/components/map/mapGeometry.test.ts: 5/5 passed
+npm test: 2 files, 9/9 passed
+npm run typecheck: exit 0
+npm run build: exit 0 (built in 3.30s)
+```

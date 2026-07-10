@@ -24,7 +24,7 @@
     "@types/three": "^0.185.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "d3-geo": "^3.1.1",
-    "happy-dom": "20.10.6",
+    "happy-dom": "15.11.7",
     "typescript": "~5.7.2",
     "vite": "^6.0.7",
     "vitest": "^3.2.4",
