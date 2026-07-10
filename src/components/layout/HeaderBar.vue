@@ -44,8 +44,10 @@ async function toggleFs() {
     <img class="layer" :src="headerImg" alt="" />
     <h1 class="title">重庆金融调解中心</h1>
     <div class="scan" aria-hidden="true"></div>
-    <div class="timer">{{ now }}</div>
-    <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
+    <div class="controls">
+      <span class="timer">{{ now }}</span>
+      <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
+    </div>
   </header>
 </template>
 
@@ -107,9 +109,15 @@ async function toggleFs() {
   76.923% { transform: translateX(2300px) skewX(-18deg); }
   100% { transform: translateX(2300px) skewX(-18deg); }
 }
-.timer {
-  position: absolute; left: 1576px; top: 34px; width: 300px; white-space: nowrap;
-  font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
+/* 右侧控制区：右缘锚定的 flex 行，时间向左伸展，与按钮保持固定间距不重叠 */
+.controls {
+  position: absolute; right: 32px; top: 30px; height: 36px;
+  display: flex; align-items: center; gap: 16px;
 }
-.fs-btn { position: absolute; left: 1852px; top: 30px; width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
+.timer {
+  white-space: nowrap;
+  font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.fs-btn { width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
 </style>
