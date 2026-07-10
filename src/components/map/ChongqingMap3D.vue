@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router'
 import { getDistrictMapData } from '@/api'
 import { useMapDebug } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
+import { parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 
 /**
  * POC：Three.js 挤出版重庆主城区地图（渝中/两江新区/南岸/九龙坡/沙坪坝/大渡口/北碚/巴南）。
@@ -17,9 +18,6 @@ withDefaults(defineProps<{ focus?: string; showLines?: boolean }>(), {
   focus: '',
   showLines: true
 })
-
-type Ring = [number, number][]
-type Region = { name: string; outers: { ring: Ring; holes: Ring[] }[] }
 
 const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比例等比
 const DEPTH = 4 // 挤出厚度
@@ -48,108 +46,36 @@ const TOP_EMISSIVE = 0x0a2a66
 const HOVER_COLOR = 0x1e7dff
 const HOVER_EMISSIVE = 0x00a8d8
 
-/** 解析 path 的 d 属性（生成器只输出 M/L/Z 多边形命令）为环数组 */
-function parsePathD(d: string): Ring[] {
-  const rings: Ring[] = []
-  let cur: Ring = []
-  for (const m of d.matchAll(/([MLZ])([^MLZ]*)/g)) {
-    if (m[1] === 'Z') {
-      if (cur.length) rings.push(cur)
-      cur = []
-      continue
-    }
-    const nums = m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number)
-    const pts: Ring = []
-    for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]])
-    if (m[1] === 'M') {
-      if (cur.length) rings.push(cur)
-      cur = pts
-    } else {
-      cur.push(...pts)
-    }
-  }
-  if (cur.length) rings.push(cur)
-  return rings
-}
-
-function pointInRing([x, y]: [number, number], ring: Ring) {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [x1, y1] = ring[i]
-    const [x2, y2] = ring[j]
-    if (y1 > y !== y2 > y && x < ((x2 - x1) * (y - y1)) / (y2 - y1) + x1) inside = !inside
-  }
-  return inside
-}
-
-/** 每个 path 一个板块；子路径按环嵌套分类：被包含的环是孔洞（如九龙坡区），独立环是江心岛等 */
-function parseSvgRegions(svgText: string): Region[] {
-  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml')
-  const regions: Region[] = []
-  for (const path of Array.from(doc.querySelectorAll('path[data-name]'))) {
-    const rings = parsePathD(path.getAttribute('d') ?? '')
-    const outerRings = rings.filter((r) => !rings.some((o) => o !== r && pointInRing(r[0], o)))
-    const holeRings = rings.filter((r) => !outerRings.includes(r))
-    regions.push({
-      name: path.getAttribute('data-name')!,
-      outers: outerRings.map((ring) => ({
-        ring,
-        holes: holeRings.filter((h) => pointInRing(h[0], ring))
-      }))
-    })
-  }
-  return regions
-}
-
 function buildRegions(
   regions: Region[],
   byName: Map<string, DistrictMapItem>,
   terrainTex: THREE.Texture
 ) {
-  // 按全部板块的内容 bbox 等比适配到 PLANE_MAX 并居中（SVG y 向下 → three 平面 y 向上）
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const rg of regions) {
-    for (const o of rg.outers) {
-      for (const ring of [o.ring, ...o.holes]) {
-        for (const [x, y] of ring) {
-          if (x < minX) minX = x
-          if (x > maxX) maxX = x
-          if (y < minY) minY = y
-          if (y > maxY) maxY = y
-        }
-      }
-    }
-  }
-  const scale = PLANE_MAX / Math.max(maxX - minX, maxY - minY)
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
-  const project = ([x, y]: [number, number]): [number, number] => [(x - cx) * scale, (cy - y) * scale]
+  const projected = projectRegions(regions, PLANE_MAX)
+  const [cx, cy] = projected.center
+  const scale = projected.scale
 
   // 顶面 UV 是 shape 平面坐标（ExtrudeGeometry 默认），用纹理变换把它映射回地形图像素：
   // world = ((px-cx)·s, (cy-py)·s)，目标 u = px/W、v = 1 - py/H（flipY）
   const texImg = terrainTex.image as { width: number; height: number }
-  const texW = texImg.width
-  const texH = texImg.height
-  terrainTex.repeat.set(1 / (scale * texW), 1 / (scale * texH))
-  terrainTex.offset.set(cx / texW, 1 - cy / texH)
+  terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
+  terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
 
   const group = new THREE.Group()
   const sideMat = new THREE.MeshStandardMaterial({ color: 0x05173a, roughness: 0.68, metalness: 0.3 })
   const lineMat = new THREE.LineBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.85 })
 
-  for (const region of regions) {
+  for (const region of projected.regions) {
     const name = region.name
     const shapes: THREE.Shape[] = []
-    const rings: [number, number][][] = []
+    const rings: Array<Array<[number, number]>> = []
 
     for (const outer of region.outers) {
-      const outerPts = outer.ring.map(project)
-      const shape = new THREE.Shape(outerPts.map(([x, y]) => new THREE.Vector2(x, y)))
-      rings.push(outerPts)
+      const shape = new THREE.Shape(outer.ring.map(([x, y]) => new THREE.Vector2(x, y)))
+      rings.push(outer.ring)
       for (const holeRing of outer.holes) {
-        const hole = holeRing.map(project)
-        shape.holes.push(new THREE.Path(hole.map(([x, y]) => new THREE.Vector2(x, y))))
-        rings.push(hole)
+        shape.holes.push(new THREE.Path(holeRing.map(([x, y]) => new THREE.Vector2(x, y))))
+        rings.push(holeRing)
       }
       shapes.push(shape)
     }
@@ -170,9 +96,9 @@ function buildRegions(
 
     // 顶面边界描边（POC 用 1px 线，正式阶段换 Line2 发光粗线）
     for (const ring of rings) {
-      const pts = ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts)
-      group.add(new THREE.LineLoop(lineGeo, lineMat))
+      const points = ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points)
+      group.add(new THREE.LineLoop(lineGeometry, lineMat))
     }
   }
 
