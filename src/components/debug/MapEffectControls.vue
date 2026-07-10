@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import type { MapEffectBaseConfig, MapEffectHoverConfig } from '@/components/map/mapEffectConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
 
@@ -21,6 +21,8 @@ type Field =
   | { section: 'hover'; key: HoverColorKey; kind: 'color'; label: string }
   | ({ section: 'base'; key: BaseNumberKey } & NumberFieldBase)
   | ({ section: 'hover'; key: HoverNumberKey } & NumberFieldBase)
+
+type NumberField = Extract<Field, { kind: 'number' }>
 
 const GROUPS: ReadonlyArray<{ title: string; fields: readonly Field[] }> = [
   {
@@ -61,6 +63,7 @@ const GROUPS: ReadonlyArray<{ title: string; fields: readonly Field[] }> = [
 const { effect, effectJson, resetEffect } = useMapDebug()
 const copied = ref(false)
 const HEX = /^#[0-9a-f]{6}$/i
+const numberDrafts = reactive<Record<string, string>>({})
 let copiedTimer = 0
 
 function valueOf(field: Field): string | number {
@@ -73,20 +76,49 @@ function fieldId(field: Field, control: 'color' | 'hex' | 'number' | 'range'): s
   return `effect-${field.section}-${field.key}-${control}`
 }
 
-function updateNumber(field: Field, event: Event): void {
-  if (field.kind !== 'number') return
-  const input = event.target as HTMLInputElement
-  const value = input.valueAsNumber
-  if (Number.isNaN(value)) {
-    input.value = String(valueOf(field))
-    return
-  }
+function draftKey(field: NumberField): string {
+  return `${field.section}.${field.key}`
+}
+
+function numberDraft(field: NumberField): string {
+  return numberDrafts[draftKey(field)] ?? String(valueOf(field))
+}
+
+function normalizeNumber(field: NumberField, raw: string): number {
+  const parsed = raw.trim() === '' ? Number(valueOf(field)) : Number(raw)
+  const value = Number.isFinite(parsed) ? parsed : Number(valueOf(field))
   const clamped = Math.min(field.max, Math.max(field.min, value))
   const precision = (String(field.step).split('.')[1] ?? '').length
-  const rounded = Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+  return Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+}
+
+function writeNumber(field: NumberField, raw: string): void {
+  const rounded = normalizeNumber(field, raw)
+  numberDrafts[draftKey(field)] = String(rounded)
   if (field.section === 'base') effect.base[field.key] = rounded
   else effect.hover[field.key] = rounded
 }
+
+function updateNumberDraft(field: NumberField, event: Event): void {
+  numberDrafts[draftKey(field)] = (event.target as HTMLInputElement).value
+}
+
+function commitNumber(field: NumberField, event: Event): void {
+  writeNumber(field, (event.target as HTMLInputElement).value)
+}
+
+function updateRange(field: NumberField, event: Event): void {
+  writeNumber(field, (event.target as HTMLInputElement).value)
+}
+
+function isNumberField(field: Field): field is NumberField {
+  return field.kind === 'number'
+}
+
+const numberFields = GROUPS.flatMap((group) => group.fields).filter(isNumberField)
+const stopDraftWatch = watch(effect, () => {
+  for (const field of numberFields) numberDrafts[draftKey(field)] = String(valueOf(field))
+}, { deep: true, immediate: true })
 
 function updateColor(field: Field, event: Event): void {
   if (field.kind !== 'color') return
@@ -115,7 +147,10 @@ async function copyEffect(): Promise<void> {
   copiedTimer = window.setTimeout(() => (copied.value = false), 1500)
 }
 
-onBeforeUnmount(() => clearTimeout(copiedTimer))
+onBeforeUnmount(() => {
+  stopDraftWatch()
+  clearTimeout(copiedTimer)
+})
 </script>
 
 <template>
@@ -147,11 +182,13 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
             :id="fieldId(field, 'number')"
             class="num"
             type="number"
-            :value="valueOf(field)"
+            :value="numberDraft(field)"
             :min="field.min"
             :max="field.max"
             :step="field.step"
-            @input="updateNumber(field, $event)"
+            @input="updateNumberDraft(field, $event)"
+            @change="commitNumber(field, $event)"
+            @blur="commitNumber(field, $event)"
           />
         </div>
         <input
@@ -164,7 +201,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           :max="field.max"
           :step="field.step"
           :aria-label="field.label + '滑块'"
-          @input="updateNumber(field, $event)"
+          @input="updateRange(field, $event)"
         />
       </div>
     </section>
