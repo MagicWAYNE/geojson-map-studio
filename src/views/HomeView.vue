@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ChongqingMap from '@/components/map/ChongqingMap.vue'
+import ChongqingMap3D from '@/components/map/ChongqingMap3D.vue'
 import HeaderBar from '@/components/layout/HeaderBar.vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
 import KpiPanel from '@/components/panels/KpiPanel.vue'
@@ -25,7 +25,7 @@ const { layout: mapLayout } = useMapDebug()
     <img class="bg-terrain" :src="bgTerrain" alt="" />
     <HeaderBar debug />
 
-    <ChongqingMap
+    <ChongqingMap3D
       class="pos-map"
       :style="{
         left: mapLayout.left + 'px',
