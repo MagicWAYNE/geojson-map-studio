@@ -42,6 +42,7 @@ async function toggleFs() {
 <template>
   <header class="header">
     <img class="layer" :src="headerImg" alt="" />
+    <h1 class="title">重庆金融调解中心</h1>
     <div class="scan" aria-hidden="true"></div>
     <div class="timer">{{ now }}</div>
     <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
@@ -51,6 +52,19 @@ async function toggleFs() {
 <style scoped>
 .header { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; z-index: 20; pointer-events: none; }
 .layer { position: absolute; left: 0; top: 0; width: 1920px; height: 174px; object-fit: cover; }
+/* 标题：白→金渐变文字，复刻原图样式；置于 .scan 之前，扫光经过时随之点亮 */
+.title {
+  position: absolute; left: 60px; top: 22px; margin: 0;
+  font-family: 'YouSheBiaoTiHei'; font-size: 48px; font-weight: normal;
+  line-height: 66px; letter-spacing: 3px; white-space: nowrap;
+  background: linear-gradient(180deg, #ffffff 30%, #ffedc8 65%, #f3cf95 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Chromium 合成 bug：background-clip:text 的元素若留在 .scan(mix-blend-mode) 的背景组里，
+     混合层整体不绘制；提升为独立合成层可规避 */
+  transform: translateZ(0);
+}
 /* 扫光只在 header-bar.png 的可见像素上显形：容器用图自身做 mask，光带在容器内部平移 */
 .scan {
   position: absolute; left: 0; top: 0; width: 1920px; height: 174px;
