@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
 import {
   advanceHoverProgress,
   deriveHoverLayerValues,
   deriveStaticLayerValues,
-  easeOutCubic
+  easeOutCubic,
+  updateHoverVisualState
 } from './mapGlow'
 
 describe('mapGlow layer values', () => {
@@ -35,5 +36,22 @@ describe('mapGlow hover animation', () => {
     expect(easeOutCubic(0)).toBe(0)
     expect(easeOutCubic(0.5)).toBe(0.875)
     expect(easeOutCubic(1)).toBe(1)
+  })
+
+  it('skips stable endpoints but force-renders them after configuration changes', () => {
+    const render = vi.fn()
+    const inactive = { progress: 0, active: false }
+    const active = { progress: 1, active: true }
+
+    expect(updateHoverVisualState(inactive, 16, 180, 220, render)).toBe(false)
+    expect(updateHoverVisualState(active, 16, 180, 220, render)).toBe(false)
+    expect(render).not.toHaveBeenCalled()
+
+    expect(updateHoverVisualState(inactive, 0, 180, 220, render, true)).toBe(true)
+    expect(render).toHaveBeenCalledWith(inactive, 0)
+
+    render.mockClear()
+    expect(updateHoverVisualState({ progress: 0.5, active: true }, 18, 180, 220, render)).toBe(true)
+    expect(render).toHaveBeenCalledOnce()
   })
 })

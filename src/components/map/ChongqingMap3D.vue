@@ -11,12 +11,11 @@ import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
-  advanceHoverProgress,
   createHoverGlowLayers,
   createStaticGlowLayers,
-  easeOutCubic,
   setHoverGlowProgress,
   setGlowResolution,
+  updateHoverVisualState,
   type HoverGlowBundle,
   type StaticGlowBundle
 } from './mapGlow'
@@ -83,6 +82,16 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
+  for (const visual of regionVisuals) {
+    updateHoverVisualState(
+      visual,
+      0,
+      effect.hover.enterMs,
+      effect.hover.leaveMs,
+      renderRegionVisual,
+      true
+    )
+  }
 }
 
 const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
@@ -269,22 +278,25 @@ function setHover(mesh: THREE.Mesh | null): void {
   if (container.value) container.value.style.cursor = next ? 'pointer' : 'default'
 }
 
+function renderRegionVisual(visual: RegionVisual, eased: number): void {
+  const hover = effect.hover
+  visual.group.position.z = hover.lift * eased
+  visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceTarget, eased)
+  visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
+  visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
+  if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
+}
+
 function updateRegionVisuals(deltaMs: number): void {
   const hover = effect.hover
   for (const visual of regionVisuals) {
-    visual.progress = advanceHoverProgress(
-      visual.progress,
-      visual.active,
+    updateHoverVisualState(
+      visual,
       deltaMs,
       hover.enterMs,
-      hover.leaveMs
+      hover.leaveMs,
+      renderRegionVisual
     )
-    const eased = easeOutCubic(visual.progress)
-    visual.group.position.z = hover.lift * eased
-    visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceTarget, eased)
-    visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
-    visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
-    if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
   }
 }
 

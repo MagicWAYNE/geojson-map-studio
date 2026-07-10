@@ -200,6 +200,26 @@ export function easeOutCubic(progress: number): number {
   return 1 - Math.pow(1 - value, 3)
 }
 
+export interface HoverVisualState {
+  progress: number
+  active: boolean
+}
+
+export function updateHoverVisualState<T extends HoverVisualState>(
+  state: T,
+  deltaMs: number,
+  enterMs: number,
+  leaveMs: number,
+  render: (state: T, easedProgress: number) => void,
+  force = false
+): boolean {
+  const next = advanceHoverProgress(state.progress, state.active, deltaMs, enterMs, leaveMs)
+  if (!force && next === state.progress) return false
+  state.progress = next
+  render(state, easeOutCubic(next))
+  return true
+}
+
 export function setGlowResolution(
   bundle: GlowBundleBase,
   width: number,
