@@ -69,17 +69,23 @@ function valueOf(field: Field): string | number {
     : effect.hover[field.key]
 }
 
+function fieldId(field: Field, control: 'color' | 'hex' | 'number' | 'range'): string {
+  return `effect-${field.section}-${field.key}-${control}`
+}
+
 function updateNumber(field: Field, event: Event): void {
   if (field.kind !== 'number') return
   const input = event.target as HTMLInputElement
-  const value = Number(input.value)
-  if (!Number.isFinite(value)) {
+  const value = input.valueAsNumber
+  if (Number.isNaN(value)) {
     input.value = String(valueOf(field))
     return
   }
   const clamped = Math.min(field.max, Math.max(field.min, value))
-  if (field.section === 'base') effect.base[field.key] = clamped
-  else effect.hover[field.key] = clamped
+  const precision = (String(field.step).split('.')[1] ?? '').length
+  const rounded = Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+  if (field.section === 'base') effect.base[field.key] = rounded
+  else effect.hover[field.key] = rounded
 }
 
 function updateColor(field: Field, event: Event): void {
@@ -118,13 +124,27 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
       <h3>{{ group.title }}</h3>
       <div v-for="field in group.fields" :key="field.key" class="field">
         <div class="field-head">
-          <label>{{ field.label }}</label>
+          <label :for="fieldId(field, field.kind === 'color' ? 'color' : 'number')">{{ field.label }}</label>
           <template v-if="field.kind === 'color'">
-            <input class="color" type="color" :value="valueOf(field)" @input="updateColor(field, $event)" />
-            <input class="hex" type="text" :value="valueOf(field)" @change="updateColor(field, $event)" />
+            <input
+              :id="fieldId(field, 'color')"
+              class="color"
+              type="color"
+              :value="valueOf(field)"
+              @input="updateColor(field, $event)"
+            />
+            <input
+              :id="fieldId(field, 'hex')"
+              class="hex"
+              type="text"
+              :value="valueOf(field)"
+              :aria-label="field.label + '十六进制颜色'"
+              @change="updateColor(field, $event)"
+            />
           </template>
           <input
             v-else
+            :id="fieldId(field, 'number')"
             class="num"
             type="number"
             :value="valueOf(field)"
@@ -136,12 +156,14 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         </div>
         <input
           v-if="field.kind === 'number'"
+          :id="fieldId(field, 'range')"
           class="slider"
           type="range"
           :value="valueOf(field)"
           :min="field.min"
           :max="field.max"
           :step="field.step"
+          :aria-label="field.label + '滑块'"
           @input="updateNumber(field, $event)"
         />
       </div>
