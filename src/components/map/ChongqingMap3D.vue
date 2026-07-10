@@ -51,6 +51,8 @@ let controls: OrbitControls | null = null
 let raf = 0
 let ro: ResizeObserver | null = null
 let staticGlow: StaticGlowBundle | null = null
+let mounted = false
+let initGeneration = 0
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 
@@ -358,16 +360,26 @@ function loop(now: number) {
   }
 }
 
-async function init() {
+function isCurrentInit(generation: number): boolean {
+  return mounted && generation === initGeneration && container.value !== null
+}
+
+async function init(generation: number) {
+  let terrainTex: THREE.Texture | null = null
+  let textureOwnedByScene = false
   try {
-    const [svgRes, data, terrainTex] = await Promise.all([
+    const [svgRes, data, loadedTerrainTex] = await Promise.all([
       fetch(`${import.meta.env.BASE_URL}maps/chongqing-selected-districts-tianditu-imagery-z12.svg`),
       getDistrictMapData(),
       new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
     ])
+    terrainTex = loadedTerrainTex
+    if (!isCurrentInit(generation)) return
     if (!svgRes.ok) throw new Error(`地图加载失败: HTTP ${svgRes.status}`)
     terrainTex.colorSpace = THREE.SRGBColorSpace
-    const regions = parseSvgRegions(await svgRes.text())
+    const svgText = await svgRes.text()
+    if (!isCurrentInit(generation)) return
+    const regions = parseSvgRegions(svgText)
     const byName = new Map(data.map((d) => [d.name, d]))
     // 两江新区是国家级新区（≈江北区+渝北区），行政区划数据里没有条目，取两区之和
     const jb = byName.get('江北区')
@@ -381,10 +393,18 @@ async function init() {
       })
     }
 
-    setupScene(buildRegions(regions, byName, terrainTex))
+    const mapGroup = buildRegions(regions, byName, terrainTex)
+    if (!isCurrentInit(generation)) {
+      disposeSceneResources(mapGroup)
+      terrainTex = null
+      return
+    }
+    setupScene(mapGroup)
+    textureOwnedByScene = true
     applyEffectConfig()
 
-    const el = container.value!
+    const el = container.value
+    if (!el || !isCurrentInit(generation)) return
     el.addEventListener('pointermove', onPointerMove)
     el.addEventListener('pointerdown', onPointerDown)
     el.addEventListener('click', onClick as EventListener)
@@ -393,11 +413,17 @@ async function init() {
     lastFpsAt = performance.now()
     raf = requestAnimationFrame(loop)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    if (isCurrentInit(generation)) error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    if (terrainTex && !textureOwnedByScene) terrainTex.dispose()
   }
 }
 
-onMounted(init)
+onMounted(() => {
+  mounted = true
+  const generation = ++initGeneration
+  void init(generation)
+})
 
 function disposeSceneResources(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>()
@@ -427,6 +453,8 @@ function disposeSceneResources(root: THREE.Object3D): void {
 }
 
 onBeforeUnmount(() => {
+  mounted = false
+  initGeneration++
   stopEffectWatch()
   cancelAnimationFrame(raf)
   ro?.disconnect()
