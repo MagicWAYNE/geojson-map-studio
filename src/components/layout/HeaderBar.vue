@@ -48,27 +48,29 @@ async function toggleFs() {
     <img class="layer" :src="headerImg" alt="" />
     <h1 class="title">重庆金融调解中心</h1>
     <div class="scan" aria-hidden="true"></div>
-    <div class="timer">{{ now }}</div>
-    <svg
-      v-if="debug"
-      class="debug-btn"
-      :class="{ active: drawerOpen }"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      @click="drawerOpen = !drawerOpen"
-    >
-      <title>地图位置调试</title>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <circle cx="9" cy="7" r="2.4" fill="#061228" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <circle cx="15" cy="12" r="2.4" fill="#061228" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-      <circle cx="7" cy="17" r="2.4" fill="#061228" />
-    </svg>
-    <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
+    <div class="controls">
+      <span class="timer">{{ now }}</span>
+      <svg
+        v-if="debug"
+        class="debug-btn"
+        :class="{ active: drawerOpen }"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        @click="drawerOpen = !drawerOpen"
+      >
+        <title>地图位置调试</title>
+        <line x1="4" y1="7" x2="20" y2="7" />
+        <circle cx="9" cy="7" r="2.4" fill="#061228" />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <circle cx="15" cy="12" r="2.4" fill="#061228" />
+        <line x1="4" y1="17" x2="20" y2="17" />
+        <circle cx="7" cy="17" r="2.4" fill="#061228" />
+      </svg>
+      <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
+    </div>
   </header>
 </template>
 
@@ -130,14 +132,20 @@ async function toggleFs() {
   76.923% { transform: translateX(2300px) skewX(-18deg); }
   100% { transform: translateX(2300px) skewX(-18deg); }
 }
-.timer {
-  position: absolute; left: 1576px; top: 34px; width: 300px; white-space: nowrap;
-  font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
+/* 右侧控制区：右缘锚定的 flex 行，时间向左伸展，与按钮保持固定间距不重叠 */
+.controls {
+  position: absolute; right: 32px; top: 30px; height: 36px;
+  display: flex; align-items: center; gap: 16px;
 }
-.fs-btn { position: absolute; left: 1852px; top: 30px; width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
+.timer {
+  white-space: nowrap;
+  font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
 .debug-btn {
-  position: absolute; left: 1806px; top: 32px; width: 32px; height: 32px;
+  width: 32px; height: 32px;
   cursor: pointer; pointer-events: auto; color: #fff;
 }
 .debug-btn:hover, .debug-btn.active { color: #00deff; }
+.fs-btn { width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
 </style>
