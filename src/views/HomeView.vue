@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ChongqingMap from '@/components/map/ChongqingMap.vue'
+import ChongqingMap3D from '@/components/map/ChongqingMap3D.vue'
 import HeaderBar from '@/components/layout/HeaderBar.vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
 import KpiPanel from '@/components/panels/KpiPanel.vue'
@@ -11,17 +11,29 @@ import SocialPanel from '@/components/panels/SocialPanel.vue'
 import InquiryPanel from '@/components/panels/InquiryPanel.vue'
 import DisposalPanel from '@/components/panels/DisposalPanel.vue'
 import TrainingPanel from '@/components/panels/TrainingPanel.vue'
+import MapDebugDrawer from '@/components/debug/MapDebugDrawer.vue'
+import { useMapDebug } from '@/composables/useMapDebug'
 import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
+
+const { layout: mapLayout } = useMapDebug()
 </script>
 
 <template>
   <div class="home">
     <img class="bg-main" :src="bgMain" alt="" />
     <img class="bg-terrain" :src="bgTerrain" alt="" />
-    <HeaderBar />
+    <HeaderBar debug />
 
-    <ChongqingMap class="pos-map" />
+    <ChongqingMap3D
+      class="pos-map"
+      :style="{
+        left: mapLayout.left + 'px',
+        top: mapLayout.top + 'px',
+        width: mapLayout.width + 'px',
+        height: mapLayout.height + 'px'
+      }"
+    />
     <KpiPanel class="pos-kpi" />
     <AmountTablePanel class="pos-amount" />
 
@@ -37,6 +49,7 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
     <TrainingPanel class="pos-training" />
 
     <div class="footer">指导监督单位：南岸区人民法院 南岸区司法局</div>
+    <MapDebugDrawer />
   </div>
 </template>
 
@@ -46,7 +59,7 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
 
 /* —— 面板定位槽（后续任务直接使用这些 class）—— */
-.pos-map { position: absolute; left: 40px; top: 320px; width: 800px; height: 680px; }
+.pos-map { position: absolute; /* left/top/width/height 由调试面板动态控制，默认值见 useMapDebug.ts */ }
 .pos-kpi { position: absolute; left: 36px; top: 143px; }
 .pos-amount { position: absolute; left: 36px; top: 812px; }
 .pos-quality-title { position: absolute; left: 868px; top: 129px; }

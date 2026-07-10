@@ -14,12 +14,15 @@
   "dependencies": {
     "echarts": "^5.6.0",
     "lucide-vue-next": "^1.0.0",
+    "three": "^0.185.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.1",
+    "@types/d3-geo": "^3.1.0",
     "d3-geo": "^3.1.1",
+    "@types/three": "^0.185.1",
+    "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.7.2",
     "vite": "^6.0.7",
     "vue-tsc": "^2.2.0"

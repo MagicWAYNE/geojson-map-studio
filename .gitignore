@@ -4,3 +4,8 @@ dist
 .DS_Store
 .gstack/
 orignal-assets/
+
+# 地图源素材交付包（运行时资源已复制到 public/maps/，包体积大不入库）
+chongqing-district-geojson-agent-package/
+chongqing-district-tianditu-layers-agent-package/
+chongqing-selected-districts.svg

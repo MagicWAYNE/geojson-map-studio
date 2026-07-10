@@ -3,6 +3,10 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import headerImg from '@/assets/images/header-bar.png'
 import fsIn from '@/assets/images/fullscreen-in.png'
 import fsOut from '@/assets/images/fullscreen-out.png'
+import { useMapDebug } from '@/composables/useMapDebug'
+
+defineProps<{ debug?: boolean }>()
+const { drawerOpen } = useMapDebug()
 
 const now = ref('')
 const isFs = ref(false)
@@ -45,6 +49,25 @@ async function toggleFs() {
     <h1 class="title">重庆金融调解中心</h1>
     <div class="scan" aria-hidden="true"></div>
     <div class="timer">{{ now }}</div>
+    <svg
+      v-if="debug"
+      class="debug-btn"
+      :class="{ active: drawerOpen }"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      @click="drawerOpen = !drawerOpen"
+    >
+      <title>地图位置调试</title>
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <circle cx="9" cy="7" r="2.4" fill="#061228" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <circle cx="15" cy="12" r="2.4" fill="#061228" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+      <circle cx="7" cy="17" r="2.4" fill="#061228" />
+    </svg>
     <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
   </header>
 </template>
@@ -112,4 +135,9 @@ async function toggleFs() {
   font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
 }
 .fs-btn { position: absolute; left: 1852px; top: 30px; width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
+.debug-btn {
+  position: absolute; left: 1806px; top: 32px; width: 32px; height: 32px;
+  cursor: pointer; pointer-events: auto; color: #fff;
+}
+.debug-btn:hover, .debug-btn.active { color: #00deff; }
 </style>
