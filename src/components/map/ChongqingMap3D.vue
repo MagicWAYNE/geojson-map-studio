@@ -7,12 +7,11 @@ import { getDistrictMapData } from '@/api'
 import { useMapDebug } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
+import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
   advanceHoverProgress,
-  applyHoverGlowConfig,
-  applyStaticGlowConfig,
   createHoverGlowLayers,
   createStaticGlowLayers,
   easeOutCubic,
@@ -78,10 +77,10 @@ const hoverEmissiveTarget = new THREE.Color(effect.hover.emissiveColor)
 function applyEffectConfig(): void {
   hoverSurfaceTarget.set(effect.hover.surfaceColor)
   hoverEmissiveTarget.set(effect.hover.emissiveColor)
-  if (staticGlow) applyStaticGlowConfig(staticGlow, effect)
-  for (const visual of regionVisuals) {
-    if (visual.hoverGlow) applyHoverGlowConfig(visual.hoverGlow, effect)
-  }
+  applyMapEffectConfig(effect, {
+    staticGlow,
+    hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
+  })
 }
 
 const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
