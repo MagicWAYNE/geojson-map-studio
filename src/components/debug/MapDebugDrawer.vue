@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useMapDebug } from '@/composables/useMapDebug'
+import { copyTextToClipboard } from '@/utils/copyText'
 import MapEffectControls from './MapEffectControls.vue'
 
 const activeTab = ref<'layout' | 'effect'>('layout')
@@ -18,24 +19,19 @@ const css = computed(
     `left: ${layout.left}px; top: ${layout.top}px; width: ${layout.width}px; height: ${layout.height}px;`
 )
 
-const copied = ref<'' | 'css' | 'cam'>('')
+type CopyTag = 'css' | 'cam'
+const copyResult = ref<{ tag: CopyTag; success: boolean } | null>(null)
 let copiedTimer = 0
 
-async function copyText(text: string, tag: 'css' | 'cam'): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch {
-    // 局域网 http 访问时 clipboard API 不可用，退化为 execCommand
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    document.body.appendChild(textarea)
-    textarea.select()
-    document.execCommand('copy')
-    textarea.remove()
-  }
-  copied.value = tag
+async function copyText(text: string, tag: CopyTag): Promise<void> {
+  copyResult.value = { tag, success: await copyTextToClipboard(text) }
   clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => (copied.value = ''), 1500)
+  copiedTimer = window.setTimeout(() => (copyResult.value = null), 1500)
+}
+
+function copyLabel(tag: CopyTag, idle: string): string {
+  if (copyResult.value?.tag !== tag) return idle
+  return copyResult.value.success ? '已复制 ✓' : '复制失败，请重试'
 }
 
 onBeforeUnmount(() => clearTimeout(copiedTimer))
@@ -74,7 +70,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           <div class="row-head">
             <label>3D 视角 / 缩放</label>
             <button class="mini" :disabled="!cameraView" @click="copyText(cameraView, 'cam')">
-              {{ copied === 'cam' ? '已复制 ✓' : '复制' }}
+              {{ copyLabel('cam', '复制') }}
             </button>
           </div>
           <div class="css-out">{{ cameraView || '拖动 / 缩放地图后在此显示' }}</div>
@@ -83,7 +79,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         <div class="css-out">.pos-map { {{ css }} }</div>
         <div class="actions">
           <button class="btn" @click="copyText(css, 'css')">
-            {{ copied === 'css' ? '已复制 ✓' : '复制 CSS' }}
+            {{ copyLabel('css', '复制 CSS') }}
           </button>
           <button class="btn ghost" @click="resetLayout">重置</button>
         </div>

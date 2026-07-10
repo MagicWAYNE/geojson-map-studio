@@ -51,7 +51,10 @@ async function typeCharacters(input: HTMLInputElement, text: string): Promise<st
 
 afterEach(() => {
   document.body.replaceChildren()
+  Reflect.deleteProperty(document, 'execCommand')
+  Reflect.deleteProperty(navigator, 'clipboard')
   vi.unstubAllGlobals()
+  vi.useRealTimers()
   vi.resetModules()
 })
 
@@ -123,6 +126,33 @@ describe('MapEffectControls', () => {
     expect(opacity.value).toBe('0.55')
     expect(enterMs.value).toBe('180')
 
+    app.unmount()
+  })
+
+  it('shows a temporary failure state when the clipboard fallback returns false', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error('clipboard unavailable')) }
+    })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => false)
+    })
+    const { app, root } = await mountControls()
+    const copy = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === '复制效果参数')!
+
+    copy.click()
+    await Promise.resolve()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(copy.textContent).toBe('复制失败，请重试')
+    expect(document.querySelector('textarea')).toBeNull()
+    vi.advanceTimersByTime(1500)
+    await nextTick()
+    expect(copy.textContent).toBe('复制效果参数')
     app.unmount()
   })
 })

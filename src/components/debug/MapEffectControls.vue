@@ -2,6 +2,7 @@
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import type { MapEffectBaseConfig, MapEffectHoverConfig } from '@/components/map/mapEffectConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
+import { copyTextToClipboard } from '@/utils/copyText'
 
 type BaseColorKey = 'innerColor' | 'outerColor'
 type HoverColorKey = 'surfaceColor' | 'emissiveColor' | 'outlineColor' | 'glowColor'
@@ -61,7 +62,7 @@ const GROUPS: ReadonlyArray<{ title: string; fields: readonly Field[] }> = [
 ]
 
 const { effect, effectJson, resetEffect } = useMapDebug()
-const copied = ref(false)
+const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
 const HEX = /^#[0-9a-f]{6}$/i
 const numberDrafts = reactive<Record<string, string>>({})
 let copiedTimer = 0
@@ -132,19 +133,15 @@ function updateColor(field: Field, event: Event): void {
 }
 
 async function copyEffect(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(effectJson.value)
-  } catch {
-    const textarea = document.createElement('textarea')
-    textarea.value = effectJson.value
-    document.body.appendChild(textarea)
-    textarea.select()
-    document.execCommand('copy')
-    textarea.remove()
-  }
-  copied.value = true
+  copyStatus.value = await copyTextToClipboard(effectJson.value) ? 'success' : 'error'
   clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => (copied.value = false), 1500)
+  copiedTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1500)
+}
+
+function copyLabel(): string {
+  if (copyStatus.value === 'success') return '已复制 ✓'
+  if (copyStatus.value === 'error') return '复制失败，请重试'
+  return '复制效果参数'
 }
 
 onBeforeUnmount(() => {
@@ -210,7 +207,7 @@ onBeforeUnmount(() => {
       <h3>可复制参数</h3>
       <pre class="json-out">{{ effectJson }}</pre>
       <div class="effect-actions">
-        <button class="btn" @click="copyEffect">{{ copied ? '已复制 ✓' : '复制效果参数' }}</button>
+        <button class="btn" @click="copyEffect">{{ copyLabel() }}</button>
         <button class="btn ghost" @click="resetEffect">恢复默认值</button>
       </div>
     </section>
