@@ -6,7 +6,13 @@ import { useRouter } from 'vue-router'
 import { getDistrictMapData } from '@/api'
 import { useMapDebug } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
-import { parseSvgRegions, projectRegions, type Region } from './mapGeometry'
+import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
+import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
+import {
+  createStaticGlowLayers,
+  setGlowResolution,
+  type StaticGlowBundle
+} from './mapGlow'
 
 /**
  * POC：Three.js 挤出版重庆主城区地图（渝中/两江新区/南岸/九龙坡/沙坪坝/大渡口/北碚/巴南）。
@@ -37,6 +43,7 @@ let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
 let raf = 0
 let ro: ResizeObserver | null = null
+let staticGlow: StaticGlowBundle | null = null
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 
@@ -63,19 +70,15 @@ function buildRegions(
 
   const group = new THREE.Group()
   const sideMat = new THREE.MeshStandardMaterial({ color: 0x05173a, roughness: 0.68, metalness: 0.3 })
-  const lineMat = new THREE.LineBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.85 })
 
   for (const region of projected.regions) {
     const name = region.name
     const shapes: THREE.Shape[] = []
-    const rings: Array<Array<[number, number]>> = []
 
     for (const outer of region.outers) {
       const shape = new THREE.Shape(outer.ring.map(([x, y]) => new THREE.Vector2(x, y)))
-      rings.push(outer.ring)
       for (const holeRing of outer.holes) {
         shape.holes.push(new THREE.Path(holeRing.map(([x, y]) => new THREE.Vector2(x, y))))
-        rings.push(holeRing)
       }
       shapes.push(shape)
     }
@@ -93,12 +96,28 @@ function buildRegions(
     mesh.userData = { name, item: byName.get(name) }
     regionMeshes.push(mesh)
     group.add(mesh)
+  }
 
-    // 顶面边界描边（POC 用 1px 线，正式阶段换 Line2 发光粗线）
-    for (const ring of rings) {
-      const points = ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
-      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points)
-      group.add(new THREE.LineLoop(lineGeometry, lineMat))
+  const boundaries = classifyBoundarySegments(projected.regions)
+  try {
+    staticGlow = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, DEPTH + 0.06)
+    group.add(staticGlow.group)
+  } catch (cause) {
+    console.warn('宽线光效初始化失败，回退 1px 区界', cause)
+    const fallbackMaterial = new THREE.LineBasicMaterial({
+      color: 0x3fa9ff,
+      transparent: true,
+      opacity: 0.85
+    })
+    for (const region of projected.regions) {
+      for (const outer of region.outers) {
+        for (const ring of [outer.ring, ...outer.holes]) {
+          const geometry = new THREE.BufferGeometry().setFromPoints(
+            ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
+          )
+          group.add(new THREE.LineLoop(geometry, fallbackMaterial))
+        }
+      }
     }
   }
 
@@ -119,6 +138,11 @@ function updatePixelRatio() {
   renderer?.setPixelRatio(Math.min(window.devicePixelRatio * screenScale(), 2))
 }
 
+function updateGlowResolution(): void {
+  const el = container.value
+  if (el && staticGlow) setGlowResolution(staticGlow, el.clientWidth, el.clientHeight)
+}
+
 function setupScene(mapGroup: THREE.Group) {
   const el = container.value!
   scene = new THREE.Scene()
@@ -137,6 +161,7 @@ function setupScene(mapGroup: THREE.Group) {
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setSize(el.clientWidth, el.clientHeight, false)
+  updateGlowResolution()
   updatePixelRatio()
   renderer.domElement.className = 'gl'
   el.prepend(renderer.domElement)
@@ -160,6 +185,7 @@ function setupScene(mapGroup: THREE.Group) {
   ro = new ResizeObserver(() => {
     if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
     renderer.setSize(el.clientWidth, el.clientHeight, false)
+    updateGlowResolution()
     camera.aspect = el.clientWidth / el.clientHeight
     camera.updateProjectionMatrix()
     updatePixelRatio()
@@ -297,29 +323,47 @@ async function init() {
 
 onMounted(init)
 
+function disposeSceneResources(root: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  const textures = new Set<THREE.Texture>()
+
+  root.traverse((object) => {
+    const renderable = object as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry
+      material?: THREE.Material | THREE.Material[]
+    }
+    if (renderable.geometry) geometries.add(renderable.geometry)
+    if (!renderable.material) return
+    const objectMaterials = Array.isArray(renderable.material)
+      ? renderable.material
+      : [renderable.material]
+    for (const material of objectMaterials) {
+      materials.add(material)
+      const map = (material as THREE.MeshStandardMaterial).map
+      if (map) textures.add(map)
+    }
+  })
+
+  geometries.forEach((geometry) => geometry.dispose())
+  materials.forEach((material) => material.dispose())
+  textures.forEach((texture) => texture.dispose())
+}
+
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
   ro?.disconnect()
   window.removeEventListener('resize', updatePixelRatio)
   cameraView.value = ''
   controls?.dispose()
-  scene?.traverse((obj) => {
-    const o = obj as THREE.Mesh
-    if (o.geometry) o.geometry.dispose()
-    if (o.material) {
-      const mats = Array.isArray(o.material) ? o.material : [o.material]
-      mats.forEach((m) => {
-        ;(m as THREE.MeshStandardMaterial).map?.dispose()
-        m.dispose()
-      })
-    }
-  })
+  if (scene) disposeSceneResources(scene)
   renderer?.dispose()
   renderer?.domElement.remove()
   renderer = null
   scene = null
   camera = null
   controls = null
+  staticGlow = null
   regionMeshes.length = 0
 })
 </script>
