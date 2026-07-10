@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useMapDebug } from '@/composables/useMapDebug'
+import MapEffectControls from './MapEffectControls.vue'
 
-const { drawerOpen, layout, reset, cameraView } = useMapDebug()
+const activeTab = ref<'layout' | 'effect'>('layout')
+const { drawerOpen, layout, resetLayout, cameraView } = useMapDebug()
 
 const FIELDS = [
   { key: 'left', label: '水平位置 X', min: -400, max: 1400 },
@@ -19,64 +21,76 @@ const css = computed(
 const copied = ref<'' | 'css' | 'cam'>('')
 let copiedTimer = 0
 
-async function copyText(text: string, tag: 'css' | 'cam') {
+async function copyText(text: string, tag: 'css' | 'cam'): Promise<void> {
   try {
     await navigator.clipboard.writeText(text)
   } catch {
     // 局域网 http 访问时 clipboard API 不可用，退化为 execCommand
-    const ta = document.createElement('textarea')
-    ta.value = text
-    document.body.appendChild(ta)
-    ta.select()
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
     document.execCommand('copy')
-    ta.remove()
+    textarea.remove()
   }
   copied.value = tag
   clearTimeout(copiedTimer)
   copiedTimer = window.setTimeout(() => (copied.value = ''), 1500)
 }
+
+onBeforeUnmount(() => clearTimeout(copiedTimer))
 </script>
 
 <template>
   <transition name="drawer">
     <aside v-if="drawerOpen" class="drawer">
       <div class="head">
-        <span class="title">地图位置调试</span>
+        <span class="title">地图调试</span>
         <span class="close" @click="drawerOpen = false">✕</span>
       </div>
 
-      <div v-for="f in FIELDS" :key="f.key" class="row">
-        <div class="row-head">
-          <label>{{ f.label }}</label>
-          <input v-model.number="layout[f.key]" class="num" type="number" />
-        </div>
-        <input
-          v-model.number="layout[f.key]"
-          class="slider"
-          type="range"
-          :min="f.min"
-          :max="f.max"
-          step="1"
-        />
+      <div class="tabs">
+        <button :class="{ active: activeTab === 'layout' }" @click="activeTab = 'layout'">布局</button>
+        <button :class="{ active: activeTab === 'effect' }" @click="activeTab = 'effect'">效果</button>
       </div>
 
-      <div class="row cam-row">
-        <div class="row-head">
-          <label>3D 视角 / 缩放</label>
-          <button
-            class="mini"
-            :disabled="!cameraView"
-            @click="copyText(cameraView, 'cam')"
-          >{{ copied === 'cam' ? '已复制 ✓' : '复制' }}</button>
+      <div v-if="activeTab === 'layout'" class="panel-scroll layout-panel">
+        <div v-for="field in FIELDS" :key="field.key" class="row">
+          <div class="row-head">
+            <label>{{ field.label }}</label>
+            <input v-model.number="layout[field.key]" class="num" type="number" />
+          </div>
+          <input
+            v-model.number="layout[field.key]"
+            class="slider"
+            type="range"
+            :min="field.min"
+            :max="field.max"
+            step="1"
+          />
         </div>
-        <div class="css-out">{{ cameraView || '拖动 / 缩放地图后在此显示' }}</div>
+
+        <div class="row cam-row">
+          <div class="row-head">
+            <label>3D 视角 / 缩放</label>
+            <button class="mini" :disabled="!cameraView" @click="copyText(cameraView, 'cam')">
+              {{ copied === 'cam' ? '已复制 ✓' : '复制' }}
+            </button>
+          </div>
+          <div class="css-out">{{ cameraView || '拖动 / 缩放地图后在此显示' }}</div>
+        </div>
+
+        <div class="css-out">.pos-map { {{ css }} }</div>
+        <div class="actions">
+          <button class="btn" @click="copyText(css, 'css')">
+            {{ copied === 'css' ? '已复制 ✓' : '复制 CSS' }}
+          </button>
+          <button class="btn ghost" @click="resetLayout">重置</button>
+        </div>
       </div>
 
-      <div class="css-out">.pos-map { {{ css }} }</div>
-
-      <div class="actions">
-        <button class="btn" @click="copyText(css, 'css')">{{ copied === 'css' ? '已复制 ✓' : '复制 CSS' }}</button>
-        <button class="btn ghost" @click="reset">重置</button>
+      <div v-else class="panel-scroll">
+        <MapEffectControls />
       </div>
     </aside>
   </transition>
@@ -86,7 +100,7 @@ async function copyText(text: string, tag: 'css' | 'cam') {
 .drawer {
   position: absolute; right: 0; top: 174px; bottom: 0; width: 320px; z-index: 30;
   box-sizing: border-box; padding: 20px 22px;
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex; flex-direction: column; gap: 16px; overflow: hidden;
   background: rgba(6, 18, 40, 0.94);
   border-left: 1px solid rgba(36, 131, 255, 0.45);
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
@@ -100,6 +114,16 @@ async function copyText(text: string, tag: 'css' | 'cam') {
 .close { font-size: 16px; color: #7fa8d9; cursor: pointer; padding: 2px 6px; }
 .close:hover { color: #00deff; }
 
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tabs button {
+  padding: 7px 0; color: #7fa8d9; cursor: pointer;
+  background: rgba(36, 131, 255, 0.08);
+  border: 1px solid rgba(36, 131, 255, 0.35); border-radius: 3px;
+}
+.tabs button.active { color: #00deff; border-color: #00deff; background: rgba(0, 222, 255, 0.1); }
+.panel-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.layout-panel { display: flex; flex-direction: column; gap: 16px; }
+
 .row { display: flex; flex-direction: column; gap: 8px; }
 .row-head { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
 .num {
@@ -110,7 +134,6 @@ async function copyText(text: string, tag: 'css' | 'cam') {
 .num:focus { border-color: #00deff; }
 .slider { width: 100%; accent-color: #00deff; cursor: pointer; }
 
-.cam-row { margin-top: auto; }
 .mini {
   padding: 2px 10px; font-size: 12px; cursor: pointer;
   color: #7fa8d9; background: transparent;

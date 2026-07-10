@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
@@ -11,6 +11,7 @@ import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region 
 import {
   advanceHoverProgress,
   applyHoverGlowConfig,
+  applyStaticGlowConfig,
   createHoverGlowLayers,
   createStaticGlowLayers,
   easeOutCubic,
@@ -40,7 +41,7 @@ const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
 
 const router = useRouter()
-const { cameraView } = useMapDebug()
+const { cameraView, effect } = useMapDebug()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -70,8 +71,19 @@ const TOP_COLOR = 0xcfe0ff
 const TOP_EMISSIVE = 0x0a2a66
 const baseTopColor = new THREE.Color(TOP_COLOR)
 const baseTopEmissive = new THREE.Color(TOP_EMISSIVE)
-const hoverSurfaceColor = new THREE.Color(MAP_EFFECT_DEFAULTS.hover.surfaceColor)
-const hoverEmissiveColor = new THREE.Color(MAP_EFFECT_DEFAULTS.hover.emissiveColor)
+const hoverSurfaceTarget = new THREE.Color(effect.hover.surfaceColor)
+const hoverEmissiveTarget = new THREE.Color(effect.hover.emissiveColor)
+
+function applyEffectConfig(): void {
+  hoverSurfaceTarget.set(effect.hover.surfaceColor)
+  hoverEmissiveTarget.set(effect.hover.emissiveColor)
+  if (staticGlow) applyStaticGlowConfig(staticGlow, effect)
+  for (const visual of regionVisuals) {
+    if (visual.hoverGlow) applyHoverGlowConfig(visual.hoverGlow, effect)
+  }
+}
+
+const stopEffectWatch = watch(effect, applyEffectConfig, { deep: true, immediate: true })
 
 function buildRegions(
   regions: Region[],
@@ -256,24 +268,21 @@ function setHover(mesh: THREE.Mesh | null): void {
 }
 
 function updateRegionVisuals(deltaMs: number): void {
-  const config = MAP_EFFECT_DEFAULTS
+  const hover = effect.hover
   for (const visual of regionVisuals) {
     visual.progress = advanceHoverProgress(
       visual.progress,
       visual.active,
       deltaMs,
-      config.hover.enterMs,
-      config.hover.leaveMs
+      hover.enterMs,
+      hover.leaveMs
     )
     const eased = easeOutCubic(visual.progress)
-    visual.group.position.z = config.hover.lift * eased
-    visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceColor, eased)
-    visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveColor, eased)
-    visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, config.hover.emissiveIntensity, eased)
-    if (visual.hoverGlow) {
-      applyHoverGlowConfig(visual.hoverGlow, config)
-      setHoverGlowProgress(visual.hoverGlow, config, eased)
-    }
+    visual.group.position.z = hover.lift * eased
+    visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceTarget, eased)
+    visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
+    visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
+    if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
   }
 }
 
@@ -373,6 +382,7 @@ async function init() {
     }
 
     setupScene(buildRegions(regions, byName, terrainTex))
+    applyEffectConfig()
 
     const el = container.value!
     el.addEventListener('pointermove', onPointerMove)
@@ -417,6 +427,7 @@ function disposeSceneResources(root: THREE.Object3D): void {
 }
 
 onBeforeUnmount(() => {
+  stopEffectWatch()
   cancelAnimationFrame(raf)
   ro?.disconnect()
   window.removeEventListener('resize', updatePixelRatio)
