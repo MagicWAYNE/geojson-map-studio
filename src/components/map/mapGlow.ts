@@ -182,6 +182,24 @@ export function setHoverGlowProgress(
   bundle.core.line.visible = bundle.group.visible && values.core.width > 0
 }
 
+export function advanceHoverProgress(
+  current: number,
+  active: boolean,
+  deltaMs: number,
+  enterMs: number,
+  leaveMs: number
+): number {
+  const duration = active ? enterMs : leaveMs
+  if (duration <= 0) return active ? 1 : 0
+  const next = current + (active ? deltaMs / duration : -deltaMs / duration)
+  return THREE.MathUtils.clamp(next, 0, 1)
+}
+
+export function easeOutCubic(progress: number): number {
+  const value = THREE.MathUtils.clamp(progress, 0, 1)
+  return 1 - Math.pow(1 - value, 3)
+}
+
 export function setGlowResolution(
   bundle: GlowBundleBase,
   width: number,

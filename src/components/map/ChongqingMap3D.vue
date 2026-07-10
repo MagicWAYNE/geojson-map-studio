@@ -9,8 +9,14 @@ import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
+  advanceHoverProgress,
+  applyHoverGlowConfig,
+  createHoverGlowLayers,
   createStaticGlowLayers,
+  easeOutCubic,
+  setHoverGlowProgress,
   setGlowResolution,
+  type HoverGlowBundle,
   type StaticGlowBundle
 } from './mapGlow'
 
@@ -47,11 +53,25 @@ let staticGlow: StaticGlowBundle | null = null
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 
+interface RegionVisual {
+  mesh: THREE.Mesh
+  group: THREE.Group
+  topMaterial: THREE.MeshStandardMaterial
+  hoverGlow: HoverGlowBundle | null
+  progress: number
+  active: boolean
+}
+
+const regionVisuals: RegionVisual[] = []
+const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
+
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
 const TOP_COLOR = 0xcfe0ff
 const TOP_EMISSIVE = 0x0a2a66
-const HOVER_COLOR = 0x1e7dff
-const HOVER_EMISSIVE = 0x00a8d8
+const baseTopColor = new THREE.Color(TOP_COLOR)
+const baseTopEmissive = new THREE.Color(TOP_EMISSIVE)
+const hoverSurfaceColor = new THREE.Color(MAP_EFFECT_DEFAULTS.hover.surfaceColor)
+const hoverEmissiveColor = new THREE.Color(MAP_EFFECT_DEFAULTS.hover.emissiveColor)
 
 function buildRegions(
   regions: Region[],
@@ -70,6 +90,7 @@ function buildRegions(
 
   const group = new THREE.Group()
   const sideMat = new THREE.MeshStandardMaterial({ color: 0x05173a, roughness: 0.68, metalness: 0.3 })
+  const boundaries = classifyBoundarySegments(projected.regions)
 
   for (const region of projected.regions) {
     const name = region.name
@@ -95,10 +116,32 @@ function buildRegions(
     const mesh = new THREE.Mesh(geometry, [topMat, sideMat])
     mesh.userData = { name, item: byName.get(name) }
     regionMeshes.push(mesh)
-    group.add(mesh)
+    const regionGroup = new THREE.Group()
+    regionGroup.add(mesh)
+    let hoverGlow: HoverGlowBundle | null = null
+    try {
+      hoverGlow = createHoverGlowLayers(
+        boundaries.byRegion.get(name) ?? [],
+        MAP_EFFECT_DEFAULTS,
+        DEPTH + 0.12
+      )
+      regionGroup.add(hoverGlow.group)
+    } catch (cause) {
+      console.warn(`区块 ${name} 的 hover 宽线初始化失败，保留材质高亮和轻抬`, cause)
+    }
+    const visual: RegionVisual = {
+      mesh,
+      group: regionGroup,
+      topMaterial: topMat,
+      hoverGlow,
+      progress: 0,
+      active: false
+    }
+    regionVisuals.push(visual)
+    visualByMesh.set(mesh, visual)
+    group.add(regionGroup)
   }
 
-  const boundaries = classifyBoundarySegments(projected.regions)
   try {
     staticGlow = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, DEPTH + 0.06)
     group.add(staticGlow.group)
@@ -140,7 +183,11 @@ function updatePixelRatio() {
 
 function updateGlowResolution(): void {
   const el = container.value
-  if (el && staticGlow) setGlowResolution(staticGlow, el.clientWidth, el.clientHeight)
+  if (!el) return
+  if (staticGlow) setGlowResolution(staticGlow, el.clientWidth, el.clientHeight)
+  for (const visual of regionVisuals) {
+    if (visual.hoverGlow) setGlowResolution(visual.hoverGlow, el.clientWidth, el.clientHeight)
+  }
 }
 
 function setupScene(mapGroup: THREE.Group) {
@@ -195,24 +242,39 @@ function setupScene(mapGroup: THREE.Group) {
 }
 
 // —— hover / tooltip / 点击下钻 ——
-let hovered: THREE.Mesh | null = null
+let hoveredVisual: RegionVisual | null = null
 let downX = 0
 let downY = 0
 
-function setHover(mesh: THREE.Mesh | null) {
-  if (mesh === hovered) return
-  if (hovered) {
-    const m = (hovered.material as THREE.Material[])[0] as THREE.MeshStandardMaterial
-    m.color.setHex(TOP_COLOR)
-    m.emissive.setHex(TOP_EMISSIVE)
+function setHover(mesh: THREE.Mesh | null): void {
+  const next = mesh ? visualByMesh.get(mesh) ?? null : null
+  if (next === hoveredVisual) return
+  if (hoveredVisual) hoveredVisual.active = false
+  hoveredVisual = next
+  if (hoveredVisual) hoveredVisual.active = true
+  if (container.value) container.value.style.cursor = next ? 'pointer' : 'default'
+}
+
+function updateRegionVisuals(deltaMs: number): void {
+  const config = MAP_EFFECT_DEFAULTS
+  for (const visual of regionVisuals) {
+    visual.progress = advanceHoverProgress(
+      visual.progress,
+      visual.active,
+      deltaMs,
+      config.hover.enterMs,
+      config.hover.leaveMs
+    )
+    const eased = easeOutCubic(visual.progress)
+    visual.group.position.z = config.hover.lift * eased
+    visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceColor, eased)
+    visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveColor, eased)
+    visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, config.hover.emissiveIntensity, eased)
+    if (visual.hoverGlow) {
+      applyHoverGlowConfig(visual.hoverGlow, config)
+      setHoverGlowProgress(visual.hoverGlow, config, eased)
+    }
   }
-  hovered = mesh
-  if (mesh) {
-    const m = (mesh.material as THREE.Material[])[0] as THREE.MeshStandardMaterial
-    m.color.setHex(HOVER_COLOR)
-    m.emissive.setHex(HOVER_EMISSIVE)
-  }
-  if (container.value) container.value.style.cursor = mesh ? 'pointer' : 'default'
 }
 
 function pick(e: PointerEvent): THREE.Mesh | null {
@@ -270,9 +332,13 @@ function onPointerLeave() {
 // —— 渲染循环 + FPS ——
 let frames = 0
 let lastFpsAt = 0
+let lastFrameAt = 0
 
 function loop(now: number) {
   raf = requestAnimationFrame(loop)
+  const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
+  lastFrameAt = now
+  updateRegionVisuals(deltaMs)
   controls?.update()
   if (renderer && scene && camera) renderer.render(scene, camera)
   frames++
@@ -365,6 +431,10 @@ onBeforeUnmount(() => {
   controls = null
   staticGlow = null
   regionMeshes.length = 0
+  regionVisuals.length = 0
+  visualByMesh.clear()
+  hoveredVisual = null
+  lastFrameAt = 0
 })
 </script>
 
