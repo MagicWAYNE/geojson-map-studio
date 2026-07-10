@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
@@ -7,6 +7,7 @@ import { getDistrictMapData } from '@/api'
 import { useMapDebug } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
+import { watchMapEffectConfig } from './mapEffectWatcher'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
   advanceHoverProgress,
@@ -83,7 +84,7 @@ function applyEffectConfig(): void {
   }
 }
 
-const stopEffectWatch = watch(effect, applyEffectConfig, { deep: true, immediate: true })
+const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
 
 function buildRegions(
   regions: Region[],
