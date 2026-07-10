@@ -68,3 +68,38 @@ The production build emitted Vite's standard warning that some existing output c
 
 - No architectural deviation from the task brief was required.
 - The edge-count command validates the tracked SVG's exact multiplicities. Runtime visual behavior is preserved by the direct projection/texture-equation extraction and by leaving interaction/rendering code unchanged; no browser interaction test was added because this task's required automated acceptance checks are the geometry tests, typecheck, build, and edge-count command.
+
+## Review Fix
+
+### Files
+
+- Modified `src/components/map/mapGeometry.test.ts` with a real SVG fixture that calls `parseSvgRegions` under the `happy-dom` Vitest environment.
+- Modified `package.json` and `package-lock.json` with the exact compatible development dependency `happy-dom@20.10.6` (Node 22.22.0 satisfies its Node >=20 engine requirement).
+
+### Coverage
+
+The fixture contains named regions `A` and `B`; `A` has an outer ring and a nested hole, while `B` reverses the shared outer edge. The test asserts the parsed names, one outer for `A`, exact hole ownership, then runs `classifyBoundarySegments` on the parsed regions and asserts one inner edge and ten outer edges.
+
+### Command and exact result
+
+```bash
+npm test -- src/components/map/mapGeometry.test.ts
+```
+
+```text
+✓ src/components/map/mapGeometry.test.ts (5 tests)
+Test Files  1 passed (1)
+Tests  5 passed (5)
+```
+
+Full regression after the review fix:
+
+```text
+npm test: 2 test files passed, 9 tests passed
+npm run typecheck: exit 0
+npm run build: exit 0 (built in 11.29s)
+```
+
+### TDD applicability
+
+The test was added before any production-code change. Its first run failed because the required per-file `happy-dom` environment was not installed (`ERR_MODULE_NOT_FOUND` for `happy-dom`). After adding the explicitly permitted test-only dependency, it passed against the existing `parseSvgRegions` implementation. No production code was needed or changed; manufacturing a RED result by breaking working geometry logic would not have been applicable to this coverage-only review fix.

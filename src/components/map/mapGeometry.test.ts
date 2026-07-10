@@ -1,7 +1,9 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import {
   classifyBoundarySegments,
   parsePathD,
+  parseSvgRegions,
   projectRegions,
   type Region
 } from './mapGeometry'
@@ -18,6 +20,23 @@ describe('mapGeometry', () => {
         [[0, 0], [2, 0], [2, 2], [0, 2]],
         [[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]]
       ])
+  })
+
+  it('从 SVG 解析命名区块、孔洞和共享区界', () => {
+    const regions = parseSvgRegions(`
+      <svg xmlns="http://www.w3.org/2000/svg">
+        <path data-name="A" d="M0 0 L4 0 L4 4 L0 4 Z M1 1 L1 2 L2 2 L2 1 Z" />
+        <path data-name="B" d="M4 4 L4 0 L6 0 L6 4 Z" />
+      </svg>
+    `)
+
+    expect(regions.map((region) => region.name)).toEqual(['A', 'B'])
+    expect(regions[0].outers).toHaveLength(1)
+    expect(regions[0].outers[0].holes).toEqual([[[1, 1], [1, 2], [2, 2], [2, 1]]])
+
+    const boundaries = classifyBoundarySegments(regions)
+    expect(boundaries.inner).toHaveLength(1)
+    expect(boundaries.outer).toHaveLength(10)
   })
 
   it('把反向共享边归并为一条内部区界', () => {
