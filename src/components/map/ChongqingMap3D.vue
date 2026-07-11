@@ -4,7 +4,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
 import { getDistrictMapData } from '@/api'
-import { useMapDebug } from '@/composables/useMapDebug'
+import {
+  DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
+  useMapDebug
+} from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
@@ -44,7 +47,7 @@ const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
 
 const router = useRouter()
-const { cameraView, effect } = useMapDebug()
+const { cameraView, effect, updateEffectRuntimeStatus } = useMapDebug()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -73,6 +76,13 @@ interface RegionVisual {
 const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
 
+function publishGlowStatus(degraded = false): void {
+  const status = outwardGlow?.getStatus()
+  updateEffectRuntimeStatus(status
+    ? { ...status, degraded }
+    : { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded })
+}
+
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
 const TOP_COLOR = 0xcfe0ff
 const TOP_EMISSIVE = 0x0a2a66
@@ -88,7 +98,10 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
-  outwardGlow?.setConfig(effect)
+  if (outwardGlow) {
+    outwardGlow.setConfig(effect)
+    publishGlowStatus()
+  }
   for (const visual of regionVisuals) {
     updateHoverVisualState(
       visual,
@@ -215,7 +228,10 @@ function handleWindowResize(): void {
   updatePixelRatio()
   const el = container.value
   if (!renderer || !el || !el.clientWidth || !el.clientHeight) return
-  outwardGlow?.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+  if (outwardGlow) {
+    outwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+    publishGlowStatus()
+  }
 }
 
 function updateGlowResolution(): void {
@@ -256,6 +272,7 @@ function setupScene(mapGroup: THREE.Group) {
       pendingOutwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
       pendingOutwardGlow.setConfig(effect)
       outwardGlow = pendingOutwardGlow
+      publishGlowStatus()
     } catch (cause) {
       try {
         pendingOutwardGlow?.dispose()
@@ -263,6 +280,7 @@ function setupScene(mapGroup: THREE.Group) {
         // Setup failure already has a safe direct-render fallback.
       }
       outwardGlow = null
+      publishGlowStatus(true)
       console.warn('外扩柔光初始化失败，保留清晰边界', cause)
     }
 
@@ -290,7 +308,10 @@ function setupScene(mapGroup: THREE.Group) {
       if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
       renderer.setSize(el.clientWidth, el.clientHeight, false)
       updatePixelRatio()
-      outwardGlow?.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+      if (outwardGlow) {
+        outwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+        publishGlowStatus()
+      }
       updateGlowResolution()
       camera.aspect = el.clientWidth / el.clientHeight
       camera.updateProjectionMatrix()
@@ -325,7 +346,10 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  outwardGlow?.setRegionProgress(visual.mesh, eased)
+  if (outwardGlow) {
+    outwardGlow.setRegionProgress(visual.mesh, eased)
+    publishGlowStatus()
+  }
 }
 
 function updateRegionVisuals(deltaMs: number): void {
@@ -409,6 +433,7 @@ function loop(now: number) {
       const failedPipeline = outwardGlow
       try {
         failedPipeline.render(scene, camera)
+        publishGlowStatus()
       } catch (cause) {
         outwardGlow = null
         try {
@@ -416,6 +441,7 @@ function loop(now: number) {
         } catch {
           // The direct-render fallback must survive cleanup failures too.
         }
+        publishGlowStatus(true)
         console.warn('外扩柔光运行失败，已关闭柔光并保留清晰边界', cause)
         renderer.render(scene, camera)
       }
@@ -509,6 +535,7 @@ async function init(generation: number) {
 
 onMounted(() => {
   mounted = true
+  updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
   const generation = ++initGeneration
   void init(generation)
 })

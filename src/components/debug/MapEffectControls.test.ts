@@ -11,13 +11,17 @@ type MountedControls = {
   app: App
   root: HTMLDivElement
   effect: MapEffectConfig
+  setItem: ReturnType<typeof vi.fn>
+  updateEffectRuntimeStatus: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['updateEffectRuntimeStatus']
+  resetEffect: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['resetEffect']
 }
 
 async function mountControls(): Promise<MountedControls> {
   const values = new Map<string, string>()
+  const setItem = vi.fn((key: string, value: string) => values.set(key, value))
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value)
+    setItem
   })
   const { default: MapEffectControls } = await import('./MapEffectControls.vue')
   const root = document.createElement('div')
@@ -25,7 +29,33 @@ async function mountControls(): Promise<MountedControls> {
   app.mount(root)
   await nextTick()
   const { useMapDebug } = await import('@/composables/useMapDebug')
-  return { app, root, effect: useMapDebug().effect }
+  const debug = useMapDebug()
+  return {
+    app,
+    root,
+    effect: debug.effect,
+    setItem,
+    updateEffectRuntimeStatus: debug.updateEffectRuntimeStatus,
+    resetEffect: debug.resetEffect
+  }
+}
+
+function button(root: HTMLElement, label: string): HTMLButtonElement {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+    .find((candidate) => candidate.textContent === label)!
+}
+
+function copyButton(root: HTMLElement): HTMLButtonElement {
+  const section = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+    .find((candidate) => candidate.querySelector('h3')?.textContent === '可复制参数')!
+  return section.querySelector<HTMLButtonElement>('.effect-actions .btn')!
+}
+
+async function setLivePreview(root: HTMLElement, enabled: boolean): Promise<void> {
+  const toggle = root.querySelector<HTMLInputElement>('#effect-live-preview')!
+  toggle.checked = enabled
+  toggle.dispatchEvent(new Event('change', { bubbles: true }))
+  await nextTick()
 }
 
 async function typeCharacters(input: HTMLInputElement, text: string): Promise<string[]> {
@@ -63,6 +93,169 @@ afterEach(() => {
 })
 
 describe('MapEffectControls', () => {
+  it('keeps draft edits, presets, group reset, and all reset out of effective state and storage', async () => {
+    const { app, root, effect, setItem } = await mountControls()
+    const toggle = root.querySelector<HTMLInputElement>('#effect-live-preview')!
+    expect(toggle.checked).toBe(true)
+
+    const liveWidth = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    liveWidth.value = '84'
+    liveWidth.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(effect.base.outerGlowWidth).toBe(84)
+    expect(setItem).toHaveBeenCalled()
+
+    const effectiveSnapshot = JSON.parse(JSON.stringify(effect)) as MapEffectConfig
+    await setLivePreview(root, false)
+    expect(root.textContent).toContain('切回实时预览会放弃未应用草稿')
+    setItem.mockClear()
+
+    const draftWidth = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    draftWidth.value = '123'
+    draftWidth.dispatchEvent(new Event('change', { bubbles: true }))
+    const draftEnabled = root.querySelector<HTMLInputElement>('#effect-base-outerGlowEnabled-checkbox')!
+    draftEnabled.checked = false
+    draftEnabled.dispatchEvent(new Event('change', { bubbles: true }))
+    const draftColor = root.querySelector<HTMLInputElement>('#effect-hover-surfaceColor-hex')!
+    draftColor.value = '#123456'
+    draftColor.dispatchEvent(new Event('change', { bubbles: true }))
+    const draftScale = root.querySelector<HTMLSelectElement>('#effect-quality-renderScale-select')!
+    draftScale.value = '0.75'
+    draftScale.dispatchEvent(new Event('change', { bubbles: true }))
+    button(root, '应用 B3 参考预设').click()
+    button(root, '重置本组').click()
+    button(root, '恢复全部默认值').click()
+    await nextTick()
+
+    expect(effect).toEqual(effectiveSnapshot)
+    expect(setItem).not.toHaveBeenCalled()
+    expect(JSON.parse(root.querySelector('.json-out')!.textContent!)).toEqual(MAP_EFFECT_DEFAULTS)
+    app.unmount()
+  })
+
+  it('applies normalized drafts in place and supports discard, live-mode discard, and external sync', async () => {
+    const { app, root, effect, setItem, resetEffect } = await mountControls()
+    const baseIdentity = effect.base
+    const hoverIdentity = effect.hover
+    const qualityIdentity = effect.quality
+    await setLivePreview(root, false)
+    setItem.mockClear()
+
+    const width = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    width.value = '137'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    const passes = root.querySelector<HTMLInputElement>('#effect-hover-glowNearPasses-number')!
+    passes.value = '7.6'
+    passes.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(effect.base.outerGlowWidth).not.toBe(137)
+    expect(setItem).not.toHaveBeenCalled()
+
+    button(root, '应用参数').click()
+    await nextTick()
+    expect(effect.base.outerGlowWidth).toBe(137)
+    expect(effect.hover.glowNearPasses).toBe(8)
+    expect(effect.base).toBe(baseIdentity)
+    expect(effect.hover).toBe(hoverIdentity)
+    expect(effect.quality).toBe(qualityIdentity)
+    expect(setItem).toHaveBeenCalled()
+
+    width.value = '99'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    button(root, '放弃草稿').click()
+    await nextTick()
+    expect(width.value).toBe('137')
+
+    width.value = '101'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    await setLivePreview(root, true)
+    expect(effect.base.outerGlowWidth).toBe(137)
+    await setLivePreview(root, false)
+    expect(width.value).toBe('137')
+
+    effect.base.outerGlowWidth = 166
+    effect.quality.renderScale = 0.75
+    await nextTick()
+    expect(width.value).toBe('166')
+    expect(root.querySelector<HTMLSelectElement>('#effect-quality-renderScale-select')!.value).toBe('0.75')
+
+    resetEffect()
+    await nextTick()
+    expect(width.value).toBe(String(MAP_EFFECT_DEFAULTS.base.outerGlowWidth))
+    expect(JSON.parse(root.querySelector('.json-out')!.textContent!)).toEqual(MAP_EFFECT_DEFAULTS)
+    app.unmount()
+  })
+
+  it('copies normalized draft JSON in draft mode and effective JSON in live mode', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+    const { app, root, effect } = await mountControls()
+    await setLivePreview(root, false)
+    const width = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    width.value = '151'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    copyButton(root).click()
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
+    expect(draftCopy.version).toBe(2)
+    expect(draftCopy.base.outerGlowWidth).toBe(151)
+    expect(effect.base.outerGlowWidth).not.toBe(151)
+
+    await setLivePreview(root, true)
+    copyButton(root).click()
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(writeText.mock.calls[1][0])).toEqual(effect)
+    app.unmount()
+  })
+
+  it('renders accessible runtime status and warns at the quality and pass thresholds', async () => {
+    const { app, root, effect, updateEffectRuntimeStatus } = await mountControls()
+    updateEffectRuntimeStatus({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'active',
+      degraded: false
+    })
+    await nextTick()
+
+    const status = root.querySelector('[role="status"]')!
+    expect(status.textContent).toContain('RenderTarget: 680 × 680')
+    expect(status.textContent).toContain('离屏精度: 50%')
+    expect(status.textContent).toContain('常态: 已启用')
+    expect(status.textContent).toContain('Hover: 生效中')
+    expect(status.textContent).toContain('运行状态: 正常')
+    expect(root.textContent).not.toContain('性能提示')
+
+    effect.quality.renderScale = 0.75
+    await nextTick()
+    expect(root.textContent).toContain('性能提示')
+    effect.quality.renderScale = 0.5
+    effect.hover.glowFarPasses = 6
+    await nextTick()
+    expect(root.textContent).toContain('性能提示')
+
+    updateEffectRuntimeStatus({
+      targetWidth: 1,
+      targetHeight: 1,
+      renderScale: 0.5,
+      baseState: 'disabled',
+      hoverState: 'zero',
+      degraded: true
+    })
+    await nextTick()
+    expect(status.textContent).toContain('常态: 已关闭')
+    expect(status.textContent).toContain('Hover: 参数为零')
+    expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
+    app.unmount()
+  })
+
   it('exposes real glow radius and opacity controls', async () => {
     const { app, root } = await mountControls()
     const baseRadius = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!

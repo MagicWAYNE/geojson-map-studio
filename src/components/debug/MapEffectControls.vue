@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   B3_GLOW_PROFILE_DEFAULTS,
+  formatMapEffectConfig,
   MAP_EFFECT_DEFAULTS,
+  normalizeMapEffectConfig,
   type MapEffectBaseConfigV2,
   type MapEffectConfig,
   type MapEffectHoverConfigV2,
@@ -128,12 +130,82 @@ const GROUPS: readonly Group[] = [
   }
 ]
 
-const { effect, effectJson, resetEffect } = useMapDebug()
-const editTarget: MapEffectConfig = effect
+const { effect, effectRuntimeStatus, resetEffect } = useMapDebug()
+const livePreview = ref(true)
+const draft = reactive<MapEffectConfig>(cloneConfig(effect))
+const editTarget = computed<MapEffectConfig>(() => livePreview.value ? effect : draft)
 const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
 const HEX = /^#[0-9a-f]{6}$/i
 const numberDrafts = reactive<Record<string, string>>({})
 let copiedTimer = 0
+let applyingDraft = false
+
+function cloneConfig(config: MapEffectConfig): MapEffectConfig {
+  return {
+    version: 2,
+    base: { ...config.base },
+    hover: { ...config.hover },
+    quality: { ...config.quality }
+  }
+}
+
+function syncDraft(config: MapEffectConfig = effect): void {
+  const next = cloneConfig(config)
+  Object.assign(draft.base, next.base)
+  Object.assign(draft.hover, next.hover)
+  Object.assign(draft.quality, next.quality)
+}
+
+function changeLivePreview(event: Event): void {
+  const next = (event.target as HTMLInputElement).checked
+  syncDraft(effect)
+  livePreview.value = next
+}
+
+function applyDraft(): void {
+  const normalized = normalizeMapEffectConfig(draft)
+  applyingDraft = true
+  Object.assign(effect.base, normalized.base)
+  Object.assign(effect.hover, normalized.hover)
+  Object.assign(effect.quality, normalized.quality)
+  applyingDraft = false
+  syncDraft(normalized)
+}
+
+function discardDraft(): void {
+  syncDraft(effect)
+}
+
+const stopEffectDraftSync = watch(effect, () => {
+  if (!livePreview.value && !applyingDraft) syncDraft(effect)
+}, { deep: true, flush: 'sync' })
+
+const editableJson = computed(() => formatMapEffectConfig(editTarget.value))
+const performanceWarning = computed(() => {
+  const target = editTarget.value
+  return target.quality.renderScale >= 0.75
+    || target.base.outerGlowNearPasses >= 6
+    || target.base.outerGlowFarPasses >= 6
+    || target.hover.glowNearPasses >= 6
+    || target.hover.glowFarPasses >= 6
+})
+
+function baseStatusLabel(): string {
+  return {
+    enabled: '已启用',
+    zero: '参数为零',
+    disabled: '已关闭'
+  }[effectRuntimeStatus.baseState]
+}
+
+function hoverStatusLabel(): string {
+  return {
+    ready: '等待 Hover',
+    active: '生效中',
+    zero: '参数为零',
+    disabled: '已关闭'
+  }[effectRuntimeStatus.hoverState]
+}
 
 function isBaseColorField(field: Field): field is Extract<ColorField, { section: 'base' }> {
   return field.section === 'base' && field.kind === 'color'
@@ -172,28 +244,30 @@ function isRenderScale(value: number): value is MapEffectQualityConfig['renderSc
 }
 
 function valueOf(field: Field): string | number | boolean {
-  if (field.section === 'base') return editTarget.base[field.key]
-  if (field.section === 'hover') return editTarget.hover[field.key]
-  return editTarget.quality[field.key]
+  const target = editTarget.value
+  if (field.section === 'base') return target.base[field.key]
+  if (field.section === 'hover') return target.hover[field.key]
+  return target.quality[field.key]
 }
 
 function writeValue(field: Field, value: string | number | boolean): void {
+  const target = editTarget.value
   if (isBaseColorField(field) && typeof value === 'string') {
-    editTarget.base[field.key] = value
+    target.base[field.key] = value
   } else if (isHoverColorField(field) && typeof value === 'string') {
-    editTarget.hover[field.key] = value
+    target.hover[field.key] = value
   } else if (isBaseBooleanField(field) && typeof value === 'boolean') {
-    editTarget.base[field.key] = value
+    target.base[field.key] = value
   } else if (isHoverBooleanField(field) && typeof value === 'boolean') {
-    editTarget.hover[field.key] = value
+    target.hover[field.key] = value
   } else if (isBaseNumberField(field) && typeof value === 'number') {
-    editTarget.base[field.key] = value
+    target.base[field.key] = value
   } else if (isHoverNumberField(field) && typeof value === 'number') {
-    editTarget.hover[field.key] = value
+    target.hover[field.key] = value
   } else if (isQualityNumberField(field) && typeof value === 'number') {
-    editTarget.quality[field.key] = value
+    target.quality[field.key] = value
   } else if (isQualitySelectField(field) && typeof value === 'number' && isRenderScale(value)) {
-    editTarget.quality.renderScale = value
+    target.quality.renderScale = value
   }
 }
 
@@ -329,15 +403,19 @@ function resetAll(target: MapEffectConfig): void {
 }
 
 function runB3Preset(channel: GlowChannel | undefined): void {
-  if (channel) applyB3Preset(channel, editTarget)
+  if (channel) applyB3Preset(channel, editTarget.value)
 }
 
 function resetGroup(channel: GlowChannel | undefined): void {
-  if (channel) resetGlowGroup(channel, editTarget)
+  if (channel) resetGlowGroup(channel, editTarget.value)
+}
+
+function resetCurrentTarget(): void {
+  resetAll(editTarget.value)
 }
 
 async function copyEffect(): Promise<void> {
-  copyStatus.value = await copyTextToClipboard(effectJson.value) ? 'success' : 'error'
+  copyStatus.value = await copyTextToClipboard(editableJson.value) ? 'success' : 'error'
   clearTimeout(copiedTimer)
   copiedTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1500)
 }
@@ -349,6 +427,7 @@ function copyLabel(): string {
 }
 
 onBeforeUnmount(() => {
+  stopEffectDraftSync()
   stopDraftWatch()
   clearTimeout(copiedTimer)
 })
@@ -356,6 +435,24 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="effect-controls">
+    <section class="session-editing">
+      <div class="field-head">
+        <label for="effect-live-preview">实时预览</label>
+        <input
+          id="effect-live-preview"
+          class="checkbox"
+          type="checkbox"
+          :checked="livePreview"
+          @change="changeLivePreview"
+        />
+      </div>
+      <p v-if="!livePreview" class="editing-hint">草稿模式：切回实时预览会放弃未应用草稿。</p>
+      <div v-if="!livePreview" class="effect-actions">
+        <button class="btn" @click="applyDraft">应用参数</button>
+        <button class="btn ghost" @click="discardDraft">放弃草稿</button>
+      </div>
+    </section>
+
     <section v-for="group in GROUPS" :key="group.title" class="effect-group">
       <h3>{{ group.title }}</h3>
       <div v-for="field in group.fields" :key="field.key" class="field">
@@ -428,14 +525,24 @@ onBeforeUnmount(() => {
         <button class="btn" @click="runB3Preset(group.glowChannel)">应用 B3 参考预设</button>
         <button class="btn ghost" @click="resetGroup(group.glowChannel)">重置本组</button>
       </div>
+      <div v-if="group.title === '渲染质量与性能'" class="runtime-status" role="status" aria-live="polite">
+        <span>RenderTarget: {{ effectRuntimeStatus.targetWidth }} × {{ effectRuntimeStatus.targetHeight }}</span>
+        <span>离屏精度: {{ Math.round(effectRuntimeStatus.renderScale * 100) }}%</span>
+        <span>常态: {{ baseStatusLabel() }}</span>
+        <span>Hover: {{ hoverStatusLabel() }}</span>
+        <span>运行状态: {{ effectRuntimeStatus.degraded ? '外扩柔光已降级关闭' : '正常' }}</span>
+      </div>
+      <p v-if="group.title === '渲染质量与性能' && performanceWarning" class="performance-warning">
+        性能提示：较高离屏精度或模糊次数可能增加 GPU 负载。
+      </p>
     </section>
 
     <section class="effect-group">
       <h3>可复制参数</h3>
-      <pre class="json-out">{{ effectJson }}</pre>
+      <pre class="json-out">{{ editableJson }}</pre>
       <div class="effect-actions">
         <button class="btn" @click="copyEffect">{{ copyLabel() }}</button>
-        <button class="btn ghost" @click="resetAll(editTarget)">恢复全部默认值</button>
+        <button class="btn ghost" @click="resetCurrentTarget">恢复全部默认值</button>
       </div>
     </section>
   </div>
@@ -443,12 +550,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .effect-controls { display: flex; flex-direction: column; gap: 14px; padding-bottom: 4px; }
-.effect-group {
+.effect-group, .session-editing {
   display: flex; flex-direction: column; gap: 10px; padding: 12px;
   border: 1px solid rgba(36, 131, 255, 0.28); border-radius: 4px;
   background: rgba(36, 131, 255, 0.05);
 }
 .effect-group h3 { margin: 0; font-size: 14px; font-weight: normal; color: #fff; }
+.editing-hint, .performance-warning { margin: 0; font-size: 11px; line-height: 1.5; color: #edd892; }
+.runtime-status { display: grid; gap: 4px; font-size: 11px; line-height: 1.45; color: #8fd9ff; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .field-head label { flex: 1; }

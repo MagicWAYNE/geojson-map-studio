@@ -11,7 +11,18 @@ const sceneSetupMocks = vi.hoisted(() => ({
   controlListeners: new Map<string, () => void>()
 }))
 const threeMocks = vi.hoisted(() => ({ createRenderer: vi.fn() }))
-const mapDebugMocks = vi.hoisted(() => ({ effect: null as MapEffectConfig | null }))
+const runtimeStatusDefault = vi.hoisted(() => ({
+  targetWidth: 1,
+  targetHeight: 1,
+  renderScale: 0.5 as const,
+  baseState: 'enabled' as const,
+  hoverState: 'zero' as const,
+  degraded: false
+}))
+const mapDebugMocks = vi.hoisted(() => ({
+  effect: null as MapEffectConfig | null,
+  updateEffectRuntimeStatus: vi.fn()
+}))
 const pipelineMocks = vi.hoisted(() => ({
   create: vi.fn(),
   instance: {
@@ -19,6 +30,7 @@ const pipelineMocks = vi.hoisted(() => ({
     setConfig: vi.fn(),
     setRegionProgress: vi.fn(),
     markCameraDirty: vi.fn(),
+    getStatus: vi.fn(),
     render: vi.fn(),
     dispose: vi.fn()
   }
@@ -63,6 +75,7 @@ vi.mock('./mapGeometry', async (importOriginal) => ({
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/composables/useMapDebug', () => ({
+  DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   useMapDebug: () => {
     const effect = reactive<MapEffectConfig>({
       ...MAP_EFFECT_DEFAULTS,
@@ -70,7 +83,11 @@ vi.mock('@/composables/useMapDebug', () => ({
       hover: { ...MAP_EFFECT_DEFAULTS.hover }
     })
     mapDebugMocks.effect = effect
-    return { cameraView: { value: '' }, effect }
+    return {
+      cameraView: { value: '' },
+      effect,
+      updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus
+    }
   }
 }))
 
@@ -83,6 +100,7 @@ afterEach(() => {
   threeMocks.createRenderer.mockClear()
   pipelineMocks.create.mockReset()
   Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
+  mapDebugMocks.updateEffectRuntimeStatus.mockReset()
   mapDebugMocks.effect = null
   document.body.replaceChildren()
   vi.unstubAllGlobals()
@@ -93,6 +111,13 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
+  pipelineMocks.instance.getStatus.mockReturnValue({
+    targetWidth: 680,
+    targetHeight: 680,
+    renderScale: 0.5,
+    baseState: 'enabled',
+    hoverState: 'ready'
+  })
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
   vi.spyOn(THREE.TextureLoader.prototype, 'loadAsync').mockImplementation(() => new Promise(() => {}))
@@ -164,6 +189,46 @@ async function mountInitializedMap() {
 }
 
 describe('ChongqingMap3D effect wiring', () => {
+  it('publishes pipeline status after setup, config, resize, hover progress, and render', async () => {
+    const mounted = await mountInitializedMap()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'ready',
+      degraded: false
+    })
+
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    apply()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    mounted.runResize()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: meshes[0] } as THREE.Intersection
+    ])
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalled()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    mounted.runFrame(32)
+    expect(pipelineMocks.instance.render).toHaveBeenCalled()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+    mounted.app.unmount()
+  })
+
   it('publishes the lifted region world matrix with its eased hover progress', async () => {
     const mounted = await mountInitializedMap()
     const [, meshes] = pipelineMocks.create.mock.calls[0]
@@ -211,7 +276,12 @@ describe('ChongqingMap3D effect wiring', () => {
     pipelineMocks.instance.setConfig.mockClear()
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
-    expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.any(Object))
+    expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
+      version: 2,
+      base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
+      hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
+      quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) })
+    }))
 
     pipelineMocks.instance.markCameraDirty.mockClear()
     sceneSetupMocks.controlListeners.get('change')?.()
@@ -282,6 +352,10 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(mounted.renderer.render)
       .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
     expect(warn).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
+      ...runtimeStatusDefault,
+      degraded: true
+    })
     mounted.app.unmount()
   })
 
@@ -324,6 +398,10 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     expect(mounted.renderer.render)
       .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
+      ...runtimeStatusDefault,
+      degraded: true
+    })
 
     mounted.runFrame(32)
 
@@ -332,8 +410,15 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     expect(mounted.renderer.render).toHaveBeenCalledTimes(2)
 
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
     mounted.app.unmount()
-    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    const remounted = await mountInitializedMap()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      degraded: false
+    }))
+
+    remounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(2)
   })
 
   it('routes watcher callbacks to the effect runtime and stops the watcher on unmount', async () => {
