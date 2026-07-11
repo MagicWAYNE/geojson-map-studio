@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
+import type { BoundarySegments } from './mapGeometry'
 import {
   advanceHoverProgress,
   applyHoverGlowConfig,
   createHoverGlowLayers,
+  createStaticGlowLayers,
   deriveHoverLayerValues,
   deriveStaticLayerValues,
   easeOutCubic,
@@ -12,19 +14,36 @@ import {
 } from './mapGlow'
 
 describe('mapGlow layer values', () => {
-  it('从一个外圈宽度派生近端和远端两层辉光', () => {
+  it('默认关闭外圈辉光但保留外圈亮芯', () => {
     const values = deriveStaticLayerValues(MAP_EFFECT_DEFAULTS)
-    expect(values.outerNear.width).toBe(5)
-    expect(values.outerNear.opacity).toBe(0.3)
-    expect(values.outerFar.width).toBe(10)
-    expect(values.outerFar.opacity).toBeCloseTo(0.105)
+    expect(values.outerNear.width).toBe(0)
+    expect(values.outerNear.opacity).toBe(0)
+    expect(values.outerFar.width).toBe(0)
+    expect(values.outerFar.opacity).toBe(0)
     expect(values.outerCore.opacity).toBe(0.95)
   })
 
   it('hover 亮芯和辉光使用独立颜色、宽度与强度', () => {
     const values = deriveHoverLayerValues(MAP_EFFECT_DEFAULTS)
     expect(values.core).toEqual({ color: '#d8f5ff', width: 2.4, opacity: 1 })
-    expect(values.glow).toEqual({ color: '#27a7ff', width: 7, opacity: 0.35 })
+    expect(values.glow).toEqual({ color: '#27a7ff', width: 0, opacity: 0 })
+  })
+
+  it('默认配置在真实图层中隐藏辉光并保留亮芯', () => {
+    const boundaries: BoundarySegments = {
+      inner: [[[0, 0], [10, 10]]],
+      outer: [[[0, 0], [10, 10]]],
+      byRegion: new Map()
+    }
+    const staticBundle = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, 0)
+    expect(staticBundle.outerNear.line.visible).toBe(false)
+    expect(staticBundle.outerFar.line.visible).toBe(false)
+    expect(staticBundle.outerCore.line.visible).toBe(true)
+
+    const hoverBundle = createHoverGlowLayers([[[0, 0], [10, 10]]], MAP_EFFECT_DEFAULTS, 0)
+    setHoverGlowProgress(hoverBundle, MAP_EFFECT_DEFAULTS, 1)
+    expect(hoverBundle.glow.line.visible).toBe(false)
+    expect(hoverBundle.core.line.visible).toBe(true)
   })
 })
 

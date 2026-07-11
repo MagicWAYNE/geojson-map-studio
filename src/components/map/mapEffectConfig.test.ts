@@ -8,7 +8,102 @@ import {
   saveMapEffectConfig
 } from './mapEffectConfig'
 
+const APPROVED_DEFAULTS = {
+  version: 1,
+  base: {
+    innerColor: '#ffffff',
+    innerWidth: 1.5,
+    innerOpacity: 0.55,
+    outerColor: '#ffffff',
+    outerCoreWidth: 2,
+    outerGlowWidth: 0,
+    outerGlowStrength: 0
+  },
+  hover: {
+    surfaceColor: '#7fcbff',
+    emissiveColor: '#22b4d8',
+    emissiveIntensity: 0.5,
+    outlineColor: '#d8f5ff',
+    outlineWidth: 2.4,
+    glowColor: '#27a7ff',
+    glowWidth: 0,
+    glowStrength: 0,
+    lift: 2,
+    enterMs: 400,
+    leaveMs: 300
+  }
+} as const
+
+const LEGACY_DEFAULTS = {
+  version: 1,
+  base: {
+    innerColor: '#4da3ff',
+    innerWidth: 1,
+    innerOpacity: 0.55,
+    outerColor: '#7fcbff',
+    outerCoreWidth: 1.8,
+    outerGlowWidth: 10,
+    outerGlowStrength: 0.3
+  },
+  hover: {
+    surfaceColor: '#7fcbff',
+    emissiveColor: '#168dff',
+    emissiveIntensity: 0.8,
+    outlineColor: '#d8f5ff',
+    outlineWidth: 2.4,
+    glowColor: '#27a7ff',
+    glowWidth: 7,
+    glowStrength: 0.35,
+    lift: 1,
+    enterMs: 180,
+    leaveMs: 220
+  }
+} as const
+
 describe('mapEffectConfig', () => {
+  it('使用已确认的地图效果参数作为默认值', () => {
+    expect(MAP_EFFECT_DEFAULTS).toEqual(APPROVED_DEFAULTS)
+  })
+
+  it('迁移旧默认缓存，同时保留真正的自定义配置', () => {
+    const legacyReader = { getItem: () => JSON.stringify(LEGACY_DEFAULTS) }
+    expect(loadMapEffectConfig(legacyReader)).toEqual(APPROVED_DEFAULTS)
+
+    const customized = {
+      ...LEGACY_DEFAULTS,
+      base: { ...LEGACY_DEFAULTS.base, innerWidth: 2.3 }
+    }
+    const customReader = { getItem: () => JSON.stringify(customized) }
+    expect(loadMapEffectConfig(customReader).base.innerWidth).toBe(2.3)
+  })
+
+  it('只有字段和值都完全匹配旧默认值时才迁移缓存', () => {
+    const partial = {
+      ...LEGACY_DEFAULTS,
+      base: {
+        innerColor: LEGACY_DEFAULTS.base.innerColor,
+        innerWidth: LEGACY_DEFAULTS.base.innerWidth,
+        outerColor: LEGACY_DEFAULTS.base.outerColor,
+        outerCoreWidth: LEGACY_DEFAULTS.base.outerCoreWidth,
+        outerGlowWidth: LEGACY_DEFAULTS.base.outerGlowWidth,
+        outerGlowStrength: LEGACY_DEFAULTS.base.outerGlowStrength
+      }
+    }
+    expect(loadMapEffectConfig({ getItem: () => JSON.stringify(partial) }).base.innerColor)
+      .toBe(LEGACY_DEFAULTS.base.innerColor)
+
+    const extended = { ...LEGACY_DEFAULTS, customFlag: true }
+    expect(loadMapEffectConfig({ getItem: () => JSON.stringify(extended) }).base.innerColor)
+      .toBe(LEGACY_DEFAULTS.base.innerColor)
+
+    const caseChanged = {
+      ...LEGACY_DEFAULTS,
+      base: { ...LEGACY_DEFAULTS.base, innerColor: '#4DA3FF' }
+    }
+    expect(loadMapEffectConfig({ getItem: () => JSON.stringify(caseChanged) }).base.innerColor)
+      .toBe(LEGACY_DEFAULTS.base.innerColor)
+  })
+
   it('逐字段补默认值、规范化颜色并裁剪数值', () => {
     const value = normalizeMapEffectConfig({
       version: 1,

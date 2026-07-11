@@ -38,7 +38,7 @@ export interface StorageWriter {
 
 export const MAP_EFFECT_STORAGE_KEY = 'cq-map-effect-config-v1'
 
-export const MAP_EFFECT_DEFAULTS: MapEffectConfig = {
+const LEGACY_MAP_EFFECT_DEFAULTS: MapEffectConfig = {
   version: 1,
   base: {
     innerColor: '#4da3ff',
@@ -64,8 +64,48 @@ export const MAP_EFFECT_DEFAULTS: MapEffectConfig = {
   }
 }
 
+export const MAP_EFFECT_DEFAULTS: MapEffectConfig = {
+  version: 1,
+  base: {
+    innerColor: '#ffffff',
+    innerWidth: 1.5,
+    innerOpacity: 0.55,
+    outerColor: '#ffffff',
+    outerCoreWidth: 2,
+    outerGlowWidth: 0,
+    outerGlowStrength: 0
+  },
+  hover: {
+    surfaceColor: '#7fcbff',
+    emissiveColor: '#22b4d8',
+    emissiveIntensity: 0.5,
+    outlineColor: '#d8f5ff',
+    outlineWidth: 2.4,
+    glowColor: '#27a7ff',
+    glowWidth: 0,
+    glowStrength: 0,
+    lift: 2,
+    enterMs: 400,
+    leaveMs: 300
+  }
+}
+
 type UnknownRecord = Record<string, unknown>
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
+function isExactValue(value: unknown, expected: unknown): boolean {
+  if (Object.is(value, expected)) return true
+  if (value === null || expected === null || typeof value !== 'object' || typeof expected !== 'object') {
+    return false
+  }
+  const valueRecord = value as UnknownRecord
+  const expectedRecord = expected as UnknownRecord
+  const valueKeys = Object.keys(valueRecord)
+  const expectedKeys = Object.keys(expectedRecord)
+  return valueKeys.length === expectedKeys.length
+    && expectedKeys.every((key) => Object.prototype.hasOwnProperty.call(valueRecord, key)
+      && isExactValue(valueRecord[key], expectedRecord[key]))
+}
 
 function record(value: unknown): UnknownRecord {
   return value !== null && typeof value === 'object' ? value as UnknownRecord : {}
@@ -125,7 +165,11 @@ export function loadMapEffectConfig(storage?: StorageReader | null): MapEffectCo
   if (!storage) return defaults()
   try {
     const raw = storage.getItem(MAP_EFFECT_STORAGE_KEY)
-    return raw ? normalizeMapEffectConfig(JSON.parse(raw)) : defaults()
+    if (!raw) return defaults()
+    const parsed: unknown = JSON.parse(raw)
+    return isExactValue(parsed, LEGACY_MAP_EFFECT_DEFAULTS)
+      ? defaults()
+      : normalizeMapEffectConfig(parsed)
   } catch {
     return defaults()
   }

@@ -93,12 +93,12 @@ describe('MapEffectControls', () => {
     const opacity = root.querySelector<HTMLInputElement>('#effect-base-innerOpacity-number')!
     const slider = root.querySelector<HTMLInputElement>('#effect-base-innerOpacity-range')!
 
-    expect(await typeCharacters(enterMs, '400')).toEqual(['', '4', '40', '400'])
-    expect(effect.hover.enterMs).toBe(180)
+    expect(await typeCharacters(enterMs, '650')).toEqual(['', '6', '65', '650'])
+    expect(effect.hover.enterMs).toBe(400)
     enterMs.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(enterMs.value).toBe('400')
-    expect(effect.hover.enterMs).toBe(400)
+    expect(enterMs.value).toBe('650')
+    expect(effect.hover.enterMs).toBe(650)
 
     expect(await typeCharacters(opacity, '0.556')).toEqual(['', '0', '0.', '0.5', '0.55', '0.556'])
     expect(effect.base.innerOpacity).toBe(0.55)
@@ -124,7 +124,7 @@ describe('MapEffectControls', () => {
     reset.click()
     await nextTick()
     expect(opacity.value).toBe('0.55')
-    expect(enterMs.value).toBe('180')
+    expect(enterMs.value).toBe('400')
 
     app.unmount()
   })
