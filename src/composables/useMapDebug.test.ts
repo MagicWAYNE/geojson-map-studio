@@ -50,7 +50,7 @@ describe('useMapDebug effects', () => {
     await nextTick()
 
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 1,
+      version: 2,
       base: { outerGlowWidth: 17.4 },
       hover: { enterMs: 350 }
     })
