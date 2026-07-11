@@ -21,7 +21,7 @@ afterEach(() => {
 })
 
 describe('useMapDebug effects', () => {
-  it('restores v2 defaults with stable nested identities without changing the saved layout state', async () => {
+  it('restores v2 defaults with stable root and nested identities without changing the saved layout state', async () => {
     const values = new Map<string, string>()
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
       version: 1,
@@ -55,6 +55,7 @@ describe('useMapDebug effects', () => {
 
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
+    const effect = debug.effect
     const base = debug.effect.base
     const hover = debug.effect.hover
     const quality = debug.effect.quality
@@ -68,6 +69,7 @@ describe('useMapDebug effects', () => {
 
     expect(debug.layout.left).toBe(480)
     expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
+    expect(debug.effect).toBe(effect)
     expect(debug.effect.base).toBe(base)
     expect(debug.effect.hover).toBe(hover)
     expect(debug.effect.quality).toBe(quality)
@@ -81,57 +83,90 @@ describe('useMapDebug effects', () => {
 
   it('persists deep v2 changes only to the v2 key and restores them after a module reload', async () => {
     const values = new Map<string, string>()
-    values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
-      version: 1,
-      base: {
-        innerColor: '#112233',
-        innerWidth: 1.25,
-        innerOpacity: 0.45,
-        outerColor: '#445566',
-        outerCoreWidth: 2.25,
-        outerGlowWidth: 13,
-        outerGlowStrength: 0.21
-      },
-      hover: {
-        surfaceColor: '#778899',
-        emissiveColor: '#abcdef',
-        emissiveIntensity: 0.7,
-        outlineColor: '#fedcba',
-        outlineWidth: 3.5,
-        glowColor: '#123456',
-        glowWidth: 22,
-        glowStrength: 0.3,
-        lift: 2.5,
-        enterMs: 260,
-        leaveMs: 180
-      }
-    }))
+    const writes: Array<[string, string]> = []
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value)
+      setItem: (key: string, value: string) => {
+        writes.push([key, value])
+        values.set(key, value)
+      }
     })
 
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
-    debug.effect.base.outerGlowWidth = 17.4
-    debug.effect.hover.enterMs = 350
+    debug.effect.base.outerGlowNearRadiusRatio = 0.42
+    debug.effect.hover.glowFarOpacityRatio = 0.63
     debug.effect.quality.maxAlpha = 0.25
     await nextTick()
 
+    expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(false)
+    expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
       version: 2,
-      base: { outerGlowWidth: 17.4 },
-      hover: { enterMs: 350 },
+      base: { outerGlowNearRadiusRatio: 0.42 },
+      hover: { glowFarOpacityRatio: 0.63 },
       quality: { maxAlpha: 0.25 }
     })
-    expect(values.get(MAP_EFFECT_STORAGE_KEY_V1)).toBeDefined()
+    expect(writes.length).toBeGreaterThan(0)
 
     vi.resetModules()
     const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
     const reloaded = reloadedUseMapDebug()
-    expect(reloaded.effect.base.outerGlowWidth).toBe(17.4)
-    expect(reloaded.effect.hover.enterMs).toBe(350)
+    expect(reloaded.effect.base.outerGlowNearRadiusRatio).toBe(0.42)
+    expect(reloaded.effect.hover.glowFarOpacityRatio).toBe(0.63)
     expect(reloaded.effect.quality.maxAlpha).toBe(0.25)
+  })
+
+  it('converges watcher normalization and stops writing after the normalized state settles', async () => {
+    const values = new Map<string, string>()
+    const writes: Array<[string, string]> = []
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        writes.push([key, value])
+        values.set(key, value)
+      }
+    })
+
+    const { useMapDebug } = await import('./useMapDebug')
+    const debug = useMapDebug()
+
+    debug.effect.base.outerGlowColor = '#ABCDEF'
+    debug.effect.base.outerGlowFalloff = 9
+    debug.effect.hover.glowFalloff = -2
+    debug.effect.hover.glowFarOpacityRatio = 3.1
+    debug.effect.quality.maxAlpha = 1.5
+
+    await nextTick()
+    await nextTick()
+
+    expect(debug.effect.base.outerGlowColor).toBe('#abcdef')
+    expect(debug.effect.base.outerGlowFalloff).toBe(4)
+    expect(debug.effect.hover.glowFalloff).toBe(0)
+    expect(debug.effect.hover.glowFarOpacityRatio).toBe(1)
+    expect(debug.effect.quality.maxAlpha).toBe(1)
+
+    const persisted = JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)
+    expect(persisted).toMatchObject({
+      version: 2,
+      base: {
+        outerGlowColor: '#abcdef',
+        outerGlowFalloff: 4
+      },
+      hover: {
+        glowFalloff: 0,
+        glowFarOpacityRatio: 1
+      },
+      quality: {
+        maxAlpha: 1
+      }
+    })
+
+    const writesAfterSettle = writes.length
+    expect(writesAfterSettle).toBeGreaterThan(0)
+    await nextTick()
+    expect(writes.length).toBe(writesAfterSettle)
+    expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
   })
 
   it('deduplicates runtime status updates without mutating when unchanged', async () => {
