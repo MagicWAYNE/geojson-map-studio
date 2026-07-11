@@ -1,7 +1,10 @@
 import * as THREE from 'three'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
-import { createMapOutwardGlowPipeline } from './mapOutwardGlowPipeline'
+import {
+  createMapOutwardGlowPipeline,
+  type MapOutwardGlowPipelineStatus
+} from './mapOutwardGlowPipeline'
 
 const shaderMocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -149,6 +152,34 @@ describe('mapOutwardGlowPipeline', () => {
     pipeline.render(scene, camera)
 
     expect(shaderMocks.renderBlur.mock.calls.map((call) => call[6])).toEqual([3, 7])
+  })
+
+  it('reuses composite inputs across clean renders and refreshes cached values after config and metrics changes', () => {
+    const { pipeline, renderer, scene, camera } = enabledFixture()
+    pipeline.render(scene, camera)
+    const initialInputs = shaderMocks.renderComposite.mock.calls[0][2]
+    shaderMocks.renderComposite.mockClear()
+
+    pipeline.render(scene, camera)
+    expect(shaderMocks.renderComposite.mock.calls[0][2]).toBe(initialInputs)
+
+    const config = configWith({ baseOpacity: 0.4, baseColor: '#102030' })
+    config.base.outerGlowNearOpacityRatio = 0.5
+    pipeline.setConfig(config)
+    pipeline.render(scene, camera)
+    const configInputs = shaderMocks.renderComposite.mock.calls[1][2]
+    expect(configInputs).toBe(initialInputs)
+    expect(configInputs).toMatchObject({
+      color: '#102030',
+      nearOpacity: 0.2,
+      farOpacity: 0.4
+    })
+
+    shaderMocks.renderBlur.mockClear()
+    pipeline.setSize(680, 680, 1)
+    pipeline.render(scene, camera)
+    expect(shaderMocks.renderComposite.mock.calls[2][2]).toBe(initialInputs)
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[5])).toEqual([9.45, 27])
   })
 
   it.each([
@@ -348,6 +379,13 @@ describe('mapOutwardGlowPipeline', () => {
     ready.base.outerGlowEnabled = false
     pipeline.setConfig(ready)
     expect(pipeline.getStatus().baseState).toBe('disabled')
+  })
+
+  it('exposes separate base and hover status unions', () => {
+    expectTypeOf<MapOutwardGlowPipelineStatus['baseState']>()
+      .toEqualTypeOf<'enabled' | 'zero' | 'disabled'>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['hoverState']>()
+      .toEqualTypeOf<'ready' | 'active' | 'zero' | 'disabled'>()
   })
 
   it('disposes construction-owned resources when shader allocation throws', () => {
