@@ -215,54 +215,59 @@ function updateGlowResolution(): void {
 }
 
 function setupScene(mapGroup: THREE.Group) {
-  const el = container.value!
-  scene = new THREE.Scene()
-  scene.add(mapGroup)
+  try {
+    const el = container.value!
+    scene = new THREE.Scene()
+    scene.add(mapGroup)
 
-  scene.add(new THREE.AmbientLight(0x88b4ff, 1.0))
-  const sun = new THREE.DirectionalLight(0xdfeeff, 1.7)
-  sun.position.set(60, 120, 60)
-  scene.add(sun)
-  const rim = new THREE.DirectionalLight(0x2483ff, 0.8)
-  rim.position.set(-80, 40, -60)
-  scene.add(rim)
+    scene.add(new THREE.AmbientLight(0x88b4ff, 1.0))
+    const sun = new THREE.DirectionalLight(0xdfeeff, 1.7)
+    sun.position.set(60, 120, 60)
+    scene.add(sun)
+    const rim = new THREE.DirectionalLight(0x2483ff, 0.8)
+    rim.position.set(-80, 40, -60)
+    scene.add(rim)
 
-  camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
-  camera.position.set(-51.5, 121.2, 82.0)
+    camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
+    camera.position.set(-51.5, 121.2, 82.0)
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(el.clientWidth, el.clientHeight, false)
-  updateGlowResolution()
-  updatePixelRatio()
-  renderer.domElement.className = 'gl'
-  el.prepend(renderer.domElement)
-
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.target.set(1.5, 2.1, 1.7)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.12
-  // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
-  const syncCamView = () => {
-    if (!camera || !controls) return
-    const p = camera.position
-    const t = controls.target
-    cameraView.value =
-      `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
-      `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
-  }
-  controls.addEventListener('change', syncCamView)
-  syncCamView()
-
-  ro = new ResizeObserver(() => {
-    if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(el.clientWidth, el.clientHeight, false)
     updateGlowResolution()
-    camera.aspect = el.clientWidth / el.clientHeight
-    camera.updateProjectionMatrix()
     updatePixelRatio()
-  })
-  ro.observe(el)
-  window.addEventListener('resize', updatePixelRatio)
+    renderer.domElement.className = 'gl'
+    el.prepend(renderer.domElement)
+
+    controls = new OrbitControls(camera, renderer.domElement)
+    controls.target.set(1.5, 2.1, 1.7)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.12
+    // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
+    const syncCamView = () => {
+      if (!camera || !controls) return
+      const p = camera.position
+      const t = controls.target
+      cameraView.value =
+        `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
+        `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
+    }
+    controls.addEventListener('change', syncCamView)
+    syncCamView()
+
+    ro = new ResizeObserver(() => {
+      if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
+      renderer.setSize(el.clientWidth, el.clientHeight, false)
+      updateGlowResolution()
+      camera.aspect = el.clientWidth / el.clientHeight
+      camera.updateProjectionMatrix()
+      updatePixelRatio()
+    })
+    ro.observe(el)
+    window.addEventListener('resize', updatePixelRatio)
+  } catch (cause) {
+    cleanupScene(mapGroup)
+    throw cause
+  }
 }
 
 // —— hover / tooltip / 点击下钻 ——
@@ -429,8 +434,8 @@ async function init(generation: number) {
       textureDisposed = true
       return
     }
-    setupScene(mapGroup)
     textureOwnedByScene = true
+    setupScene(mapGroup)
     if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
     applyEffectConfig()
 
@@ -484,30 +489,39 @@ function disposeSceneResources(root: THREE.Object3D): void {
   textures.forEach((texture) => texture.dispose())
 }
 
+function cleanupScene(fallbackRoot?: THREE.Object3D): void {
+  cancelAnimationFrame(raf)
+  raf = 0
+  ro?.disconnect()
+  ro = null
+  window.removeEventListener('resize', updatePixelRatio)
+  controls?.dispose()
+  controls = null
+  const root = scene ?? fallbackRoot
+  if (root) disposeSceneResources(root)
+  renderer?.dispose()
+  renderer?.domElement.remove()
+  renderer = null
+  scene = null
+  camera = null
+  staticGlow = null
+  cameraView.value = ''
+  regionMeshes.length = 0
+  regionVisuals.length = 0
+  visualByMesh.clear()
+  hoveredVisual = null
+  frames = 0
+  lastFpsAt = 0
+  lastFrameAt = 0
+}
+
 onBeforeUnmount(() => {
   mounted = false
   initGeneration++
   pendingInitCleanup?.()
   pendingInitCleanup = null
   stopEffectWatch()
-  cancelAnimationFrame(raf)
-  ro?.disconnect()
-  window.removeEventListener('resize', updatePixelRatio)
-  cameraView.value = ''
-  controls?.dispose()
-  if (scene) disposeSceneResources(scene)
-  renderer?.dispose()
-  renderer?.domElement.remove()
-  renderer = null
-  scene = null
-  camera = null
-  controls = null
-  staticGlow = null
-  regionMeshes.length = 0
-  regionVisuals.length = 0
-  visualByMesh.clear()
-  hoveredVisual = null
-  lastFrameAt = 0
+  cleanupScene()
 })
 </script>
 

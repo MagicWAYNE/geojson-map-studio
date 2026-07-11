@@ -6,6 +6,8 @@ import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 
 const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
 const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
+const sceneSetupMocks = vi.hoisted(() => ({ controlsDispose: vi.fn() }))
+const threeMocks = vi.hoisted(() => ({ createRenderer: vi.fn() }))
 
 const stopEffectWatch = vi.fn()
 const watchMapEffectConfig = vi.fn<(effect: MapEffectConfig, apply: () => void) => () => void>(
@@ -13,9 +15,28 @@ const watchMapEffectConfig = vi.fn<(effect: MapEffectConfig, apply: () => void) 
 )
 const applyMapEffectConfig = vi.fn()
 
+vi.mock('three', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('three')>()
+  return {
+    ...actual,
+    WebGLRenderer: class {
+      constructor(...args: unknown[]) {
+        return threeMocks.createRenderer(...args)
+      }
+    }
+  }
+})
 vi.mock('./mapEffectWatcher', () => ({ watchMapEffectConfig }))
 vi.mock('./mapEffectRuntime', () => ({ applyMapEffectConfig }))
 vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
+vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
+  OrbitControls: class {
+    target = { x: 0, y: 0, z: 0, set: vi.fn() }
+    addEventListener = vi.fn()
+    update = vi.fn()
+    dispose = sceneSetupMocks.controlsDispose
+  }
+}))
 vi.mock('./mapGeometry', async (importOriginal) => ({
   ...await importOriginal<typeof import('./mapGeometry')>(),
   parseSvgRegions: geometryMocks.parseSvgRegions
@@ -36,6 +57,8 @@ afterEach(() => {
   watchMapEffectConfig.mockClear()
   stopEffectWatch.mockClear()
   applyMapEffectConfig.mockClear()
+  sceneSetupMocks.controlsDispose.mockClear()
+  threeMocks.createRenderer.mockClear()
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -203,5 +226,58 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
     expect(requestAnimationFrame).not.toHaveBeenCalled()
     expect(disposeTexture).toHaveBeenCalledTimes(1)
+  })
+
+  it('cleans up a partially published scene when ResizeObserver setup fails', async () => {
+    const texture = new THREE.Texture(document.createElement('img'))
+    texture.image.width = 100
+    texture.image.height = 100
+    const disposeTexture = vi.spyOn(texture, 'dispose')
+    const rendererDispose = vi.fn()
+    const observe = vi.fn(() => { throw new Error('resize observer failed') })
+    const disconnect = vi.fn()
+    const removeResizeListener = vi.spyOn(window, 'removeEventListener')
+    vi.stubGlobal('ResizeObserver', class {
+      observe = observe
+      disconnect = disconnect
+    })
+    threeMocks.createRenderer.mockReturnValue({
+      domElement: document.createElement('canvas'),
+      setSize: vi.fn(),
+      setPixelRatio: vi.fn(),
+      render: vi.fn(),
+      dispose: rendererDispose
+    })
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    } as unknown as Response)
+    apiMocks.getDistrictMapData.mockResolvedValue([])
+    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockResolvedValue(texture)
+    geometryMocks.parseSvgRegions.mockReturnValue([{
+      name: '渝中区',
+      outers: [{ ring: [[0, 0], [100, 0], [0, 100]], holes: [] }]
+    }])
+
+    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
+    const root = document.createElement('div')
+    const app = createApp(ChongqingMap3D)
+    app.mount(root)
+
+    await vi.waitFor(() => expect(root.textContent).toContain('resize observer failed'))
+
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+    expect(rendererDispose).toHaveBeenCalledTimes(1)
+    expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
+    expect(disconnect).toHaveBeenCalledTimes(1)
+    expect(removeResizeListener).toHaveBeenCalledWith('resize', expect.any(Function))
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+
+    app.unmount()
+
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+    expect(rendererDispose).toHaveBeenCalledTimes(1)
+    expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
   })
 })
