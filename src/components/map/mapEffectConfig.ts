@@ -241,33 +241,33 @@ function normalizeV2Base(value: unknown): MapEffectBaseConfigV2 {
     outerCoreWidth: finiteNumber(base.outerCoreWidth, V2_BASE_DEFAULTS.outerCoreWidth, 0, 6),
     outerGlowEnabled: finiteBoolean(base.outerGlowEnabled, V2_BASE_DEFAULTS.outerGlowEnabled),
     outerGlowColor: color(base.outerGlowColor, V2_BASE_DEFAULTS.outerGlowColor),
-    outerGlowWidth: finiteNumber(base.outerGlowWidth, V2_BASE_DEFAULTS.outerGlowWidth, 0, 120),
+    outerGlowWidth: finiteNumber(base.outerGlowWidth, V2_BASE_DEFAULTS.outerGlowWidth, 0, 200),
     outerGlowStrength: finiteNumber(base.outerGlowStrength, V2_BASE_DEFAULTS.outerGlowStrength, 0, 1),
     outerGlowNearRadiusRatio: finiteNumber(
       base.outerGlowNearRadiusRatio,
       V2_BASE_DEFAULTS.outerGlowNearRadiusRatio,
       0,
-      1
+      1.5
     ),
     outerGlowNearOpacityRatio: finiteNumber(
       base.outerGlowNearOpacityRatio,
       V2_BASE_DEFAULTS.outerGlowNearOpacityRatio,
       0,
-      1
+      2
     ),
     outerGlowFarRadiusRatio: finiteNumber(
       base.outerGlowFarRadiusRatio,
       V2_BASE_DEFAULTS.outerGlowFarRadiusRatio,
-      0,
-      1
+      0.25,
+      2
     ),
     outerGlowFarOpacityRatio: finiteNumber(
       base.outerGlowFarOpacityRatio,
       V2_BASE_DEFAULTS.outerGlowFarOpacityRatio,
       0,
-      1
+      2
     ),
-    outerGlowFalloff: finiteNumber(base.outerGlowFalloff, V2_BASE_DEFAULTS.outerGlowFalloff, 0, 4),
+    outerGlowFalloff: finiteNumber(base.outerGlowFalloff, V2_BASE_DEFAULTS.outerGlowFalloff, 0.25, 4),
     outerGlowEdgeSoftness: finiteNumber(
       base.outerGlowEdgeSoftness,
       V2_BASE_DEFAULTS.outerGlowEdgeSoftness,
@@ -294,33 +294,33 @@ function normalizeV2Hover(value: unknown): MapEffectHoverConfigV2 {
     outlineWidth: finiteNumber(hover.outlineWidth, V2_HOVER_DEFAULTS.outlineWidth, 0, 8),
     glowEnabled: finiteBoolean(hover.glowEnabled, V2_HOVER_DEFAULTS.glowEnabled),
     glowColor: color(hover.glowColor, V2_HOVER_DEFAULTS.glowColor),
-    glowWidth: finiteNumber(hover.glowWidth, V2_HOVER_DEFAULTS.glowWidth, 0, 120),
+    glowWidth: finiteNumber(hover.glowWidth, V2_HOVER_DEFAULTS.glowWidth, 0, 200),
     glowStrength: finiteNumber(hover.glowStrength, V2_HOVER_DEFAULTS.glowStrength, 0, 1),
     glowNearRadiusRatio: finiteNumber(
       hover.glowNearRadiusRatio,
       V2_HOVER_DEFAULTS.glowNearRadiusRatio,
       0,
-      1
+      1.5
     ),
     glowNearOpacityRatio: finiteNumber(
       hover.glowNearOpacityRatio,
       V2_HOVER_DEFAULTS.glowNearOpacityRatio,
       0,
-      1
+      2
     ),
     glowFarRadiusRatio: finiteNumber(
       hover.glowFarRadiusRatio,
       V2_HOVER_DEFAULTS.glowFarRadiusRatio,
-      0,
-      1
+      0.25,
+      2
     ),
     glowFarOpacityRatio: finiteNumber(
       hover.glowFarOpacityRatio,
       V2_HOVER_DEFAULTS.glowFarOpacityRatio,
       0,
-      1
+      2
     ),
-    glowFalloff: finiteNumber(hover.glowFalloff, V2_HOVER_DEFAULTS.glowFalloff, 0, 4),
+    glowFalloff: finiteNumber(hover.glowFalloff, V2_HOVER_DEFAULTS.glowFalloff, 0.25, 4),
     glowEdgeSoftness: finiteNumber(
       hover.glowEdgeSoftness,
       V2_HOVER_DEFAULTS.glowEdgeSoftness,
@@ -339,7 +339,7 @@ function normalizeV2Quality(value: unknown): MapEffectQualityConfig {
   const quality = isRecord(value) ? value : {}
   return {
     renderScale: renderScale(quality.renderScale),
-    maxAlpha: finiteNumber(quality.maxAlpha, V2_QUALITY_DEFAULTS.maxAlpha, 0, 1)
+    maxAlpha: finiteNumber(quality.maxAlpha, V2_QUALITY_DEFAULTS.maxAlpha, 0.1, 1)
   }
 }
 

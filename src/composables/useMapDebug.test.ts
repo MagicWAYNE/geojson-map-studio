@@ -142,8 +142,8 @@ describe('useMapDebug effects', () => {
 
     expect(debug.effect.base.outerGlowColor).toBe('#abcdef')
     expect(debug.effect.base.outerGlowFalloff).toBe(4)
-    expect(debug.effect.hover.glowFalloff).toBe(0)
-    expect(debug.effect.hover.glowFarOpacityRatio).toBe(1)
+    expect(debug.effect.hover.glowFalloff).toBe(0.25)
+    expect(debug.effect.hover.glowFarOpacityRatio).toBe(2)
     expect(debug.effect.quality.maxAlpha).toBe(1)
 
     const persisted = JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)
@@ -154,8 +154,8 @@ describe('useMapDebug effects', () => {
         outerGlowFalloff: 4
       },
       hover: {
-        glowFalloff: 0,
-        glowFarOpacityRatio: 1
+        glowFalloff: 0.25,
+        glowFarOpacityRatio: 2
       },
       quality: {
         maxAlpha: 1

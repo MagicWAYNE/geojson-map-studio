@@ -241,12 +241,12 @@ describe('mapEffectConfig', () => {
         outerCoreWidth: 6,
         outerGlowEnabled: false,
         outerGlowColor: '#fedcba',
-        outerGlowWidth: 120,
+        outerGlowWidth: 200,
         outerGlowStrength: 1,
         outerGlowNearRadiusRatio: 0.21,
         outerGlowNearOpacityRatio: 0.77,
-        outerGlowFarRadiusRatio: 1,
-        outerGlowFarOpacityRatio: 1,
+        outerGlowFarRadiusRatio: 2,
+        outerGlowFarOpacityRatio: 2,
         outerGlowFalloff: 2,
         outerGlowEdgeSoftness: 1,
         outerGlowNearPasses: 3,
@@ -264,8 +264,8 @@ describe('mapEffectConfig', () => {
         glowStrength: 0,
         glowNearRadiusRatio: 0.21,
         glowNearOpacityRatio: 0.77,
-        glowFarRadiusRatio: 1,
-        glowFarOpacityRatio: 1,
+        glowFarRadiusRatio: 2,
+        glowFarOpacityRatio: 2,
         glowFalloff: 2,
         glowEdgeSoftness: 1,
         glowNearPasses: 2,
@@ -286,6 +286,109 @@ describe('mapEffectConfig', () => {
       .toEqual(V2_DEFAULTS)
     expect(normalizeMapEffectConfig('nope')).toEqual(V2_DEFAULTS)
     expect(normalizeMapEffectConfig({})).toEqual(V2_DEFAULTS)
+  })
+
+  it('normalizes the expanded v2 glow and alpha limits for both channels', () => {
+    const high = normalizeMapEffectConfig({
+      version: 2,
+      base: {
+        outerGlowWidth: 300,
+        outerGlowNearRadiusRatio: 3,
+        outerGlowNearOpacityRatio: 3,
+        outerGlowFarRadiusRatio: 3,
+        outerGlowFarOpacityRatio: 3,
+        outerGlowFalloff: 5,
+        outerGlowEdgeSoftness: 2,
+        outerGlowNearPasses: 8.6,
+        outerGlowFarPasses: 7.6
+      },
+      hover: {
+        glowWidth: 300,
+        glowNearRadiusRatio: 3,
+        glowNearOpacityRatio: 3,
+        glowFarRadiusRatio: 3,
+        glowFarOpacityRatio: 3,
+        glowFalloff: 5,
+        glowEdgeSoftness: 2,
+        glowNearPasses: 8.6,
+        glowFarPasses: 7.6
+      },
+      quality: { maxAlpha: 2 }
+    })
+    const low = normalizeMapEffectConfig({
+      version: 2,
+      base: {
+        outerGlowWidth: -1,
+        outerGlowNearRadiusRatio: -1,
+        outerGlowNearOpacityRatio: -1,
+        outerGlowFarRadiusRatio: -1,
+        outerGlowFarOpacityRatio: -1,
+        outerGlowFalloff: 0,
+        outerGlowEdgeSoftness: -1,
+        outerGlowNearPasses: 0.4,
+        outerGlowFarPasses: 0.6
+      },
+      hover: {
+        glowWidth: -1,
+        glowNearRadiusRatio: -1,
+        glowNearOpacityRatio: -1,
+        glowFarRadiusRatio: -1,
+        glowFarOpacityRatio: -1,
+        glowFalloff: 0,
+        glowEdgeSoftness: -1,
+        glowNearPasses: 0.4,
+        glowFarPasses: 0.6
+      },
+      quality: { maxAlpha: 0 }
+    })
+
+    expect(high.base).toMatchObject({
+      outerGlowWidth: 200,
+      outerGlowNearRadiusRatio: 1.5,
+      outerGlowNearOpacityRatio: 2,
+      outerGlowFarRadiusRatio: 2,
+      outerGlowFarOpacityRatio: 2,
+      outerGlowFalloff: 4,
+      outerGlowEdgeSoftness: 1,
+      outerGlowNearPasses: 8,
+      outerGlowFarPasses: 8
+    })
+    expect(high.hover).toMatchObject({
+      glowWidth: 200,
+      glowNearRadiusRatio: 1.5,
+      glowNearOpacityRatio: 2,
+      glowFarRadiusRatio: 2,
+      glowFarOpacityRatio: 2,
+      glowFalloff: 4,
+      glowEdgeSoftness: 1,
+      glowNearPasses: 8,
+      glowFarPasses: 8
+    })
+    expect(high.quality.maxAlpha).toBe(1)
+
+    expect(low.base).toMatchObject({
+      outerGlowWidth: 0,
+      outerGlowNearRadiusRatio: 0,
+      outerGlowNearOpacityRatio: 0,
+      outerGlowFarRadiusRatio: 0.25,
+      outerGlowFarOpacityRatio: 0,
+      outerGlowFalloff: 0.25,
+      outerGlowEdgeSoftness: 0,
+      outerGlowNearPasses: 1,
+      outerGlowFarPasses: 1
+    })
+    expect(low.hover).toMatchObject({
+      glowWidth: 0,
+      glowNearRadiusRatio: 0,
+      glowNearOpacityRatio: 0,
+      glowFarRadiusRatio: 0.25,
+      glowFarOpacityRatio: 0,
+      glowFalloff: 0.25,
+      glowEdgeSoftness: 0,
+      glowNearPasses: 1,
+      glowFarPasses: 1
+    })
+    expect(low.quality.maxAlpha).toBe(0.1)
   })
 
   it('rounds passes after clamping and only accepts enumerated render scales', () => {

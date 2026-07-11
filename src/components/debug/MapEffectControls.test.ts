@@ -153,7 +153,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('keeps disabled glow settings editable and writes render scale from the select', async () => {
+  it('keeps disabled glow settings editable through nextTick normalization and writes render scale from the select', async () => {
     const { app, root, effect } = await mountControls()
     const enabled = root.querySelector<HTMLInputElement>('#effect-base-outerGlowEnabled-checkbox')!
     const radius = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
@@ -161,14 +161,14 @@ describe('MapEffectControls', () => {
 
     enabled.checked = false
     enabled.dispatchEvent(new Event('change', { bubbles: true }))
-    radius.value = '76'
+    radius.value = '200'
     radius.dispatchEvent(new Event('change', { bubbles: true }))
     renderScale.value = '0.75'
     renderScale.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
 
     expect(effect.base.outerGlowEnabled).toBe(false)
-    expect(effect.base.outerGlowWidth).toBe(76)
+    expect(effect.base.outerGlowWidth).toBe(200)
     expect(effect.quality.renderScale).toBe(0.75)
     expect(radius.disabled).toBe(false)
     app.unmount()
