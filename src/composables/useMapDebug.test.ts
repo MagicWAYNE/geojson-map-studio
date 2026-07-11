@@ -65,8 +65,13 @@ describe('useMapDebug effects', () => {
   it('applies changed configuration to existing static and hover glow materials', () => {
     const config = {
       ...MAP_EFFECT_DEFAULTS,
-      base: { ...MAP_EFFECT_DEFAULTS.base, innerColor: '#123456', outerGlowWidth: 18 },
-      hover: { ...MAP_EFFECT_DEFAULTS.hover, glowColor: '#abcdef', glowWidth: 11, outlineWidth: 5 }
+      base: {
+        ...MAP_EFFECT_DEFAULTS.base,
+        innerColor: '#123456',
+        outerColor: '#789abc',
+        outerCoreWidth: 3.5
+      },
+      hover: { ...MAP_EFFECT_DEFAULTS.hover, outlineColor: '#abcdef', outlineWidth: 5 }
     }
     const segments: Segment[] = [[[0, 0], [1, 0]]]
     const boundaries: BoundarySegments = {
@@ -81,9 +86,9 @@ describe('useMapDebug effects', () => {
     applyHoverGlowConfig(hoverGlow, config)
 
     expect(staticGlow.inner.material.color.getHexString()).toBe('123456')
-    expect(staticGlow.outerFar.material.linewidth).toBe(18)
-    expect(hoverGlow.glow.material.color.getHexString()).toBe('abcdef')
-    expect(hoverGlow.glow.material.linewidth).toBe(11)
+    expect(staticGlow.outerCore.material.color.getHexString()).toBe('789abc')
+    expect(staticGlow.outerCore.material.linewidth).toBe(3.5)
+    expect(hoverGlow.core.material.color.getHexString()).toBe('abcdef')
     expect(hoverGlow.core.material.linewidth).toBe(5)
   })
 })

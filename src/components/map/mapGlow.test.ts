@@ -6,44 +6,33 @@ import {
   applyHoverGlowConfig,
   createHoverGlowLayers,
   createStaticGlowLayers,
-  deriveHoverLayerValues,
-  deriveStaticLayerValues,
   easeOutCubic,
   setHoverGlowProgress,
   updateHoverVisualState
 } from './mapGlow'
 
-describe('mapGlow layer values', () => {
-  it('默认关闭外圈辉光但保留外圈亮芯', () => {
-    const values = deriveStaticLayerValues(MAP_EFFECT_DEFAULTS)
-    expect(values.outerNear.width).toBe(0)
-    expect(values.outerNear.opacity).toBe(0)
-    expect(values.outerFar.width).toBe(0)
-    expect(values.outerFar.opacity).toBe(0)
-    expect(values.outerCore.opacity).toBe(0.95)
-  })
-
-  it('hover 亮芯和辉光使用独立颜色、宽度与强度', () => {
-    const values = deriveHoverLayerValues(MAP_EFFECT_DEFAULTS)
-    expect(values.core).toEqual({ color: '#d8f5ff', width: 2.4, opacity: 1 })
-    expect(values.glow).toEqual({ color: '#27a7ff', width: 0, opacity: 0 })
-  })
-
-  it('默认配置在真实图层中隐藏辉光并保留亮芯', () => {
+describe('mapGlow layer bundles', () => {
+  it('creates only inner lines and a crisp static outer core', () => {
     const boundaries: BoundarySegments = {
       inner: [[[0, 0], [10, 10]]],
       outer: [[[0, 0], [10, 10]]],
       byRegion: new Map()
     }
-    const staticBundle = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, 0)
-    expect(staticBundle.outerNear.line.visible).toBe(false)
-    expect(staticBundle.outerFar.line.visible).toBe(false)
-    expect(staticBundle.outerCore.line.visible).toBe(true)
+    const bundle = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, 0)
+    expect(Object.keys(bundle).sort()).toEqual([
+      'geometries', 'group', 'inner', 'materials', 'outerCore'
+    ])
+    expect(bundle.group.children).toHaveLength(2)
+    expect(bundle.outerCore.line.visible).toBe(true)
+  })
 
-    const hoverBundle = createHoverGlowLayers([[[0, 0], [10, 10]]], MAP_EFFECT_DEFAULTS, 0)
-    setHoverGlowProgress(hoverBundle, MAP_EFFECT_DEFAULTS, 1)
-    expect(hoverBundle.glow.line.visible).toBe(false)
-    expect(hoverBundle.core.line.visible).toBe(true)
+  it('creates only a crisp hover core and animates its opacity', () => {
+    const bundle = createHoverGlowLayers([[[0, 0], [10, 10]]], MAP_EFFECT_DEFAULTS, 0)
+    expect(Object.keys(bundle).sort()).toEqual(['core', 'geometries', 'group', 'materials'])
+    setHoverGlowProgress(bundle, MAP_EFFECT_DEFAULTS, 0.5)
+    expect(bundle.group.visible).toBe(true)
+    expect(bundle.core.material.opacity).toBe(0.5)
+    expect(bundle.core.line.visible).toBe(true)
   })
 })
 
@@ -77,13 +66,12 @@ describe('mapGlow hover animation', () => {
     expect(render).toHaveBeenCalledOnce()
   })
 
-  it('keeps real hover glow layers hidden while force-refreshing widths at zero progress', () => {
+  it('keeps the hover core hidden while force-refreshing its width at zero progress', () => {
     const config = {
       ...MAP_EFFECT_DEFAULTS,
       base: { ...MAP_EFFECT_DEFAULTS.base },
       hover: {
         ...MAP_EFFECT_DEFAULTS.hover,
-        glowWidth: 11,
         outlineWidth: 3.5
       }
     }
@@ -92,7 +80,6 @@ describe('mapGlow hover animation', () => {
 
     setHoverGlowProgress(bundle, MAP_EFFECT_DEFAULTS, 0)
     expect(bundle.group.visible).toBe(false)
-    expect(bundle.glow.line.visible).toBe(false)
     expect(bundle.core.line.visible).toBe(false)
 
     expect(updateHoverVisualState(visual, 0, 180, 220, (_state, eased) => {
@@ -101,9 +88,7 @@ describe('mapGlow hover animation', () => {
     }, true)).toBe(true)
 
     expect(bundle.group.visible).toBe(false)
-    expect(bundle.glow.line.visible).toBe(false)
     expect(bundle.core.line.visible).toBe(false)
-    expect(bundle.glow.material.linewidth).toBe(11)
     expect(bundle.core.material.linewidth).toBe(3.5)
   })
 })
