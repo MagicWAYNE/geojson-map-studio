@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
 import {
   advanceHoverProgress,
+  applyHoverGlowConfig,
+  createHoverGlowLayers,
   deriveHoverLayerValues,
   deriveStaticLayerValues,
   easeOutCubic,
+  setHoverGlowProgress,
   updateHoverVisualState
 } from './mapGlow'
 
@@ -53,5 +56,35 @@ describe('mapGlow hover animation', () => {
     render.mockClear()
     expect(updateHoverVisualState({ progress: 0.5, active: true }, 18, 180, 220, render)).toBe(true)
     expect(render).toHaveBeenCalledOnce()
+  })
+
+  it('keeps real hover glow layers hidden while force-refreshing widths at zero progress', () => {
+    const config = {
+      ...MAP_EFFECT_DEFAULTS,
+      base: { ...MAP_EFFECT_DEFAULTS.base },
+      hover: {
+        ...MAP_EFFECT_DEFAULTS.hover,
+        glowWidth: 11,
+        outlineWidth: 3.5
+      }
+    }
+    const bundle = createHoverGlowLayers([[[0, 0], [10, 10]]], config, 0)
+    const visual = { progress: 0, active: false }
+
+    setHoverGlowProgress(bundle, MAP_EFFECT_DEFAULTS, 0)
+    expect(bundle.group.visible).toBe(false)
+    expect(bundle.glow.line.visible).toBe(false)
+    expect(bundle.core.line.visible).toBe(false)
+
+    expect(updateHoverVisualState(visual, 0, 180, 220, (_state, eased) => {
+      applyHoverGlowConfig(bundle, config)
+      setHoverGlowProgress(bundle, config, eased)
+    }, true)).toBe(true)
+
+    expect(bundle.group.visible).toBe(false)
+    expect(bundle.glow.line.visible).toBe(false)
+    expect(bundle.core.line.visible).toBe(false)
+    expect(bundle.glow.material.linewidth).toBe(11)
+    expect(bundle.core.material.linewidth).toBe(3.5)
   })
 })

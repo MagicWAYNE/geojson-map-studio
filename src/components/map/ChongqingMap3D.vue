@@ -52,6 +52,7 @@ let ro: ResizeObserver | null = null
 let staticGlow: StaticGlowBundle | null = null
 let mounted = false
 let initGeneration = 0
+let pendingInitCleanup: (() => void) | null = null
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 
@@ -379,11 +380,28 @@ function isCurrentInit(generation: number): boolean {
 async function init(generation: number) {
   let terrainTex: THREE.Texture | null = null
   let textureOwnedByScene = false
+  let textureDisposed = false
+  let textureCleanupRequested = false
+  const cleanupPendingTexture = () => {
+    textureCleanupRequested = true
+    if (terrainTex && !textureOwnedByScene && !textureDisposed) {
+      textureDisposed = true
+      terrainTex.dispose()
+    }
+  }
+  pendingInitCleanup = cleanupPendingTexture
+  const terrainTexturePromise = new THREE.TextureLoader()
+    .loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
+    .then((texture) => {
+      terrainTex = texture
+      if (textureCleanupRequested) cleanupPendingTexture()
+      return texture
+    })
   try {
     const [svgRes, data, loadedTerrainTex] = await Promise.all([
       fetch(`${import.meta.env.BASE_URL}maps/chongqing-selected-districts-tianditu-imagery-z12.svg`),
       getDistrictMapData(),
-      new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
+      terrainTexturePromise
     ])
     terrainTex = loadedTerrainTex
     if (!isCurrentInit(generation)) return
@@ -408,11 +426,12 @@ async function init(generation: number) {
     const mapGroup = buildRegions(regions, byName, terrainTex)
     if (!isCurrentInit(generation)) {
       disposeSceneResources(mapGroup)
-      terrainTex = null
+      textureDisposed = true
       return
     }
     setupScene(mapGroup)
     textureOwnedByScene = true
+    if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
     applyEffectConfig()
 
     const el = container.value
@@ -427,7 +446,8 @@ async function init(generation: number) {
   } catch (e) {
     if (isCurrentInit(generation)) error.value = e instanceof Error ? e.message : String(e)
   } finally {
-    if (terrainTex && !textureOwnedByScene) terrainTex.dispose()
+    if (!textureOwnedByScene) cleanupPendingTexture()
+    if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
   }
 }
 
@@ -467,6 +487,8 @@ function disposeSceneResources(root: THREE.Object3D): void {
 onBeforeUnmount(() => {
   mounted = false
   initGeneration++
+  pendingInitCleanup?.()
+  pendingInitCleanup = null
   stopEffectWatch()
   cancelAnimationFrame(raf)
   ro?.disconnect()

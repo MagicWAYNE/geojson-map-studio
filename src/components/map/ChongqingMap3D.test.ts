@@ -51,8 +51,12 @@ beforeEach(() => {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
-  return { promise, resolve }
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 describe('ChongqingMap3D effect wiring', () => {
@@ -110,6 +114,92 @@ describe('ChongqingMap3D effect wiring', () => {
     await nextTick()
 
     expect(response.text).not.toHaveBeenCalled()
+    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes a texture that resolves before another initialization request rejects', async () => {
+    const fetchResult = deferred<Response>()
+    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
+    const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
+    const texture = new THREE.Texture(document.createElement('img'))
+    const disposeTexture = vi.spyOn(texture, 'dispose')
+    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
+    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
+    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
+
+    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
+    const root = document.createElement('div')
+    const app = createApp(ChongqingMap3D)
+    app.mount(root)
+    await nextTick()
+
+    textureResult.resolve(texture)
+    await Promise.resolve()
+    dataResult.reject(new Error('district data failed'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+
+    app.unmount()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes a texture that resolves after another initialization request rejects', async () => {
+    const fetchResult = deferred<Response>()
+    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
+    const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
+    const texture = new THREE.Texture(document.createElement('img'))
+    const disposeTexture = vi.spyOn(texture, 'dispose')
+    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
+    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
+    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
+
+    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
+    const root = document.createElement('div')
+    const app = createApp(ChongqingMap3D)
+    app.mount(root)
+    await nextTick()
+
+    fetchResult.reject(new Error('map request failed'))
+    await Promise.resolve()
+    await Promise.resolve()
+    textureResult.resolve(texture)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+
+    app.unmount()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes a resolved texture immediately when initialization siblings are still pending on unmount', async () => {
+    const fetchResult = deferred<Response>()
+    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
+    const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
+    const texture = new THREE.Texture(document.createElement('img'))
+    const disposeTexture = vi.spyOn(texture, 'dispose')
+    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
+    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
+    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
+
+    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
+    const root = document.createElement('div')
+    const app = createApp(ChongqingMap3D)
+    app.mount(root)
+    await nextTick()
+
+    textureResult.resolve(texture)
+    await Promise.resolve()
+    app.unmount()
+
     expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
     expect(requestAnimationFrame).not.toHaveBeenCalled()
     expect(disposeTexture).toHaveBeenCalledTimes(1)
