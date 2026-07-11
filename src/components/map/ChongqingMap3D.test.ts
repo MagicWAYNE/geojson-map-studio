@@ -6,8 +6,22 @@ import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 
 const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
 const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
-const sceneSetupMocks = vi.hoisted(() => ({ controlsDispose: vi.fn() }))
+const sceneSetupMocks = vi.hoisted(() => ({
+  controlsDispose: vi.fn(),
+  controlListeners: new Map<string, () => void>()
+}))
 const threeMocks = vi.hoisted(() => ({ createRenderer: vi.fn() }))
+const pipelineMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  instance: {
+    setSize: vi.fn(),
+    setConfig: vi.fn(),
+    setRegionProgress: vi.fn(),
+    markCameraDirty: vi.fn(),
+    render: vi.fn(),
+    dispose: vi.fn()
+  }
+}))
 
 const stopEffectWatch = vi.fn()
 const watchMapEffectConfig = vi.fn<(effect: MapEffectConfig, apply: () => void) => () => void>(
@@ -28,11 +42,16 @@ vi.mock('three', async (importOriginal) => {
 })
 vi.mock('./mapEffectWatcher', () => ({ watchMapEffectConfig }))
 vi.mock('./mapEffectRuntime', () => ({ applyMapEffectConfig }))
+vi.mock('./mapOutwardGlowPipeline', () => ({
+  createMapOutwardGlowPipeline: pipelineMocks.create
+}))
 vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
   OrbitControls: class {
     target = { x: 0, y: 0, z: 0, set: vi.fn() }
-    addEventListener = vi.fn()
+    addEventListener = vi.fn((type: string, callback: () => void) => {
+      sceneSetupMocks.controlListeners.set(type, callback)
+    })
     update = vi.fn()
     dispose = sceneSetupMocks.controlsDispose
   }
@@ -58,7 +77,10 @@ afterEach(() => {
   stopEffectWatch.mockClear()
   applyMapEffectConfig.mockClear()
   sceneSetupMocks.controlsDispose.mockClear()
+  sceneSetupMocks.controlListeners.clear()
   threeMocks.createRenderer.mockClear()
+  pipelineMocks.create.mockReset()
+  Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -67,6 +89,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+  pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
   vi.spyOn(THREE.TextureLoader.prototype, 'loadAsync').mockImplementation(() => new Promise(() => {}))
@@ -82,7 +105,147 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+async function mountInitializedMap() {
+  let resizeCallback: ResizeObserverCallback = () => undefined
+  let frameCallback: FrameRequestCallback = () => undefined
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(680)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(680)
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
+    observe = vi.fn()
+    disconnect = vi.fn()
+  })
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frameCallback = callback
+    return 1
+  }))
+  const renderer = {
+    domElement: document.createElement('canvas'),
+    setSize: vi.fn(),
+    setPixelRatio: vi.fn(),
+    getPixelRatio: vi.fn(() => 2),
+    render: vi.fn(),
+    dispose: vi.fn()
+  }
+  threeMocks.createRenderer.mockReturnValue(renderer)
+  pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
+  vi.mocked(fetch).mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: vi.fn().mockResolvedValue('<svg/>')
+  } as unknown as Response)
+  apiMocks.getDistrictMapData.mockResolvedValue([])
+  geometryMocks.parseSvgRegions.mockReturnValue([{
+    name: '渝中区',
+    outers: [{ ring: [[0, 0], [100, 0], [0, 100]], holes: [] }]
+  }])
+  const texture = new THREE.Texture(document.createElement('img'))
+  texture.image.width = 100
+  texture.image.height = 100
+  vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockResolvedValue(texture)
+
+  const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
+  const root = document.createElement('div')
+  const app = createApp(ChongqingMap3D)
+  app.mount(root)
+  await vi.waitFor(() => expect(requestAnimationFrame).toHaveBeenCalled())
+  return {
+    app,
+    renderer,
+    runFrame: (now = 16) => frameCallback(now),
+    runResize: () => resizeCallback([], {} as ResizeObserver)
+  }
+}
+
 describe('ChongqingMap3D effect wiring', () => {
+  it('wires config, camera, resize, render, and dispose to the pipeline', async () => {
+    const mounted = await mountInitializedMap()
+    expect(pipelineMocks.create).toHaveBeenCalledWith(
+      mounted.renderer,
+      expect.arrayContaining([expect.any(THREE.Mesh)])
+    )
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    expect(meshes[0].matrixWorld.equals(new THREE.Matrix4())).toBe(false)
+    expect(mounted.renderer.setPixelRatio.mock.invocationCallOrder[0])
+      .toBeLessThan(pipelineMocks.create.mock.invocationCallOrder[0])
+
+    pipelineMocks.instance.setConfig.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    apply()
+    expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.any(Object))
+
+    pipelineMocks.instance.markCameraDirty.mockClear()
+    sceneSetupMocks.controlListeners.get('change')?.()
+    expect(pipelineMocks.instance.markCameraDirty).toHaveBeenCalled()
+
+    pipelineMocks.instance.setSize.mockClear()
+    mounted.runResize()
+    expect(pipelineMocks.instance.setSize).toHaveBeenLastCalledWith(680, 680, 2)
+    const lastPixelRatioOrder = mounted.renderer.setPixelRatio.mock.invocationCallOrder.at(-1)!
+    const lastPipelineSizeOrder = pipelineMocks.instance.setSize.mock.invocationCallOrder.at(-1)!
+    expect(lastPixelRatioOrder).toBeLessThan(lastPipelineSizeOrder)
+
+    mounted.runFrame()
+    expect(pipelineMocks.instance.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+    expect(mounted.renderer.render).not.toHaveBeenCalled()
+
+    mounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose.mock.invocationCallOrder[0])
+      .toBeLessThan(mounted.renderer.dispose.mock.invocationCallOrder[0])
+  })
+
+  it('forwards each region eased progress to the outward glow pipeline', async () => {
+    const mounted = await mountInitializedMap()
+    pipelineMocks.instance.setRegionProgress.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    apply()
+
+    expect(pipelineMocks.instance.setRegionProgress)
+      .toHaveBeenCalledWith(expect.any(THREE.Mesh), expect.any(Number))
+
+    mounted.app.unmount()
+  })
+
+  it('keeps direct scene rendering when the glow pipeline cannot initialize', async () => {
+    pipelineMocks.create.mockImplementationOnce(() => { throw new Error('shader unavailable') })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    mounted.runFrame()
+
+    expect(warn).toHaveBeenCalledWith(
+      '外扩柔光初始化失败，保留清晰边界',
+      expect.any(Error)
+    )
+    expect(mounted.renderer.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+    expect(warn).toHaveBeenCalledTimes(1)
+    mounted.app.unmount()
+  })
+
+  it('disposes an unpublished pipeline once when its setup fails', async () => {
+    pipelineMocks.instance.setConfig.mockImplementationOnce(() => {
+      throw new Error('pipeline setup failed')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    mounted.runFrame()
+
+    expect(warn).toHaveBeenCalledWith(
+      '外扩柔光初始化失败，保留清晰边界',
+      expect.any(Error)
+    )
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+
+    mounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  })
+
   it('routes watcher callbacks to the effect runtime and stops the watcher on unmount', async () => {
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')
@@ -245,6 +408,7 @@ describe('ChongqingMap3D effect wiring', () => {
       domElement: document.createElement('canvas'),
       setSize: vi.fn(),
       setPixelRatio: vi.fn(),
+      getPixelRatio: vi.fn(() => 1),
       render: vi.fn(),
       dispose: rendererDispose
     })
@@ -268,6 +432,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
     expect(disposeTexture).toHaveBeenCalledTimes(1)
     expect(rendererDispose).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
     expect(disconnect).toHaveBeenCalledTimes(1)
     expect(removeResizeListener).toHaveBeenCalledWith('resize', expect.any(Function))
@@ -277,6 +442,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
     expect(disposeTexture).toHaveBeenCalledTimes(1)
     expect(rendererDispose).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
     expect(requestAnimationFrame).not.toHaveBeenCalled()
   })

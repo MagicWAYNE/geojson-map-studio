@@ -11,6 +11,10 @@ import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
+  createMapOutwardGlowPipeline,
+  type MapOutwardGlowPipeline
+} from './mapOutwardGlowPipeline'
+import {
   createHoverGlowLayers,
   createStaticGlowLayers,
   setHoverGlowProgress,
@@ -50,6 +54,7 @@ let controls: OrbitControls | null = null
 let raf = 0
 let ro: ResizeObserver | null = null
 let staticGlow: StaticGlowBundle | null = null
+let outwardGlow: MapOutwardGlowPipeline | null = null
 let mounted = false
 let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
@@ -83,6 +88,7 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
+  outwardGlow?.setConfig(effect)
   for (const visual of regionVisuals) {
     updateHoverVisualState(
       visual,
@@ -235,6 +241,24 @@ function setupScene(mapGroup: THREE.Group) {
     renderer.setSize(el.clientWidth, el.clientHeight, false)
     updateGlowResolution()
     updatePixelRatio()
+
+    let pendingOutwardGlow: MapOutwardGlowPipeline | null = null
+    try {
+      mapGroup.updateMatrixWorld(true)
+      pendingOutwardGlow = createMapOutwardGlowPipeline(renderer, regionMeshes)
+      pendingOutwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+      pendingOutwardGlow.setConfig(effect)
+      outwardGlow = pendingOutwardGlow
+    } catch (cause) {
+      try {
+        pendingOutwardGlow?.dispose()
+      } catch {
+        // Setup failure already has a safe direct-render fallback.
+      }
+      outwardGlow = null
+      console.warn('外扩柔光初始化失败，保留清晰边界', cause)
+    }
+
     renderer.domElement.className = 'gl'
     el.prepend(renderer.domElement)
 
@@ -250,6 +274,7 @@ function setupScene(mapGroup: THREE.Group) {
       cameraView.value =
         `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
         `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
+      outwardGlow?.markCameraDirty()
     }
     controls.addEventListener('change', syncCamView)
     syncCamView()
@@ -257,10 +282,11 @@ function setupScene(mapGroup: THREE.Group) {
     ro = new ResizeObserver(() => {
       if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
       renderer.setSize(el.clientWidth, el.clientHeight, false)
+      updatePixelRatio()
+      outwardGlow?.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
       updateGlowResolution()
       camera.aspect = el.clientWidth / el.clientHeight
       camera.updateProjectionMatrix()
-      updatePixelRatio()
     })
     ro.observe(el)
     window.addEventListener('resize', updatePixelRatio)
@@ -291,6 +317,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
+  outwardGlow?.setRegionProgress(visual.mesh, eased)
 }
 
 function updateRegionVisuals(deltaMs: number): void {
@@ -369,7 +396,10 @@ function loop(now: number) {
   lastFrameAt = now
   updateRegionVisuals(deltaMs)
   controls?.update()
-  if (renderer && scene && camera) renderer.render(scene, camera)
+  if (renderer && scene && camera) {
+    if (outwardGlow) outwardGlow.render(scene, camera)
+    else renderer.render(scene, camera)
+  }
   frames++
   if (now - lastFpsAt >= 1000) {
     fps.value = frames
@@ -499,6 +529,8 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   controls = null
   const root = scene ?? fallbackRoot
   if (root) disposeSceneResources(root)
+  outwardGlow?.dispose()
+  outwardGlow = null
   renderer?.dispose()
   renderer?.domElement.remove()
   renderer = null
