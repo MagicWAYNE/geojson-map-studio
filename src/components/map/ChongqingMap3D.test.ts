@@ -188,6 +188,24 @@ async function mountInitializedMap() {
   }
 }
 
+function expectDegradedGlowFallback(
+  mounted: Awaited<ReturnType<typeof mountInitializedMap>>,
+  warn: ReturnType<typeof vi.spyOn>
+): void {
+  expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith(
+    '外扩柔光运行失败，已关闭柔光并保留清晰边界',
+    expect.any(Error)
+  )
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
+    ...runtimeStatusDefault,
+    degraded: true
+  })
+  expect(mounted.renderer.render)
+    .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+}
+
 describe('ChongqingMap3D effect wiring', () => {
   it('publishes pipeline status after setup, config, resize, hover progress, and render', async () => {
     const mounted = await mountInitializedMap()
@@ -335,6 +353,106 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.setRegionProgress)
       .toHaveBeenCalledWith(expect.any(THREE.Mesh), expect.any(Number))
 
+    mounted.app.unmount()
+  })
+
+  it.each([
+    {
+      operation: 'setConfig' as const,
+      trigger: (mounted: Awaited<ReturnType<typeof mountInitializedMap>>) => {
+        const [, apply] = watchMapEffectConfig.mock.calls[0]
+        apply()
+      }
+    },
+    {
+      operation: 'setSize' as const,
+      trigger: (mounted: Awaited<ReturnType<typeof mountInitializedMap>>) => mounted.runResize()
+    },
+    {
+      operation: 'getStatus' as const,
+      trigger: (mounted: Awaited<ReturnType<typeof mountInitializedMap>>) => {
+        const [, apply] = watchMapEffectConfig.mock.calls[0]
+        apply()
+      }
+    }
+  ])('degrades once when post-setup $operation fails and keeps later events on direct rendering', async ({
+    operation,
+    trigger
+  }) => {
+    const mounted = await mountInitializedMap()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const operationMock = pipelineMocks.instance[operation]
+    operationMock.mockClear()
+    pipelineMocks.instance.render.mockClear()
+    mounted.renderer.render.mockClear()
+    operationMock.mockImplementationOnce(() => {
+      throw new Error(`${operation} failed`)
+    })
+
+    expect(() => trigger(mounted)).not.toThrow()
+    mounted.runFrame(16)
+    expectDegradedGlowFallback(mounted, warn)
+    expect(operationMock).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.render).not.toHaveBeenCalled()
+
+    expect(() => trigger(mounted)).not.toThrow()
+    mounted.runFrame(32)
+    expect(operationMock).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render).toHaveBeenCalledTimes(2)
+    mounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('degrades on setRegionProgress before render and directly renders the current and next frame', async () => {
+    const mounted = await mountInitializedMap()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: meshes[0] } as THREE.Intersection
+    ])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    pipelineMocks.instance.setRegionProgress.mockClear()
+    pipelineMocks.instance.render.mockClear()
+    mounted.renderer.render.mockClear()
+    pipelineMocks.instance.setRegionProgress.mockImplementationOnce(() => {
+      throw new Error('setRegionProgress failed')
+    })
+
+    expect(() => mounted.runFrame(32)).not.toThrow()
+    expectDegradedGlowFallback(mounted, warn)
+    expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.render).not.toHaveBeenCalled()
+
+    mounted.runFrame(48)
+    expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render).toHaveBeenCalledTimes(2)
+    mounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not classify a direct main renderer exception as another glow failure', async () => {
+    const mounted = await mountInitializedMap()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    pipelineMocks.instance.setConfig.mockImplementationOnce(() => {
+      throw new Error('setConfig failed')
+    })
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    expect(() => apply()).not.toThrow()
+    mounted.renderer.render.mockImplementationOnce(() => {
+      throw new Error('main renderer failed')
+    })
+
+    expect(() => mounted.runFrame(16)).toThrow('main renderer failed')
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
     mounted.app.unmount()
   })
 

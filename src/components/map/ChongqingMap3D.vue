@@ -63,6 +63,8 @@ let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
+const disposedGlowPipelines = new WeakSet<MapOutwardGlowPipeline>()
+let glowFailureWarned = false
 
 interface RegionVisual {
   mesh: THREE.Mesh
@@ -76,11 +78,63 @@ interface RegionVisual {
 const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
 
-function publishGlowStatus(degraded = false): void {
-  const status = outwardGlow?.getStatus()
-  updateEffectRuntimeStatus(status
-    ? { ...status, degraded }
-    : { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded })
+type GlowFailurePhase = 'initialization' | 'runtime'
+
+function disposeGlowPipeline(pipeline: MapOutwardGlowPipeline): void {
+  if (disposedGlowPipelines.has(pipeline)) return
+  disposedGlowPipelines.add(pipeline)
+  try {
+    pipeline.dispose()
+  } catch {
+    // Direct rendering and component teardown must survive glow cleanup failures.
+  }
+}
+
+function handleGlowPipelineFailure(
+  pipeline: MapOutwardGlowPipeline | null,
+  cause: unknown,
+  phase: GlowFailurePhase
+): void {
+  if (pipeline && outwardGlow === pipeline) outwardGlow = null
+  if (pipeline) disposeGlowPipeline(pipeline)
+  updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: true })
+  if (glowFailureWarned) return
+  glowFailureWarned = true
+  console.warn(
+    phase === 'initialization'
+      ? '外扩柔光初始化失败，保留清晰边界'
+      : '外扩柔光运行失败，已关闭柔光并保留清晰边界',
+    cause
+  )
+}
+
+function runGlowOperation<T>(
+  pipeline: MapOutwardGlowPipeline,
+  operation: (current: MapOutwardGlowPipeline) => T,
+  phase: GlowFailurePhase = 'runtime'
+): { ok: true; value: T } | { ok: false } {
+  try {
+    return { ok: true, value: operation(pipeline) }
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return { ok: false }
+  }
+}
+
+function runCurrentGlowOperation<T>(
+  operation: (current: MapOutwardGlowPipeline) => T
+): { ok: true; value: T } | { ok: false } {
+  const pipeline = outwardGlow
+  return pipeline ? runGlowOperation(pipeline, operation) : { ok: false }
+}
+
+function publishGlowStatus(phase: GlowFailurePhase = 'runtime'): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  const result = runGlowOperation(pipeline, (current) => current.getStatus(), phase)
+  if (!result.ok) return false
+  updateEffectRuntimeStatus({ ...result.value, degraded: false })
+  return true
 }
 
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
@@ -98,10 +152,7 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
-  if (outwardGlow) {
-    outwardGlow.setConfig(effect)
-    publishGlowStatus()
-  }
+  if (runCurrentGlowOperation((pipeline) => pipeline.setConfig(effect)).ok) publishGlowStatus()
   for (const visual of regionVisuals) {
     updateHoverVisualState(
       visual,
@@ -228,10 +279,9 @@ function handleWindowResize(): void {
   updatePixelRatio()
   const el = container.value
   if (!renderer || !el || !el.clientWidth || !el.clientHeight) return
-  if (outwardGlow) {
-    outwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
-    publishGlowStatus()
-  }
+  if (runCurrentGlowOperation((pipeline) => {
+    pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
+  }).ok) publishGlowStatus()
 }
 
 function updateGlowResolution(): void {
@@ -265,23 +315,22 @@ function setupScene(mapGroup: THREE.Group) {
     updateGlowResolution()
     updatePixelRatio()
 
+    mapGroup.updateMatrixWorld(true)
     let pendingOutwardGlow: MapOutwardGlowPipeline | null = null
     try {
-      mapGroup.updateMatrixWorld(true)
       pendingOutwardGlow = createMapOutwardGlowPipeline(renderer, regionMeshes)
-      pendingOutwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
-      pendingOutwardGlow.setConfig(effect)
-      outwardGlow = pendingOutwardGlow
-      publishGlowStatus()
-    } catch (cause) {
-      try {
-        pendingOutwardGlow?.dispose()
-      } catch {
-        // Setup failure already has a safe direct-render fallback.
+      const sizeResult = runGlowOperation(pendingOutwardGlow, (pipeline) => {
+        pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
+      }, 'initialization')
+      const configResult = sizeResult.ok
+        ? runGlowOperation(pendingOutwardGlow, (pipeline) => pipeline.setConfig(effect), 'initialization')
+        : { ok: false as const }
+      if (configResult.ok) {
+        outwardGlow = pendingOutwardGlow
+        publishGlowStatus('initialization')
       }
-      outwardGlow = null
-      publishGlowStatus(true)
-      console.warn('外扩柔光初始化失败，保留清晰边界', cause)
+    } catch (cause) {
+      handleGlowPipelineFailure(pendingOutwardGlow, cause, 'initialization')
     }
 
     renderer.domElement.className = 'gl'
@@ -299,7 +348,7 @@ function setupScene(mapGroup: THREE.Group) {
       cameraView.value =
         `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
         `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
-      outwardGlow?.markCameraDirty()
+      runCurrentGlowOperation((pipeline) => pipeline.markCameraDirty())
     }
     controls.addEventListener('change', syncCamView)
     syncCamView()
@@ -308,10 +357,9 @@ function setupScene(mapGroup: THREE.Group) {
       if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
       renderer.setSize(el.clientWidth, el.clientHeight, false)
       updatePixelRatio()
-      if (outwardGlow) {
-        outwardGlow.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
-        publishGlowStatus()
-      }
+      if (runCurrentGlowOperation((pipeline) => {
+        pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
+      }).ok) publishGlowStatus()
       updateGlowResolution()
       camera.aspect = el.clientWidth / el.clientHeight
       camera.updateProjectionMatrix()
@@ -346,10 +394,9 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  if (outwardGlow) {
-    outwardGlow.setRegionProgress(visual.mesh, eased)
-    publishGlowStatus()
-  }
+  if (runCurrentGlowOperation((pipeline) => {
+    pipeline.setRegionProgress(visual.mesh, eased)
+  }).ok) publishGlowStatus()
 }
 
 function updateRegionVisuals(deltaMs: number): void {
@@ -430,21 +477,9 @@ function loop(now: number) {
   controls?.update()
   if (renderer && scene && camera) {
     if (outwardGlow) {
-      const failedPipeline = outwardGlow
-      try {
-        failedPipeline.render(scene, camera)
-        publishGlowStatus()
-      } catch (cause) {
-        outwardGlow = null
-        try {
-          failedPipeline.dispose()
-        } catch {
-          // The direct-render fallback must survive cleanup failures too.
-        }
-        publishGlowStatus(true)
-        console.warn('外扩柔光运行失败，已关闭柔光并保留清晰边界', cause)
-        renderer.render(scene, camera)
-      }
+      const rendered = runCurrentGlowOperation((pipeline) => pipeline.render(scene!, camera!)).ok
+      if (rendered) publishGlowStatus()
+      else renderer.render(scene, camera)
     } else renderer.render(scene, camera)
   }
   frames++
@@ -577,8 +612,9 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   controls = null
   const root = scene ?? fallbackRoot
   if (root) disposeSceneResources(root)
-  outwardGlow?.dispose()
+  const pipeline = outwardGlow
   outwardGlow = null
+  if (pipeline) disposeGlowPipeline(pipeline)
   renderer?.dispose()
   renderer?.domElement.remove()
   renderer = null
