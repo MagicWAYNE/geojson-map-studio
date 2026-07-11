@@ -196,6 +196,37 @@ describe('mapOutwardGlowPipeline', () => {
     expect(farCall[6]).toBe(4)
   })
 
+  it('shares one ping target across both channels while keeping four cached outputs distinct', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    pipeline.setConfig(configWith({
+      baseRadius: 54,
+      baseOpacity: 0.23,
+      hoverRadius: 72,
+      hoverOpacity: 0.31
+    }))
+    pipeline.setRegionProgress(meshes[0], 0.5)
+
+    pipeline.render(scene, camera)
+
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+    const firstBlurCalls = shaderMocks.renderBlur.mock.calls
+    const sharedPingTarget = firstBlurCalls[0][3]
+    expect(firstBlurCalls.every((call) => call[3] === sharedPingTarget)).toBe(true)
+    const cachedOutputs = firstBlurCalls.map((call) => call[4])
+    expect(new Set(cachedOutputs)).toHaveLength(4)
+
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    pipeline.setRegionProgress(meshes[0], 0.75)
+    pipeline.render(scene, camera)
+
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(shaderMocks.renderBlur.mock.calls.every((call) => call[3] === sharedPingTarget)).toBe(true)
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[4]))
+      .toEqual(cachedOutputs.slice(2))
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(1)
+  })
+
   it('reuses blur results for color and opacity changes and invalidates only the matching radius', () => {
     const { pipeline, renderer, scene, camera } = enabledFixture()
     pipeline.render(scene, camera)
@@ -370,14 +401,14 @@ describe('mapOutwardGlowPipeline', () => {
     const previousTarget = new THREE.WebGLRenderTarget(8, 8)
     const { pipeline, renderer, scene, camera } = fixture(previousTarget)
     pipeline.setConfig(configWith())
-    renderer.autoClear = false
     renderer.render.mockImplementationOnce(() => {
+      expect(renderer.autoClear).toBe(false)
       throw new Error('mask failed')
     })
 
     expect(() => pipeline.render(scene, camera)).toThrowError('mask failed')
     expect(renderer.setRenderTarget).toHaveBeenLastCalledWith(previousTarget)
-    expect(renderer.autoClear).toBe(false)
+    expect(renderer.autoClear).toBe(true)
     previousTarget.dispose()
   })
 

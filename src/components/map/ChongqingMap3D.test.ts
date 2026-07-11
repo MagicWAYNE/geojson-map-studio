@@ -306,6 +306,36 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
   })
 
+  it('detaches a pipeline that fails at runtime and keeps current and later frames rendering', async () => {
+    pipelineMocks.instance.render.mockImplementationOnce(() => {
+      throw new Error('runtime glow failed')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    expect(() => mounted.runFrame(16)).not.toThrow()
+
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      '外扩柔光运行失败，已关闭柔光并保留清晰边界',
+      expect.any(Error)
+    )
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+
+    mounted.runFrame(32)
+
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render).toHaveBeenCalledTimes(2)
+
+    mounted.app.unmount()
+    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  })
+
   it('routes watcher callbacks to the effect runtime and stops the watcher on unmount', async () => {
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')

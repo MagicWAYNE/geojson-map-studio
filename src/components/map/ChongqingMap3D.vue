@@ -405,8 +405,21 @@ function loop(now: number) {
   updateRegionVisuals(deltaMs)
   controls?.update()
   if (renderer && scene && camera) {
-    if (outwardGlow) outwardGlow.render(scene, camera)
-    else renderer.render(scene, camera)
+    if (outwardGlow) {
+      const failedPipeline = outwardGlow
+      try {
+        failedPipeline.render(scene, camera)
+      } catch (cause) {
+        outwardGlow = null
+        try {
+          failedPipeline.dispose()
+        } catch {
+          // The direct-render fallback must survive cleanup failures too.
+        }
+        console.warn('外扩柔光运行失败，已关闭柔光并保留清晰边界', cause)
+        renderer.render(scene, camera)
+      }
+    } else renderer.render(scene, camera)
   }
   frames++
   if (now - lastFpsAt >= 1000) {
