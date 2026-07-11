@@ -85,6 +85,22 @@ describe('mapOutwardGlowProfile', () => {
     expect(Number.isFinite(profile.farOpacity)).toBe(true)
   })
 
+  it('clamps finite negative profile inputs to safe zero-valued outputs', () => {
+    expect(deriveGlowProfile({
+      radiusCssPx: -40,
+      opacity: -0.4,
+      nearRadiusRatio: -0.5,
+      nearOpacityRatio: -1.5,
+      farRadiusRatio: -2,
+      farOpacityRatio: -0.25
+    }, { width: 680, height: 680, pixelsPerCssPx: 1 })).toEqual({
+      nearRadiusTexels: 0,
+      farRadiusTexels: 0,
+      nearOpacity: 0,
+      farOpacity: 0
+    })
+  })
+
   it('preserves opacity ratios above 1 without clamping the result to 1', () => {
     expect(deriveGlowProfile({
       radiusCssPx: 20,
@@ -106,7 +122,8 @@ describe('mapOutwardGlowProfile', () => {
     expect(isGlowEnabled(true, 54, 0.23, 1)).toBe(true)
     expect(isGlowEnabled(true, 0, 0.23, 1)).toBe(false)
     expect(isGlowEnabled(true, 54, 0, 1)).toBe(false)
-    expect(isGlowEnabled(true, 54, 0.23, 0)).toBe(false)
+    expect(isGlowEnabled(true, 54, 0.23, 0.001)).toBe(false)
+    expect(isGlowEnabled(true, 54, 0.23, 0.0011)).toBe(true)
     expect(isGlowEnabled(true, Number.NaN, 0.23, 1)).toBe(false)
     expect(isGlowEnabled(true, 54, Number.POSITIVE_INFINITY, 1)).toBe(false)
     expect(isGlowEnabled(true, 54, 0.23, Number.NEGATIVE_INFINITY)).toBe(false)
