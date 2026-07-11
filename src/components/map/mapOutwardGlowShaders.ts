@@ -109,6 +109,22 @@ export function renderSeparableBlur(
   radiusTexels: number,
   passes: number
 ): void {
+  if (!Number.isFinite(passes) || !Number.isInteger(passes) || passes <= 0) {
+    throw new RangeError('passes must be a finite positive integer')
+  }
+  if (!Number.isFinite(radiusTexels) || radiusTexels < 0) {
+    throw new RangeError('radiusTexels must be a finite non-negative number')
+  }
+  if (ping === output) {
+    throw new RangeError('ping and output must be distinct render targets')
+  }
+  if (ping.texture === output.texture) {
+    throw new RangeError('ping and output must not share a texture')
+  }
+  if (source === ping.texture) {
+    throw new RangeError('source must not be ping.texture')
+  }
+
   const { blurMaterial, quad } = resources
   const radius = radiusTexels / Math.sqrt(passes)
 
