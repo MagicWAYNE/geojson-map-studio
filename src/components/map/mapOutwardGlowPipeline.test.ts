@@ -334,6 +334,53 @@ describe('mapOutwardGlowPipeline', () => {
     expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
   })
 
+  it('invalidates both channel caches when raw CSS size changes without a target resize', () => {
+    const setSize = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'setSize')
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    pipeline.setSize(100, 100, 1)
+    pipeline.setConfig(configWith({ hoverRadius: 54, hoverOpacity: 0.23, renderScale: 0.25 }))
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    setSize.mockClear()
+
+    pipeline.setSize(101, 100, 1)
+    pipeline.render(scene, camera)
+
+    expect(setSize).not.toHaveBeenCalled()
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+  })
+
+  it('tracks hover threshold crossings without iterating hover states during status or render', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    pipeline.setConfig(configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 }))
+    expect(pipeline.getStatus().hoverState).toBe('ready')
+
+    pipeline.setRegionProgress(meshes[0], 0.5)
+    expect(pipeline.getStatus().hoverState).toBe('active')
+    pipeline.setRegionProgress(meshes[0], 0.5)
+    pipeline.setRegionProgress(meshes[1], 0.75)
+    pipeline.setRegionProgress(meshes[0], 0.001)
+    expect(pipeline.getStatus().hoverState).toBe('active')
+
+    const values = vi.spyOn(Map.prototype, 'values')
+    values.mockClear()
+    pipeline.getStatus()
+    pipeline.render(scene, camera)
+    expect(values).not.toHaveBeenCalled()
+
+    pipeline.setRegionProgress(meshes[1], 0)
+    expect(pipeline.getStatus().hoverState).toBe('ready')
+    meshes[0].position.y = 2
+    meshes[0].updateMatrixWorld(true)
+    pipeline.setRegionProgress(meshes[0], 0.001)
+    expect(pipeline.getStatus().hoverState).toBe('ready')
+    pipeline.dispose()
+    expect(pipeline.getStatus().hoverState).toBe('ready')
+  })
+
   it('skips manually disabled hover GPU work even with visible progress', () => {
     const { pipeline, meshes, renderer, scene, camera } = fixture()
     const config = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })

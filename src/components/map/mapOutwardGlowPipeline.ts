@@ -165,6 +165,7 @@ export function createMapOutwardGlowPipeline(
   const ownedMaterials: THREE.Material[] = []
   const ownedTargets: THREE.WebGLRenderTarget[] = []
   const hoverStates = new Map<THREE.Mesh, HoverCloneState>()
+  let visibleHoverCount = 0
   let allocatedShaderResources: GlowShaderResources | null = null
   let disposed = false
 
@@ -177,6 +178,7 @@ export function createMapOutwardGlowPipeline(
     staticMaskScene.clear()
     hoverMaskScene.clear()
     hoverStates.clear()
+    visibleHoverCount = 0
   }
 
   function createOwnedTarget(): THREE.WebGLRenderTarget {
@@ -243,16 +245,17 @@ export function createMapOutwardGlowPipeline(
     hoverBlurDirty = true
   }
 
-  function resizeTargets(scale: MapEffectConfig['quality']['renderScale'], force = false): void {
+  function resizeTargets(scale: MapEffectConfig['quality']['renderScale'], force = false): boolean {
     const next = computeGlowTargetMetrics(cssWidth, cssHeight, pixelRatio, scale)
     if (!force && next.width === metrics.width
       && next.height === metrics.height
-      && next.pixelsPerCssPx === metrics.pixelsPerCssPx) return
+      && next.pixelsPerCssPx === metrics.pixelsPerCssPx) return false
     metrics = next
     for (const target of ownedTargets) target.setSize(metrics.width, metrics.height)
     refreshChannelCache(staticCache, staticTargets, staticChannel, true)
     refreshChannelCache(hoverCache, hoverTargets, currentHoverChannel, true)
     setAllDirty()
+    return true
   }
 
   function renderMask(
@@ -345,10 +348,7 @@ export function createMapOutwardGlowPipeline(
   }
 
   function hasVisibleHover(): boolean {
-    for (const state of hoverStates.values()) {
-      if (state.progress > HOVER_VISIBILITY_THRESHOLD) return true
-    }
-    return false
+    return visibleHoverCount > 0
   }
 
   function baseState(): MapOutwardGlowBaseState {
@@ -365,10 +365,14 @@ export function createMapOutwardGlowPipeline(
   return {
     setSize(nextCssWidth, nextCssHeight, nextPixelRatio) {
       if (disposed) return
+      const viewportChanged = !Object.is(cssWidth, nextCssWidth)
+        || !Object.is(cssHeight, nextCssHeight)
+        || !Object.is(pixelRatio, nextPixelRatio)
       cssWidth = nextCssWidth
       cssHeight = nextCssHeight
       pixelRatio = nextPixelRatio
-      resizeTargets(config.quality.renderScale)
+      const targetsResized = resizeTargets(config.quality.renderScale)
+      if (viewportChanged && !targetsResized) setAllDirty()
     },
 
     setConfig(nextConfig) {
@@ -396,6 +400,9 @@ export function createMapOutwardGlowPipeline(
       const nextProgress = safeProgress(easedProgress)
       const matrixChanged = !state.clone.matrix.equals(source.matrixWorld)
       if (state.progress === nextProgress && !matrixChanged) return
+      const wasVisible = state.progress > HOVER_VISIBILITY_THRESHOLD
+      const nextVisible = nextProgress > HOVER_VISIBILITY_THRESHOLD
+      if (wasVisible !== nextVisible) visibleHoverCount += nextVisible ? 1 : -1
       state.progress = nextProgress
       state.material.color.setRGB(nextProgress, nextProgress, nextProgress)
       state.clone.visible = nextProgress > HOVER_VISIBILITY_THRESHOLD
