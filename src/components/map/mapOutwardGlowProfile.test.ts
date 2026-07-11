@@ -35,4 +35,25 @@ describe('mapOutwardGlowProfile', () => {
     expect(isGlowEnabled(54, 0, 1)).toBe(false)
     expect(isGlowEnabled(54, 0.23, 0)).toBe(false)
   })
+
+  it('normalizes non-finite target inputs to finite safe metrics', () => {
+    expect(computeGlowTargetMetrics(Number.NaN, Number.POSITIVE_INFINITY, Number.NaN, Number.NEGATIVE_INFINITY)).toEqual({
+      width: 1,
+      height: 1,
+      pixelsPerCssPx: 0.5
+    })
+  })
+
+  it('normalizes non-finite profile inputs to finite safe layers', () => {
+    expect(deriveB3GlowProfile(Number.POSITIVE_INFINITY, Number.NaN, {
+      width: 680,
+      height: 680,
+      pixelsPerCssPx: Number.POSITIVE_INFINITY
+    })).toEqual({
+      nearRadiusTexels: 0,
+      farRadiusTexels: 0,
+      nearOpacity: 0,
+      farOpacity: 0
+    })
+  })
 })

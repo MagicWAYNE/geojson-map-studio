@@ -11,17 +11,21 @@ export interface GlowProfile {
   farOpacity: number
 }
 
+function finiteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback
+}
+
 export function computeGlowTargetMetrics(
   cssWidth: number,
   cssHeight: number,
   pixelRatio: number,
   scale = 0.5
 ): GlowTargetMetrics {
-  const safeScale = Math.min(1, Math.max(0.25, scale))
-  const pixelsPerCssPx = Math.max(0.01, pixelRatio) * safeScale
+  const safeScale = Math.min(1, Math.max(0.25, finiteOr(scale, 0.5)))
+  const pixelsPerCssPx = Math.max(0.01, finiteOr(pixelRatio, 1)) * safeScale
   return {
-    width: Math.max(1, Math.round(cssWidth * pixelsPerCssPx)),
-    height: Math.max(1, Math.round(cssHeight * pixelsPerCssPx)),
+    width: Math.max(1, Math.round(finiteOr(cssWidth, 0) * pixelsPerCssPx)),
+    height: Math.max(1, Math.round(finiteOr(cssHeight, 0) * pixelsPerCssPx)),
     pixelsPerCssPx
   }
 }
@@ -31,8 +35,8 @@ export function deriveB3GlowProfile(
   opacity: number,
   metrics: GlowTargetMetrics
 ): GlowProfile {
-  const radius = Math.max(0, radiusCssPx) * metrics.pixelsPerCssPx
-  const alpha = Math.min(1, Math.max(0, opacity))
+  const radius = Math.max(0, finiteOr(radiusCssPx, 0)) * finiteOr(metrics.pixelsPerCssPx, 1)
+  const alpha = Math.min(1, Math.max(0, finiteOr(opacity, 0)))
   return {
     nearRadiusTexels: Number((radius * 0.35).toFixed(4)),
     farRadiusTexels: Number(radius.toFixed(4)),
