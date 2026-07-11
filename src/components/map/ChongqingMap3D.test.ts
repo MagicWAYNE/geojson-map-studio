@@ -11,6 +11,7 @@ const sceneSetupMocks = vi.hoisted(() => ({
   controlListeners: new Map<string, () => void>()
 }))
 const threeMocks = vi.hoisted(() => ({ createRenderer: vi.fn() }))
+const mapDebugMocks = vi.hoisted(() => ({ effect: null as MapEffectConfig | null }))
 const pipelineMocks = vi.hoisted(() => ({
   create: vi.fn(),
   instance: {
@@ -62,14 +63,15 @@ vi.mock('./mapGeometry', async (importOriginal) => ({
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/composables/useMapDebug', () => ({
-  useMapDebug: () => ({
-    cameraView: { value: '' },
-    effect: reactive<MapEffectConfig>({
+  useMapDebug: () => {
+    const effect = reactive<MapEffectConfig>({
       ...MAP_EFFECT_DEFAULTS,
       base: { ...MAP_EFFECT_DEFAULTS.base },
       hover: { ...MAP_EFFECT_DEFAULTS.hover }
     })
-  })
+    mapDebugMocks.effect = effect
+    return { cameraView: { value: '' }, effect }
+  }
 }))
 
 afterEach(() => {
@@ -81,6 +83,7 @@ afterEach(() => {
   threeMocks.createRenderer.mockClear()
   pipelineMocks.create.mockReset()
   Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
+  mapDebugMocks.effect = null
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -108,8 +111,10 @@ function deferred<T>() {
 async function mountInitializedMap() {
   let resizeCallback: ResizeObserverCallback = () => undefined
   let frameCallback: FrameRequestCallback = () => undefined
+  let pixelRatio = 2
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(680)
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(680)
+  vi.stubGlobal('devicePixelRatio', 2)
   vi.stubGlobal('ResizeObserver', class {
     constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
     observe = vi.fn()
@@ -122,8 +127,8 @@ async function mountInitializedMap() {
   const renderer = {
     domElement: document.createElement('canvas'),
     setSize: vi.fn(),
-    setPixelRatio: vi.fn(),
-    getPixelRatio: vi.fn(() => 2),
+    setPixelRatio: vi.fn((next: number) => { pixelRatio = next }),
+    getPixelRatio: vi.fn(() => pixelRatio),
     render: vi.fn(),
     dispose: vi.fn()
   }
@@ -151,6 +156,7 @@ async function mountInitializedMap() {
   await vi.waitFor(() => expect(requestAnimationFrame).toHaveBeenCalled())
   return {
     app,
+    root,
     renderer,
     runFrame: (now = 16) => frameCallback(now),
     runResize: () => resizeCallback([], {} as ResizeObserver)
@@ -158,6 +164,39 @@ async function mountInitializedMap() {
 }
 
 describe('ChongqingMap3D effect wiring', () => {
+  it('publishes the lifted region world matrix with its eased hover progress', async () => {
+    const mounted = await mountInitializedMap()
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    const mesh = meshes[0]
+    const initialMatrix = mesh.matrixWorld.clone()
+    let matrixAtProgress: THREE.Matrix4 | null = null
+    let forwardedProgress = 0
+    pipelineMocks.instance.setRegionProgress.mockImplementation((source, eased) => {
+      if (eased <= 0) return
+      matrixAtProgress = source.matrixWorld.clone()
+      forwardedProgress = eased
+    })
+    mapDebugMocks.effect!.hover.lift = 12
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: mesh } as THREE.Intersection
+    ])
+
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+
+    expect(forwardedProgress).toBeGreaterThan(0)
+    expect(mesh.parent!.position.z).toBeGreaterThan(0)
+    mesh.parent!.updateMatrixWorld(true)
+    expect(matrixAtProgress!.equals(initialMatrix)).toBe(false)
+    expect(matrixAtProgress!.equals(mesh.matrixWorld)).toBe(true)
+
+    mounted.app.unmount()
+  })
+
   it('wires config, camera, resize, render, and dispose to the pipeline', async () => {
     const mounted = await mountInitializedMap()
     expect(pipelineMocks.create).toHaveBeenCalledWith(
@@ -194,6 +233,27 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(pipelineMocks.instance.dispose.mock.invocationCallOrder[0])
       .toBeLessThan(mounted.renderer.dispose.mock.invocationCallOrder[0])
+  })
+
+  it('resizes pipeline targets on a window-only DPR change', async () => {
+    const addResizeListener = vi.spyOn(window, 'addEventListener')
+    const removeResizeListener = vi.spyOn(window, 'removeEventListener')
+    const mounted = await mountInitializedMap()
+    const resizeHandler = addResizeListener.mock.calls.find(([type]) => type === 'resize')?.[1]
+    expect(resizeHandler).toEqual(expect.any(Function))
+    mounted.renderer.setPixelRatio.mockClear()
+    pipelineMocks.instance.setSize.mockClear()
+    vi.stubGlobal('devicePixelRatio', 1.25)
+
+    ;(resizeHandler as EventListener)(new Event('resize'))
+
+    expect(mounted.renderer.setPixelRatio).toHaveBeenCalledWith(1.25)
+    expect(pipelineMocks.instance.setSize).toHaveBeenCalledWith(680, 680, 1.25)
+    expect(mounted.renderer.setPixelRatio.mock.invocationCallOrder[0])
+      .toBeLessThan(pipelineMocks.instance.setSize.mock.invocationCallOrder[0])
+
+    mounted.app.unmount()
+    expect(removeResizeListener).toHaveBeenCalledWith('resize', resizeHandler)
   })
 
   it('forwards each region eased progress to the outward glow pipeline', async () => {

@@ -4,6 +4,8 @@ import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { createMapOutwardGlowPipeline } from './mapOutwardGlowPipeline'
 
 const shaderMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  actualCreate: undefined as undefined | (() => unknown),
   renderBlur: vi.fn(),
   renderComposite: vi.fn(),
   dispose: vi.fn()
@@ -11,8 +13,10 @@ const shaderMocks = vi.hoisted(() => ({
 
 vi.mock('./mapOutwardGlowShaders', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./mapOutwardGlowShaders')>()
+  shaderMocks.actualCreate = actual.createGlowShaderResources
   return {
     ...actual,
+    createGlowShaderResources: shaderMocks.create,
     renderSeparableBlur: shaderMocks.renderBlur,
     renderOutwardComposite: shaderMocks.renderComposite,
     disposeGlowShaderResources: shaderMocks.dispose
@@ -93,6 +97,8 @@ function renderedMaskScenes(renderer: RecordingRenderer, mainScene: THREE.Scene)
 }
 
 beforeEach(() => {
+  shaderMocks.create.mockReset()
+  shaderMocks.create.mockImplementation(shaderMocks.actualCreate!)
   shaderMocks.renderBlur.mockReset()
   shaderMocks.renderComposite.mockReset()
   shaderMocks.dispose.mockReset()
@@ -103,6 +109,30 @@ afterEach(() => {
 })
 
 describe('mapOutwardGlowPipeline', () => {
+  it('disposes construction-owned resources when shader allocation throws', () => {
+    const renderer = {} as THREE.WebGLRenderer
+    const meshes = [0, 20].map((x) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 2))
+      mesh.position.x = x
+      mesh.updateMatrixWorld(true)
+      return mesh
+    })
+    const sourceGeometryDisposals = meshes.map((mesh) => vi.spyOn(mesh.geometry, 'dispose'))
+    const disposeTarget = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'dispose')
+    const disposeMaterial = vi.spyOn(THREE.Material.prototype, 'dispose')
+    shaderMocks.create.mockImplementationOnce(() => {
+      throw new Error('shader allocation failed')
+    })
+
+    expect(() => createMapOutwardGlowPipeline(renderer, meshes))
+      .toThrowError('shader allocation failed')
+
+    expect(disposeTarget).toHaveBeenCalledTimes(7)
+    expect(disposeMaterial).toHaveBeenCalledTimes(3)
+    expect(shaderMocks.dispose).not.toHaveBeenCalled()
+    expect(sourceGeometryDisposals.every((spy) => spy.mock.calls.length === 0)).toBe(true)
+  })
+
   it('skips both glow channels when approved defaults keep radius and opacity at zero', () => {
     const { pipeline, renderer, scene, camera } = fixture()
     pipeline.setConfig(MAP_EFFECT_DEFAULTS)

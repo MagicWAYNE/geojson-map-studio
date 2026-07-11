@@ -211,6 +211,13 @@ function updatePixelRatio() {
   renderer?.setPixelRatio(Math.min(window.devicePixelRatio * screenScale(), 2))
 }
 
+function handleWindowResize(): void {
+  updatePixelRatio()
+  const el = container.value
+  if (!renderer || !el || !el.clientWidth || !el.clientHeight) return
+  outwardGlow?.setSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())
+}
+
 function updateGlowResolution(): void {
   const el = container.value
   if (!el) return
@@ -289,7 +296,7 @@ function setupScene(mapGroup: THREE.Group) {
       camera.updateProjectionMatrix()
     })
     ro.observe(el)
-    window.addEventListener('resize', updatePixelRatio)
+    window.addEventListener('resize', handleWindowResize)
   } catch (cause) {
     cleanupScene(mapGroup)
     throw cause
@@ -313,6 +320,7 @@ function setHover(mesh: THREE.Mesh | null): void {
 function renderRegionVisual(visual: RegionVisual, eased: number): void {
   const hover = effect.hover
   visual.group.position.z = hover.lift * eased
+  visual.group.updateMatrixWorld(true)
   visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceTarget, eased)
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
@@ -524,7 +532,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   raf = 0
   ro?.disconnect()
   ro = null
-  window.removeEventListener('resize', updatePixelRatio)
+  window.removeEventListener('resize', handleWindowResize)
   controls?.dispose()
   controls = null
   const root = scene ?? fallbackRoot

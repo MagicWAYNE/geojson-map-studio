@@ -10,7 +10,8 @@ import {
   createGlowShaderResources,
   disposeGlowShaderResources,
   renderOutwardComposite,
-  renderSeparableBlur
+  renderSeparableBlur,
+  type GlowShaderResources
 } from './mapOutwardGlowShaders'
 
 const GLOW_TARGET_SCALE = 0.5
@@ -47,11 +48,11 @@ function createTarget(): THREE.WebGLRenderTarget {
   })
 }
 
-function createChannelTargets(): ChannelTargets {
+function createChannelTargets(create: () => THREE.WebGLRenderTarget): ChannelTargets {
   return {
-    mask: createTarget(),
-    near: createTarget(),
-    far: createTarget()
+    mask: create(),
+    near: create(),
+    far: create()
   }
 }
 
@@ -73,39 +74,62 @@ export function createMapOutwardGlowPipeline(
 ): MapOutwardGlowPipeline {
   const staticMaskScene = new THREE.Scene()
   const hoverMaskScene = new THREE.Scene()
-  const staticMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff })
-  const ownedMaterials: THREE.Material[] = [staticMaterial]
+  const ownedMaterials: THREE.Material[] = []
+  const ownedTargets: THREE.WebGLRenderTarget[] = []
   const hoverStates = new Map<THREE.Mesh, HoverCloneState>()
+  let allocatedShaderResources: GlowShaderResources | null = null
+  let disposed = false
 
-  for (const source of regionMeshes) {
-    const staticClone = new THREE.Mesh(source.geometry, staticMaterial)
-    staticClone.matrixAutoUpdate = false
-    staticClone.matrix.copy(source.matrixWorld)
-    staticMaskScene.add(staticClone)
-
-    const hoverMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 })
-    const hoverClone = new THREE.Mesh(source.geometry, hoverMaterial)
-    hoverClone.matrixAutoUpdate = false
-    hoverClone.matrix.copy(source.matrixWorld)
-    hoverClone.visible = false
-    hoverMaskScene.add(hoverClone)
-    ownedMaterials.push(hoverMaterial)
-    hoverStates.set(source, { clone: hoverClone, material: hoverMaterial, progress: 0 })
+  function disposeOwnedResources(): void {
+    if (disposed) return
+    disposed = true
+    for (const target of ownedTargets) target.dispose()
+    for (const material of ownedMaterials) material.dispose()
+    if (allocatedShaderResources) disposeGlowShaderResources(allocatedShaderResources)
+    staticMaskScene.clear()
+    hoverMaskScene.clear()
+    hoverStates.clear()
   }
 
-  const staticTargets = createChannelTargets()
-  const hoverTargets = createChannelTargets()
-  const pingTarget = createTarget()
-  const ownedTargets = [
-    staticTargets.mask,
-    staticTargets.near,
-    staticTargets.far,
-    hoverTargets.mask,
-    hoverTargets.near,
-    hoverTargets.far,
-    pingTarget
-  ]
-  const shaderResources = createGlowShaderResources()
+  function createOwnedTarget(): THREE.WebGLRenderTarget {
+    const target = createTarget()
+    ownedTargets.push(target)
+    return target
+  }
+
+  let staticTargets!: ChannelTargets
+  let hoverTargets!: ChannelTargets
+  let pingTarget!: THREE.WebGLRenderTarget
+  let shaderResources!: GlowShaderResources
+  try {
+    const staticMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff })
+    ownedMaterials.push(staticMaterial)
+
+    for (const source of regionMeshes) {
+      const staticClone = new THREE.Mesh(source.geometry, staticMaterial)
+      staticClone.matrixAutoUpdate = false
+      staticClone.matrix.copy(source.matrixWorld)
+      staticMaskScene.add(staticClone)
+
+      const hoverMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 })
+      ownedMaterials.push(hoverMaterial)
+      const hoverClone = new THREE.Mesh(source.geometry, hoverMaterial)
+      hoverClone.matrixAutoUpdate = false
+      hoverClone.matrix.copy(source.matrixWorld)
+      hoverClone.visible = false
+      hoverMaskScene.add(hoverClone)
+      hoverStates.set(source, { clone: hoverClone, material: hoverMaterial, progress: 0 })
+    }
+
+    staticTargets = createChannelTargets(createOwnedTarget)
+    hoverTargets = createChannelTargets(createOwnedTarget)
+    pingTarget = createOwnedTarget()
+    shaderResources = createGlowShaderResources()
+    allocatedShaderResources = shaderResources
+  } catch (cause) {
+    disposeOwnedResources()
+    throw cause
+  }
 
   let config = snapshotConfig(MAP_EFFECT_DEFAULTS)
   let metrics: GlowTargetMetrics = computeGlowTargetMetrics(0, 0, 1, GLOW_TARGET_SCALE)
@@ -113,7 +137,6 @@ export function createMapOutwardGlowPipeline(
   let staticBlurDirty = true
   let hoverMaskDirty = true
   let hoverBlurDirty = true
-  let disposed = false
 
   function setAllDirty(): void {
     staticMaskDirty = true
@@ -306,14 +329,7 @@ export function createMapOutwardGlowPipeline(
     },
 
     dispose() {
-      if (disposed) return
-      disposed = true
-      for (const target of ownedTargets) target.dispose()
-      for (const material of ownedMaterials) material.dispose()
-      disposeGlowShaderResources(shaderResources)
-      staticMaskScene.clear()
-      hoverMaskScene.clear()
-      hoverStates.clear()
+      disposeOwnedResources()
     }
   }
 }
