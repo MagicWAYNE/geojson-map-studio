@@ -60,7 +60,8 @@ function snapshotConfig(config: MapEffectConfig): MapEffectConfig {
   return {
     version: config.version,
     base: { ...config.base },
-    hover: { ...config.hover }
+    hover: { ...config.hover },
+    quality: { ...config.quality }
   }
 }
 

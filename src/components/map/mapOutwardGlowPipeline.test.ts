@@ -133,9 +133,14 @@ describe('mapOutwardGlowPipeline', () => {
     expect(sourceGeometryDisposals.every((spy) => spy.mock.calls.length === 0)).toBe(true)
   })
 
-  it('skips both glow channels when approved defaults keep radius and opacity at zero', () => {
+  it('skips both glow channels when both widths and opacities are zero', () => {
     const { pipeline, renderer, scene, camera } = fixture()
-    pipeline.setConfig(MAP_EFFECT_DEFAULTS)
+    pipeline.setConfig(configWith({
+      baseRadius: 0,
+      baseOpacity: 0,
+      hoverRadius: 0,
+      hoverOpacity: 0
+    }))
 
     pipeline.render(scene, camera)
 

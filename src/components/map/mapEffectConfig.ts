@@ -56,7 +56,7 @@ export interface MapEffectConfig {
   version: 2
   base: MapEffectBaseConfigV2
   hover: MapEffectHoverConfigV2
-  quality?: MapEffectQualityConfig
+  quality: MapEffectQualityConfig
 }
 
 interface LegacyMapEffectConfig {
@@ -161,12 +161,21 @@ const V2_QUALITY_DEFAULTS: MapEffectQualityConfig = {
   maxAlpha: 1
 }
 
-export const MAP_EFFECT_DEFAULTS: MapEffectConfig = {
+function freezeMapEffectDefaults<T extends MapEffectConfig>(value: T): Readonly<T> {
+  Object.freeze(value.base)
+  Object.freeze(value.hover)
+  Object.freeze(value.quality)
+  return Object.freeze(value)
+}
+
+const CANONICAL_MAP_EFFECT_DEFAULTS = freezeMapEffectDefaults({
   version: 2,
   base: { ...V2_BASE_DEFAULTS },
   hover: { ...V2_HOVER_DEFAULTS },
   quality: { ...V2_QUALITY_DEFAULTS }
-}
+})
+
+export const MAP_EFFECT_DEFAULTS: MapEffectConfig = CANONICAL_MAP_EFFECT_DEFAULTS as MapEffectConfig
 
 type UnknownRecord = Record<string, unknown>
 
@@ -191,9 +200,9 @@ function isExactValue(value: unknown, expected: unknown): boolean {
 function cloneDefaults(): MapEffectConfig {
   return {
     version: 2,
-    base: { ...MAP_EFFECT_DEFAULTS.base },
-    hover: { ...MAP_EFFECT_DEFAULTS.hover },
-    quality: { ...V2_QUALITY_DEFAULTS }
+    base: { ...CANONICAL_MAP_EFFECT_DEFAULTS.base },
+    hover: { ...CANONICAL_MAP_EFFECT_DEFAULTS.hover },
+    quality: { ...CANONICAL_MAP_EFFECT_DEFAULTS.quality }
   }
 }
 

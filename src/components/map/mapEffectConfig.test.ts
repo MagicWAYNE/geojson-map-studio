@@ -133,6 +133,22 @@ describe('mapEffectConfig', () => {
     expect(MAP_EFFECT_DEFAULTS).toEqual(V2_DEFAULTS)
   })
 
+  it('keeps exported defaults immutable enough that future loads are not poisoned', () => {
+    const original = MAP_EFFECT_DEFAULTS.base.innerWidth
+    const originalHover = MAP_EFFECT_DEFAULTS.hover.enterMs
+
+    expect(() => {
+      ;(MAP_EFFECT_DEFAULTS.base as { innerWidth: number }).innerWidth = 999
+    }).toThrow()
+    expect(() => {
+      ;(MAP_EFFECT_DEFAULTS.hover as { enterMs: number }).enterMs = 1
+    }).toThrow()
+
+    expect(loadMapEffectConfig(null)).toEqual(V2_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS.base.innerWidth).toBe(original)
+    expect(MAP_EFFECT_DEFAULTS.hover.enterMs).toBe(originalHover)
+  })
+
   it('migrates approved v1 defaults to the new v2 defaults', () => {
     expect(loadMapEffectConfig({ getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(APPROVED_V1_DEFAULTS) : null }))
       .toEqual(V2_DEFAULTS)
@@ -304,6 +320,14 @@ describe('mapEffectConfig', () => {
     expect(writes).toEqual([
       [MAP_EFFECT_STORAGE_KEY, JSON.stringify(V2_DEFAULTS)]
     ])
+  })
+
+  it('swallows storage write failures', () => {
+    expect(() => saveMapEffectConfig({
+      setItem: () => {
+        throw new Error('denied')
+      }
+    }, V2_DEFAULTS)).not.toThrow()
   })
 
   it('formats and parses the v2 config without mutation', () => {
