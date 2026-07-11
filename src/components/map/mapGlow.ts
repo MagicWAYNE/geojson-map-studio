@@ -187,8 +187,3 @@ export function setGlowResolution(
 ): void {
   for (const material of bundle.materials) material.resolution.set(width, height)
 }
-
-export function disposeGlowBundle(bundle: GlowBundleBase): void {
-  new Set(bundle.geometries).forEach((geometry) => geometry.dispose())
-  new Set(bundle.materials).forEach((material) => material.dispose())
-}

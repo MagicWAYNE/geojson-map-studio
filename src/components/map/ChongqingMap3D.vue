@@ -9,7 +9,7 @@ import {
   useMapDebug
 } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
-import { MAP_EFFECT_DEFAULTS } from './mapEffectConfig'
+import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
@@ -77,6 +77,7 @@ interface RegionVisual {
 
 const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
+let glowStatusPublicationPending = false
 
 type GlowFailurePhase = 'initialization' | 'runtime'
 
@@ -108,33 +109,90 @@ function handleGlowPipelineFailure(
   )
 }
 
-function runGlowOperation<T>(
+function setGlowConfig(
   pipeline: MapOutwardGlowPipeline,
-  operation: (current: MapOutwardGlowPipeline) => T,
+  config: MapEffectConfig,
   phase: GlowFailurePhase = 'runtime'
-): { ok: true; value: T } | { ok: false } {
+): boolean {
   try {
-    return { ok: true, value: operation(pipeline) }
+    pipeline.setConfig(config)
+    return true
   } catch (cause) {
     handleGlowPipelineFailure(pipeline, cause, phase)
-    return { ok: false }
+    return false
   }
 }
 
-function runCurrentGlowOperation<T>(
-  operation: (current: MapOutwardGlowPipeline) => T
-): { ok: true; value: T } | { ok: false } {
+function setCurrentGlowConfig(config: MapEffectConfig): boolean {
   const pipeline = outwardGlow
-  return pipeline ? runGlowOperation(pipeline, operation) : { ok: false }
+  return pipeline ? setGlowConfig(pipeline, config) : false
+}
+
+function setGlowSize(
+  pipeline: MapOutwardGlowPipeline,
+  width: number,
+  height: number,
+  pixelRatio: number,
+  phase: GlowFailurePhase = 'runtime'
+): boolean {
+  try {
+    pipeline.setSize(width, height, pixelRatio)
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return false
+  }
+}
+
+function setCurrentGlowSize(width: number, height: number, pixelRatio: number): boolean {
+  const pipeline = outwardGlow
+  return pipeline ? setGlowSize(pipeline, width, height, pixelRatio) : false
+}
+
+function markCurrentGlowCameraDirty(): void {
+  const pipeline = outwardGlow
+  if (!pipeline) return
+  try {
+    pipeline.markCameraDirty()
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+  }
 }
 
 function publishGlowStatus(phase: GlowFailurePhase = 'runtime'): boolean {
   const pipeline = outwardGlow
   if (!pipeline) return false
-  const result = runGlowOperation(pipeline, (current) => current.getStatus(), phase)
-  if (!result.ok) return false
-  updateEffectRuntimeStatus({ ...result.value, degraded: false })
-  return true
+  try {
+    const status = pipeline.getStatus()
+    updateEffectRuntimeStatus({ ...status, degraded: false })
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return false
+  }
+}
+
+function setGlowRegionProgress(source: THREE.Mesh, easedProgress: number): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  try {
+    return pipeline.setRegionProgress(source, easedProgress)
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+    return false
+  }
+}
+
+function renderGlowFrame(mainScene: THREE.Scene, mainCamera: THREE.Camera): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  try {
+    pipeline.render(mainScene, mainCamera)
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+    return false
+  }
 }
 
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
@@ -152,17 +210,9 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
-  if (runCurrentGlowOperation((pipeline) => pipeline.setConfig(effect)).ok) publishGlowStatus()
-  for (const visual of regionVisuals) {
-    updateHoverVisualState(
-      visual,
-      0,
-      effect.hover.enterMs,
-      effect.hover.leaveMs,
-      renderRegionVisual,
-      true
-    )
-  }
+  const configUpdated = setCurrentGlowConfig(effect)
+  updateRegionVisuals(0, true)
+  if (configUpdated && outwardGlow) publishGlowStatus()
 }
 
 const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
@@ -279,9 +329,7 @@ function handleWindowResize(): void {
   updatePixelRatio()
   const el = container.value
   if (!renderer || !el || !el.clientWidth || !el.clientHeight) return
-  if (runCurrentGlowOperation((pipeline) => {
-    pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
-  }).ok) publishGlowStatus()
+  if (setCurrentGlowSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())) publishGlowStatus()
 }
 
 function updateGlowResolution(): void {
@@ -319,13 +367,17 @@ function setupScene(mapGroup: THREE.Group) {
     let pendingOutwardGlow: MapOutwardGlowPipeline | null = null
     try {
       pendingOutwardGlow = createMapOutwardGlowPipeline(renderer, regionMeshes)
-      const sizeResult = runGlowOperation(pendingOutwardGlow, (pipeline) => {
-        pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
-      }, 'initialization')
-      const configResult = sizeResult.ok
-        ? runGlowOperation(pendingOutwardGlow, (pipeline) => pipeline.setConfig(effect), 'initialization')
-        : { ok: false as const }
-      if (configResult.ok) {
+      const sizeSucceeded = setGlowSize(
+        pendingOutwardGlow,
+        el.clientWidth,
+        el.clientHeight,
+        renderer.getPixelRatio(),
+        'initialization'
+      )
+      const configSucceeded = sizeSucceeded
+        ? setGlowConfig(pendingOutwardGlow, effect, 'initialization')
+        : false
+      if (configSucceeded) {
         outwardGlow = pendingOutwardGlow
         publishGlowStatus('initialization')
       }
@@ -348,7 +400,7 @@ function setupScene(mapGroup: THREE.Group) {
       cameraView.value =
         `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
         `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
-      runCurrentGlowOperation((pipeline) => pipeline.markCameraDirty())
+      markCurrentGlowCameraDirty()
     }
     controls.addEventListener('change', syncCamView)
     syncCamView()
@@ -357,9 +409,9 @@ function setupScene(mapGroup: THREE.Group) {
       if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
       renderer.setSize(el.clientWidth, el.clientHeight, false)
       updatePixelRatio()
-      if (runCurrentGlowOperation((pipeline) => {
-        pipeline.setSize(el.clientWidth, el.clientHeight, renderer!.getPixelRatio())
-      }).ok) publishGlowStatus()
+      if (setCurrentGlowSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())) {
+        publishGlowStatus()
+      }
       updateGlowResolution()
       camera.aspect = el.clientWidth / el.clientHeight
       camera.updateProjectionMatrix()
@@ -394,22 +446,23 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  if (runCurrentGlowOperation((pipeline) => {
-    pipeline.setRegionProgress(visual.mesh, eased)
-  }).ok) publishGlowStatus()
+  if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
 
-function updateRegionVisuals(deltaMs: number): void {
+function updateRegionVisuals(deltaMs: number, force = false): boolean {
   const hover = effect.hover
+  glowStatusPublicationPending = false
   for (const visual of regionVisuals) {
     updateHoverVisualState(
       visual,
       deltaMs,
       hover.enterMs,
       hover.leaveMs,
-      renderRegionVisual
+      renderRegionVisual,
+      force
     )
   }
+  return glowStatusPublicationPending
 }
 
 function pick(e: PointerEvent): THREE.Mesh | null {
@@ -473,13 +526,12 @@ function loop(now: number) {
   raf = requestAnimationFrame(loop)
   const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
   lastFrameAt = now
-  updateRegionVisuals(deltaMs)
+  const glowStatusChanged = updateRegionVisuals(deltaMs)
+  if (glowStatusChanged) publishGlowStatus()
   controls?.update()
   if (renderer && scene && camera) {
     if (outwardGlow) {
-      const rendered = runCurrentGlowOperation((pipeline) => pipeline.render(scene!, camera!)).ok
-      if (rendered) publishGlowStatus()
-      else renderer.render(scene, camera)
+      if (!renderGlowFrame(scene, camera)) renderer.render(scene, camera)
     } else renderer.render(scene, camera)
   }
   frames++

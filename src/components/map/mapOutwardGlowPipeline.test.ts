@@ -358,11 +358,11 @@ describe('mapOutwardGlowPipeline', () => {
     pipeline.setConfig(configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 }))
     expect(pipeline.getStatus().hoverState).toBe('ready')
 
-    pipeline.setRegionProgress(meshes[0], 0.5)
+    expect(pipeline.setRegionProgress(meshes[0], 0.5)).toBe(true)
     expect(pipeline.getStatus().hoverState).toBe('active')
-    pipeline.setRegionProgress(meshes[0], 0.5)
-    pipeline.setRegionProgress(meshes[1], 0.75)
-    pipeline.setRegionProgress(meshes[0], 0.001)
+    expect(pipeline.setRegionProgress(meshes[0], 0.5)).toBe(false)
+    expect(pipeline.setRegionProgress(meshes[1], 0.75)).toBe(false)
+    expect(pipeline.setRegionProgress(meshes[0], 0.001)).toBe(false)
     expect(pipeline.getStatus().hoverState).toBe('active')
 
     const values = vi.spyOn(Map.prototype, 'values')
@@ -371,11 +371,11 @@ describe('mapOutwardGlowPipeline', () => {
     pipeline.render(scene, camera)
     expect(values).not.toHaveBeenCalled()
 
-    pipeline.setRegionProgress(meshes[1], 0)
+    expect(pipeline.setRegionProgress(meshes[1], 0)).toBe(true)
     expect(pipeline.getStatus().hoverState).toBe('ready')
     meshes[0].position.y = 2
     meshes[0].updateMatrixWorld(true)
-    pipeline.setRegionProgress(meshes[0], 0.001)
+    expect(pipeline.setRegionProgress(meshes[0], 0.001)).toBe(false)
     expect(pipeline.getStatus().hoverState).toBe('ready')
     pipeline.dispose()
     expect(pipeline.getStatus().hoverState).toBe('ready')
@@ -394,6 +394,124 @@ describe('mapOutwardGlowPipeline', () => {
     expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
     expect(shaderMocks.renderComposite).not.toHaveBeenCalled()
     expect(pipeline.getStatus().hoverState).toBe('disabled')
+  })
+
+  it('reports an effective-zero base channel and reuses its existing blur cache when a ratio returns', () => {
+    const { pipeline, renderer, scene, camera } = enabledFixture()
+    pipeline.render(scene, camera)
+    const zero = configWith()
+    zero.base.outerGlowNearOpacityRatio = 0
+    zero.base.outerGlowFarOpacityRatio = 0
+    pipeline.setConfig(zero)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    shaderMocks.renderComposite.mockClear()
+
+    expect(pipeline.getStatus().baseState).toBe('zero')
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).not.toHaveBeenCalled()
+
+    const restored = configWith()
+    restored.base.outerGlowNearOpacityRatio = 0.5
+    restored.base.outerGlowFarOpacityRatio = 0
+    pipeline.setConfig(restored)
+    renderer.render.mockClear()
+    expect(pipeline.getStatus().baseState).toBe('enabled')
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).toHaveBeenCalledOnce()
+    expect(shaderMocks.renderComposite).toHaveBeenCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({ nearOpacity: 0.115, farOpacity: 0 })
+    )
+  })
+
+  it('builds the base blur cache once when an effective-zero channel has never rendered', () => {
+    const { pipeline, renderer, scene, camera } = fixture()
+    const zero = configWith()
+    zero.base.outerGlowNearOpacityRatio = 0
+    zero.base.outerGlowFarOpacityRatio = 0
+    pipeline.setConfig(zero)
+    pipeline.render(scene, camera)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    shaderMocks.renderComposite.mockClear()
+
+    const restored = configWith()
+    restored.base.outerGlowNearOpacityRatio = 0
+    restored.base.outerGlowFarOpacityRatio = 0.5
+    pipeline.setConfig(restored)
+    expect(pipeline.getStatus().baseState).toBe('enabled')
+    pipeline.render(scene, camera)
+
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(1)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(shaderMocks.renderComposite).toHaveBeenCalledOnce()
+  })
+
+  it('reports effective-zero hover and reuses its existing blur cache while progress stays visible', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const active = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    pipeline.setConfig(active)
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    const zero = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    zero.hover.glowNearOpacityRatio = 0
+    zero.hover.glowFarOpacityRatio = 0
+    pipeline.setConfig(zero)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    shaderMocks.renderComposite.mockClear()
+
+    expect(pipeline.getStatus().hoverState).toBe('zero')
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).not.toHaveBeenCalled()
+
+    const restored = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    restored.hover.glowNearOpacityRatio = 0
+    restored.hover.glowFarOpacityRatio = 0.5
+    pipeline.setConfig(restored)
+    renderer.render.mockClear()
+    expect(pipeline.getStatus().hoverState).toBe('active')
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).toHaveBeenCalledOnce()
+    expect(shaderMocks.renderComposite).toHaveBeenCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({ nearOpacity: 0, farOpacity: 0.115 })
+    )
+  })
+
+  it('builds the hover blur cache once when visible effective-zero hover has never rendered', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const zero = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    zero.hover.glowNearOpacityRatio = 0
+    zero.hover.glowFarOpacityRatio = 0
+    pipeline.setConfig(zero)
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    shaderMocks.renderComposite.mockClear()
+
+    const restored = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    restored.hover.glowNearOpacityRatio = 0.5
+    restored.hover.glowFarOpacityRatio = 0
+    pipeline.setConfig(restored)
+    expect(pipeline.getStatus().hoverState).toBe('active')
+    pipeline.render(scene, camera)
+
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(1)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(shaderMocks.renderComposite).toHaveBeenCalledOnce()
   })
 
   it('reports immutable read-only channel status snapshots', () => {

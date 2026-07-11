@@ -108,7 +108,46 @@ describe('mapOutwardGlowShaders', () => {
     disposeGlowShaderResources(resources)
   })
 
-  it('keeps required composite controls finite when callers supply non-finite values directly', () => {
+  it.each([
+    {
+      label: 'NaN and positive infinity',
+      nearOpacity: Number.NaN,
+      farOpacity: Number.POSITIVE_INFINITY,
+      falloff: Number.NaN,
+      edgeSoftness: Number.POSITIVE_INFINITY,
+      maxAlpha: Number.NEGATIVE_INFINITY,
+      expectedNearOpacity: 0,
+      expectedFarOpacity: 0
+    },
+    {
+      label: 'positive and negative infinity',
+      nearOpacity: Number.POSITIVE_INFINITY,
+      farOpacity: Number.NEGATIVE_INFINITY,
+      falloff: Number.NEGATIVE_INFINITY,
+      edgeSoftness: Number.NaN,
+      maxAlpha: Number.POSITIVE_INFINITY,
+      expectedNearOpacity: 0,
+      expectedFarOpacity: 0
+    },
+    {
+      label: 'finite opacity underflow and overflow',
+      nearOpacity: -1,
+      farOpacity: 3,
+      falloff: Number.POSITIVE_INFINITY,
+      edgeSoftness: Number.NEGATIVE_INFINITY,
+      maxAlpha: Number.NaN,
+      expectedNearOpacity: 0,
+      expectedFarOpacity: 2
+    }
+  ])('finite-clamps direct composite scalar inputs for $label', ({
+    nearOpacity,
+    farOpacity,
+    falloff,
+    edgeSoftness,
+    maxAlpha,
+    expectedNearOpacity,
+    expectedFarOpacity
+  }) => {
     const resources = createGlowShaderResources()
     const renderer = recordingRenderer()
 
@@ -117,14 +156,16 @@ describe('mapOutwardGlowShaders', () => {
       near: new THREE.Texture(),
       far: new THREE.Texture(),
       color: '#ffffff',
-      nearOpacity: 0,
-      farOpacity: 0,
-      falloff: Number.NaN,
-      edgeSoftness: Number.POSITIVE_INFINITY,
-      maxAlpha: Number.NEGATIVE_INFINITY
+      nearOpacity,
+      farOpacity,
+      falloff,
+      edgeSoftness,
+      maxAlpha
     })
 
     expect(resources.compositeMaterial.uniforms).toMatchObject({
+      uNearOpacity: { value: expectedNearOpacity },
+      uFarOpacity: { value: expectedFarOpacity },
       uFalloff: { value: 1 },
       uEdgeSoftness: { value: 0.96 },
       uMaxAlpha: { value: 1 }

@@ -58,6 +58,7 @@ void main() {
 const DEFAULT_COMPOSITE_FALLOFF = 1
 const DEFAULT_COMPOSITE_EDGE_SOFTNESS = 0.96
 const DEFAULT_COMPOSITE_MAX_ALPHA = 1
+const DEFAULT_COMPOSITE_OPACITY = 0
 
 export interface GlowShaderResources {
   blurMaterial: THREE.ShaderMaterial
@@ -189,8 +190,18 @@ export function renderOutwardComposite(
   compositeMaterial.uniforms.tNear.value = inputs.near
   compositeMaterial.uniforms.tFar.value = inputs.far
   compositeMaterial.uniforms.uColor.value.set(inputs.color)
-  compositeMaterial.uniforms.uNearOpacity.value = inputs.nearOpacity
-  compositeMaterial.uniforms.uFarOpacity.value = inputs.farOpacity
+  compositeMaterial.uniforms.uNearOpacity.value = finiteClamped(
+    inputs.nearOpacity,
+    DEFAULT_COMPOSITE_OPACITY,
+    0,
+    2
+  )
+  compositeMaterial.uniforms.uFarOpacity.value = finiteClamped(
+    inputs.farOpacity,
+    DEFAULT_COMPOSITE_OPACITY,
+    0,
+    2
+  )
   compositeMaterial.uniforms.uFalloff.value = finiteClamped(
     inputs.falloff,
     DEFAULT_COMPOSITE_FALLOFF,

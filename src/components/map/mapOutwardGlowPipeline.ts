@@ -32,7 +32,7 @@ export interface MapOutwardGlowPipelineStatus {
 export interface MapOutwardGlowPipeline {
   setSize(cssWidth: number, cssHeight: number, pixelRatio: number): void
   setConfig(config: MapEffectConfig): void
-  setRegionProgress(source: THREE.Mesh, easedProgress: number): void
+  setRegionProgress(source: THREE.Mesh, easedProgress: number): boolean
   markCameraDirty(): void
   getStatus(): MapOutwardGlowPipelineStatus
   render(mainScene: THREE.Scene, camera: THREE.Camera): void
@@ -353,12 +353,16 @@ export function createMapOutwardGlowPipeline(
 
   function baseState(): MapOutwardGlowBaseState {
     if (!staticChannel.enabled) return 'disabled'
-    return isGlowEnabled(true, staticChannel.radius, staticChannel.opacity) ? 'enabled' : 'zero'
+    return isGlowEnabled(true, staticChannel.radius, staticChannel.opacity)
+      && (staticCache.profile.nearOpacity > 0 || staticCache.profile.farOpacity > 0)
+      ? 'enabled'
+      : 'zero'
   }
 
   function hoverState(): MapOutwardGlowHoverState {
     if (!currentHoverChannel.enabled) return 'disabled'
-    if (!isGlowEnabled(true, currentHoverChannel.radius, currentHoverChannel.opacity)) return 'zero'
+    if (!isGlowEnabled(true, currentHoverChannel.radius, currentHoverChannel.opacity)
+      || (hoverCache.profile.nearOpacity <= 0 && hoverCache.profile.farOpacity <= 0)) return 'zero'
     return hasVisibleHover() ? 'active' : 'ready'
   }
 
@@ -394,12 +398,13 @@ export function createMapOutwardGlowPipeline(
     },
 
     setRegionProgress(source, easedProgress) {
-      if (disposed) return
+      if (disposed) return false
       const state = hoverStates.get(source)
-      if (!state) return
+      if (!state) return false
       const nextProgress = safeProgress(easedProgress)
       const matrixChanged = !state.clone.matrix.equals(source.matrixWorld)
-      if (state.progress === nextProgress && !matrixChanged) return
+      if (state.progress === nextProgress && !matrixChanged) return false
+      const hadVisibleHover = hasVisibleHover()
       const wasVisible = state.progress > HOVER_VISIBILITY_THRESHOLD
       const nextVisible = nextProgress > HOVER_VISIBILITY_THRESHOLD
       if (wasVisible !== nextVisible) visibleHoverCount += nextVisible ? 1 : -1
@@ -409,6 +414,7 @@ export function createMapOutwardGlowPipeline(
       state.clone.matrix.copy(source.matrixWorld)
       hoverMaskDirty = true
       hoverBlurDirty = true
+      return hadVisibleHover !== hasVisibleHover()
     },
 
     markCameraDirty() {

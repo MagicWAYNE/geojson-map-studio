@@ -111,6 +111,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
+  pipelineMocks.instance.setRegionProgress.mockReturnValue(false)
   pipelineMocks.instance.getStatus.mockReturnValue({
     targetWidth: 680,
     targetHeight: 680,
@@ -133,7 +134,7 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-async function mountInitializedMap() {
+async function mountInitializedMap(regionCount = 1) {
   let resizeCallback: ResizeObserverCallback = () => undefined
   let frameCallback: FrameRequestCallback = () => undefined
   let pixelRatio = 2
@@ -165,10 +166,10 @@ async function mountInitializedMap() {
     text: vi.fn().mockResolvedValue('<svg/>')
   } as unknown as Response)
   apiMocks.getDistrictMapData.mockResolvedValue([])
-  geometryMocks.parseSvgRegions.mockReturnValue([{
-    name: '渝中区',
-    outers: [{ ring: [[0, 0], [100, 0], [0, 100]], holes: [] }]
-  }])
+  geometryMocks.parseSvgRegions.mockReturnValue(Array.from({ length: regionCount }, (_, index) => ({
+    name: `测试区${index}`,
+    outers: [{ ring: [[index * 120, 0], [index * 120 + 100, 0], [index * 120, 100]], holes: [] }]
+  })))
   const texture = new THREE.Texture(document.createElement('img'))
   texture.image.width = 100
   texture.image.height = 100
@@ -207,7 +208,7 @@ function expectDegradedGlowFallback(
 }
 
 describe('ChongqingMap3D effect wiring', () => {
-  it('publishes pipeline status after setup, config, resize, hover progress, and render', async () => {
+  it('publishes pipeline status after setup, config, resize, and hover threshold crossings only', async () => {
     const mounted = await mountInitializedMap()
     expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
       targetWidth: 680,
@@ -219,31 +220,80 @@ describe('ChongqingMap3D effect wiring', () => {
     })
 
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
 
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
     mounted.runResize()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
+
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+    expect(pipelineMocks.instance.getStatus).not.toHaveBeenCalled()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).not.toHaveBeenCalled()
 
     const [, meshes] = pipelineMocks.create.mock.calls[0]
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
       { object: meshes[0] } as THREE.Intersection
     ])
+    pipelineMocks.instance.setRegionProgress.mockReturnValueOnce(true)
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
     mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
       clientX: 10,
       clientY: 10
     }))
-    mounted.runFrame(16)
+    mounted.runFrame(48)
     expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalled()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
 
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
-    mounted.runFrame(32)
+    pipelineMocks.instance.getStatus.mockClear()
+    mounted.runFrame(64)
     expect(pipelineMocks.instance.render).toHaveBeenCalled()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).not.toHaveBeenCalled()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).not.toHaveBeenCalled()
+
+    pipelineMocks.instance.setRegionProgress.mockReturnValueOnce(true)
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerleave'))
+    mounted.runFrame(80)
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
+    mounted.app.unmount()
+  })
+
+  it('aggregates forced multi-region config synchronization into one status publication', async () => {
+    const mounted = await mountInitializedMap(3)
+    pipelineMocks.instance.setRegionProgress.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+
+    apply()
+
+    expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalledTimes(3)
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
+    mounted.app.unmount()
+  })
+
+  it('supports a synchronous initial effect watcher callback before scene setup', async () => {
+    watchMapEffectConfig.mockImplementationOnce((_effect, apply) => {
+      apply()
+      return stopEffectWatch
+    })
+
+    const mounted = await mountInitializedMap()
+
+    expect(applyMapEffectConfig).toHaveBeenCalled()
     mounted.app.unmount()
   })
 
@@ -367,6 +417,10 @@ describe('ChongqingMap3D effect wiring', () => {
     {
       operation: 'setSize' as const,
       trigger: (mounted: Awaited<ReturnType<typeof mountInitializedMap>>) => mounted.runResize()
+    },
+    {
+      operation: 'markCameraDirty' as const,
+      trigger: () => sceneSetupMocks.controlListeners.get('change')?.()
     },
     {
       operation: 'getStatus' as const,
