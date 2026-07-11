@@ -56,4 +56,31 @@ describe('mapOutwardGlowProfile', () => {
       farOpacity: 0
     })
   })
+
+  it('keeps overflowing finite metric products finite and safe', () => {
+    expect(computeGlowTargetMetrics(Number.MAX_VALUE, Number.MAX_VALUE, 2, 1)).toEqual({
+      width: 1,
+      height: 1,
+      pixelsPerCssPx: 2
+    })
+    expect(deriveB3GlowProfile(Number.MAX_VALUE, 0.23, {
+      width: 680,
+      height: 680,
+      pixelsPerCssPx: 2
+    })).toEqual({
+      nearRadiusTexels: 0,
+      farRadiusTexels: 0,
+      nearOpacity: 0.1909,
+      farOpacity: 0.23
+    })
+  })
+
+  it('disables glow for non-finite radius, opacity, or progress', () => {
+    expect(isGlowEnabled(Number.NaN, 0.23, 1)).toBe(false)
+    expect(isGlowEnabled(Number.POSITIVE_INFINITY, 0.23, 1)).toBe(false)
+    expect(isGlowEnabled(54, Number.NaN, 1)).toBe(false)
+    expect(isGlowEnabled(54, Number.POSITIVE_INFINITY, 1)).toBe(false)
+    expect(isGlowEnabled(54, 0.23, Number.NaN)).toBe(false)
+    expect(isGlowEnabled(54, 0.23, Number.POSITIVE_INFINITY)).toBe(false)
+  })
 })

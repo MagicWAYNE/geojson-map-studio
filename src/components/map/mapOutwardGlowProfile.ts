@@ -24,8 +24,8 @@ export function computeGlowTargetMetrics(
   const safeScale = Math.min(1, Math.max(0.25, finiteOr(scale, 0.5)))
   const pixelsPerCssPx = Math.max(0.01, finiteOr(pixelRatio, 1)) * safeScale
   return {
-    width: Math.max(1, Math.round(finiteOr(cssWidth, 0) * pixelsPerCssPx)),
-    height: Math.max(1, Math.round(finiteOr(cssHeight, 0) * pixelsPerCssPx)),
+    width: Math.max(1, Math.round(finiteOr(finiteOr(cssWidth, 0) * pixelsPerCssPx, 0))),
+    height: Math.max(1, Math.round(finiteOr(finiteOr(cssHeight, 0) * pixelsPerCssPx, 0))),
     pixelsPerCssPx
   }
 }
@@ -35,7 +35,10 @@ export function deriveB3GlowProfile(
   opacity: number,
   metrics: GlowTargetMetrics
 ): GlowProfile {
-  const radius = Math.max(0, finiteOr(radiusCssPx, 0)) * finiteOr(metrics.pixelsPerCssPx, 1)
+  const radius = finiteOr(
+    Math.max(0, finiteOr(radiusCssPx, 0)) * finiteOr(metrics.pixelsPerCssPx, 1),
+    0
+  )
   const alpha = Math.min(1, Math.max(0, finiteOr(opacity, 0)))
   return {
     nearRadiusTexels: Number((radius * 0.35).toFixed(4)),
@@ -46,5 +49,10 @@ export function deriveB3GlowProfile(
 }
 
 export function isGlowEnabled(radiusCssPx: number, opacity: number, progress = 1): boolean {
-  return radiusCssPx > 0 && opacity > 0 && progress > 0.001
+  return Number.isFinite(radiusCssPx)
+    && Number.isFinite(opacity)
+    && Number.isFinite(progress)
+    && radiusCssPx > 0
+    && opacity > 0
+    && progress > 0.001
 }
