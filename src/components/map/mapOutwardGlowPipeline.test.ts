@@ -57,7 +57,8 @@ function configWith({
   hoverRadius = 0,
   hoverOpacity = 0,
   baseColor = '#ffffff',
-  hoverColor = '#27a7ff'
+  hoverColor = '#27a7ff',
+  renderScale = 0.5
 }: {
   baseRadius?: number
   baseOpacity?: number
@@ -65,12 +66,14 @@ function configWith({
   hoverOpacity?: number
   baseColor?: string
   hoverColor?: string
+  renderScale?: MapEffectConfig['quality']['renderScale']
 } = {}): MapEffectConfig {
   return {
     ...MAP_EFFECT_DEFAULTS,
     base: {
       ...MAP_EFFECT_DEFAULTS.base,
       outerColor: baseColor,
+      outerGlowColor: baseColor,
       outerGlowWidth: baseRadius,
       outerGlowStrength: baseOpacity
     },
@@ -79,6 +82,10 @@ function configWith({
       glowColor: hoverColor,
       glowWidth: hoverRadius,
       glowStrength: hoverOpacity
+    },
+    quality: {
+      ...MAP_EFFECT_DEFAULTS.quality,
+      renderScale
     }
   }
 }
@@ -109,6 +116,240 @@ afterEach(() => {
 })
 
 describe('mapOutwardGlowPipeline', () => {
+  it('renders the v2 default base channel immediately with its glow color and dynamic passes', () => {
+    const setSize = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'setSize')
+    const { pipeline, renderer, scene, camera } = fixture()
+    const config = configWith()
+    config.base.outerColor = '#d40000'
+    config.base.outerGlowColor = '#00d4ff'
+    pipeline.setSize(680, 680, 2)
+    pipeline.setConfig(config)
+
+    pipeline.render(scene, camera)
+
+    expect(setSize).toHaveBeenCalledWith(680, 680)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(1)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[6])).toEqual([2, 4])
+    expect(shaderMocks.renderComposite).toHaveBeenCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({ color: '#00d4ff' })
+    )
+    expect(shaderMocks.renderComposite).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses independently configured near and far blur pass counts', () => {
+    const { pipeline, renderer, scene, camera } = enabledFixture()
+    const config = configWith()
+    config.base.outerGlowNearPasses = 3
+    config.base.outerGlowFarPasses = 7
+    pipeline.setConfig(config)
+
+    pipeline.render(scene, camera)
+
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[6])).toEqual([3, 7])
+  })
+
+  it.each([
+    ['radius', (config: MapEffectConfig) => { config.base.outerGlowWidth = 70 }],
+    ['near radius ratio', (config: MapEffectConfig) => { config.base.outerGlowNearRadiusRatio = 0.5 }],
+    ['far radius ratio', (config: MapEffectConfig) => { config.base.outerGlowFarRadiusRatio = 0.8 }],
+    ['near passes', (config: MapEffectConfig) => { config.base.outerGlowNearPasses = 3 }],
+    ['far passes', (config: MapEffectConfig) => { config.base.outerGlowFarPasses = 5 }]
+  ])('rebuilds only the base blur cache when its %s changes', (_change, mutate) => {
+    const { pipeline, renderer, scene, camera } = enabledFixture()
+    pipeline.render(scene, camera)
+    shaderMocks.renderBlur.mockClear()
+    renderer.render.mockClear()
+    const config = configWith()
+    mutate(config)
+    pipeline.setConfig(config)
+    pipeline.render(scene, camera)
+
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+  })
+
+  it('rebuilds only the hover blur cache when its blur signature changes', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const config = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    pipeline.setConfig(config)
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    shaderMocks.renderBlur.mockClear()
+    renderer.render.mockClear()
+    config.hover.glowFarPasses = 6
+    pipeline.setConfig(config)
+    pipeline.render(scene, camera)
+
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+  })
+
+  it('applies the dirty-rule matrix without rebuilding blur caches for composite-only changes', () => {
+    const { pipeline, meshes, renderer, scene, camera } = enabledFixture()
+    let current = configWith()
+    const update = (mutate: (config: MapEffectConfig) => void) => {
+      const next: MapEffectConfig = {
+        ...current,
+        base: { ...current.base },
+        hover: { ...current.hover },
+        quality: { ...current.quality }
+      }
+      mutate(next)
+      current = next
+      pipeline.setConfig(next)
+      pipeline.render(scene, camera)
+    }
+
+    pipeline.render(scene, camera)
+    shaderMocks.renderBlur.mockClear()
+    renderer.render.mockClear()
+
+    update((config) => { config.base.outerGlowStrength = 0.4 })
+    update((config) => { config.base.outerGlowNearOpacityRatio = 0.6 })
+    update((config) => { config.base.outerGlowFarOpacityRatio = 0.7 })
+    update((config) => { config.base.outerGlowColor = '#102030' })
+    update((config) => { config.base.outerGlowFalloff = 2 })
+    update((config) => { config.base.outerGlowEdgeSoftness = 0.4 })
+    update((config) => { config.quality.maxAlpha = 0.6 })
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderComposite).toHaveBeenLastCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({
+        color: '#102030',
+        nearOpacity: 0.24,
+        farOpacity: 0.28,
+        falloff: 2,
+        edgeSoftness: 0.4,
+        maxAlpha: 0.6
+      })
+    )
+
+    update((config) => {
+      config.base.outerGlowEnabled = true
+      config.base.outerGlowNearRadiusRatio = 0.5
+    })
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
+    shaderMocks.renderBlur.mockClear()
+    shaderMocks.renderComposite.mockClear()
+
+    update((config) => { config.base.outerGlowEnabled = false })
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).not.toHaveBeenCalled()
+
+    update((config) => {
+      config.base.outerGlowEnabled = true
+      config.base.outerGlowNearRadiusRatio = 0.5
+    })
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).toHaveBeenCalledTimes(1)
+
+    update((config) => {
+      config.hover.glowWidth = 54
+      config.hover.glowStrength = 0.23
+    })
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.markCameraDirty()
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+  })
+
+  it('resizes existing targets and rebuilds enabled channels when renderScale changes', () => {
+    const setSize = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'setSize')
+    const { pipeline, meshes, renderer, scene, camera } = enabledFixture()
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    const initialTargets = shaderMocks.renderBlur.mock.calls.map((call) => call[4])
+    shaderMocks.renderBlur.mockClear()
+    setSize.mockClear()
+
+    const next = configWith({ hoverRadius: 54, hoverOpacity: 0.23, renderScale: 0.75 })
+    pipeline.setConfig(next)
+    pipeline.render(scene, camera)
+
+    expect(setSize).toHaveBeenCalledTimes(7)
+    expect(setSize).toHaveBeenCalledWith(1020, 1020)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+    expect(shaderMocks.renderBlur.mock.calls.slice(0, 2).map((call) => call[4]))
+      .toEqual(initialTargets)
+  })
+
+  it('invalidates both channel masks and blurs for CSS size and DPR changes', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    pipeline.setSize(680, 680, 2)
+    pipeline.setConfig(configWith({ hoverRadius: 54, hoverOpacity: 0.23 }))
+    pipeline.setRegionProgress(meshes[0], 1)
+    pipeline.render(scene, camera)
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+
+    pipeline.setSize(681, 680, 2)
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+
+    renderer.render.mockClear()
+    shaderMocks.renderBlur.mockClear()
+    pipeline.setSize(681, 680, 1.5)
+    pipeline.render(scene, camera)
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+  })
+
+  it('skips manually disabled hover GPU work even with visible progress', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const config = configWith({ baseRadius: 0, baseOpacity: 0, hoverRadius: 54, hoverOpacity: 0.23 })
+    config.hover.glowEnabled = false
+    pipeline.setConfig(config)
+    pipeline.setRegionProgress(meshes[0], 1)
+
+    pipeline.render(scene, camera)
+
+    expect(renderer.render).toHaveBeenCalledTimes(1)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(shaderMocks.renderComposite).not.toHaveBeenCalled()
+    expect(pipeline.getStatus().hoverState).toBe('disabled')
+  })
+
+  it('reports immutable read-only channel status snapshots', () => {
+    const { pipeline, meshes } = fixture()
+    pipeline.setSize(680, 680, 2)
+    pipeline.setConfig(configWith())
+
+    const initial = pipeline.getStatus()
+    expect(initial).toEqual({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'zero'
+    })
+    expect(initial).not.toBe(pipeline.getStatus())
+
+    const ready = configWith({ hoverRadius: 54, hoverOpacity: 0.23 })
+    pipeline.setConfig(ready)
+    expect(pipeline.getStatus().hoverState).toBe('ready')
+    pipeline.setRegionProgress(meshes[0], 1)
+    expect(pipeline.getStatus().hoverState).toBe('active')
+    ready.hover.glowEnabled = false
+    pipeline.setConfig(ready)
+    expect(pipeline.getStatus().hoverState).toBe('disabled')
+    ready.hover.glowEnabled = true
+    ready.hover.glowWidth = 0
+    pipeline.setConfig(ready)
+    expect(pipeline.getStatus().hoverState).toBe('zero')
+    ready.base.outerGlowEnabled = false
+    pipeline.setConfig(ready)
+    expect(pipeline.getStatus().baseState).toBe('disabled')
+  })
+
   it('disposes construction-owned resources when shader allocation throws', () => {
     const renderer = {} as THREE.WebGLRenderer
     const meshes = [0, 20].map((x) => {

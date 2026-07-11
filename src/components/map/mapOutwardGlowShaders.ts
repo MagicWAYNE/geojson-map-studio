@@ -73,13 +73,13 @@ export interface OutwardCompositeInputs {
   color: THREE.ColorRepresentation
   nearOpacity: number
   farOpacity: number
-  falloff?: number
-  edgeSoftness?: number
-  maxAlpha?: number
+  falloff: number
+  edgeSoftness: number
+  maxAlpha: number
 }
 
 function finiteClamped(
-  value: number | undefined,
+  value: number,
   fallback: number,
   min: number,
   max: number

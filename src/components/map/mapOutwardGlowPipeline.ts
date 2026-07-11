@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import {
   computeGlowTargetMetrics,
-  deriveB3GlowProfile,
+  deriveGlowProfile,
   isGlowEnabled,
   type GlowTargetMetrics
 } from './mapOutwardGlowProfile'
@@ -14,16 +14,41 @@ import {
   type GlowShaderResources
 } from './mapOutwardGlowShaders'
 
-const GLOW_TARGET_SCALE = 0.5
 const HOVER_VISIBILITY_THRESHOLD = 0.001
+
+type GlowChannelState = 'enabled' | 'ready' | 'active' | 'zero' | 'disabled'
+
+export interface MapOutwardGlowPipelineStatus {
+  targetWidth: number
+  targetHeight: number
+  renderScale: MapEffectConfig['quality']['renderScale']
+  baseState: GlowChannelState
+  hoverState: GlowChannelState
+}
 
 export interface MapOutwardGlowPipeline {
   setSize(cssWidth: number, cssHeight: number, pixelRatio: number): void
   setConfig(config: MapEffectConfig): void
   setRegionProgress(source: THREE.Mesh, easedProgress: number): void
   markCameraDirty(): void
+  getStatus(): MapOutwardGlowPipelineStatus
   render(mainScene: THREE.Scene, camera: THREE.Camera): void
   dispose(): void
+}
+
+interface GlowChannelConfig {
+  enabled: boolean
+  color: string
+  radius: number
+  opacity: number
+  nearRadiusRatio: number
+  nearOpacityRatio: number
+  farRadiusRatio: number
+  farOpacityRatio: number
+  falloff: number
+  edgeSoftness: number
+  nearPasses: number
+  farPasses: number
 }
 
 interface ChannelTargets {
@@ -49,11 +74,7 @@ function createTarget(): THREE.WebGLRenderTarget {
 }
 
 function createChannelTargets(create: () => THREE.WebGLRenderTarget): ChannelTargets {
-  return {
-    mask: create(),
-    near: create(),
-    far: create()
-  }
+  return { mask: create(), near: create(), far: create() }
 }
 
 function snapshotConfig(config: MapEffectConfig): MapEffectConfig {
@@ -63,6 +84,52 @@ function snapshotConfig(config: MapEffectConfig): MapEffectConfig {
     hover: { ...config.hover },
     quality: { ...config.quality }
   }
+}
+
+function baseChannel(config: MapEffectConfig): GlowChannelConfig {
+  const { base } = config
+  return {
+    enabled: base.outerGlowEnabled,
+    color: base.outerGlowColor,
+    radius: base.outerGlowWidth,
+    opacity: base.outerGlowStrength,
+    nearRadiusRatio: base.outerGlowNearRadiusRatio,
+    nearOpacityRatio: base.outerGlowNearOpacityRatio,
+    farRadiusRatio: base.outerGlowFarRadiusRatio,
+    farOpacityRatio: base.outerGlowFarOpacityRatio,
+    falloff: base.outerGlowFalloff,
+    edgeSoftness: base.outerGlowEdgeSoftness,
+    nearPasses: base.outerGlowNearPasses,
+    farPasses: base.outerGlowFarPasses
+  }
+}
+
+function hoverChannel(config: MapEffectConfig): GlowChannelConfig {
+  const { hover } = config
+  return {
+    enabled: hover.glowEnabled,
+    color: hover.glowColor,
+    radius: hover.glowWidth,
+    opacity: hover.glowStrength,
+    nearRadiusRatio: hover.glowNearRadiusRatio,
+    nearOpacityRatio: hover.glowNearOpacityRatio,
+    farRadiusRatio: hover.glowFarRadiusRatio,
+    farOpacityRatio: hover.glowFarOpacityRatio,
+    falloff: hover.glowFalloff,
+    edgeSoftness: hover.glowEdgeSoftness,
+    nearPasses: hover.glowNearPasses,
+    farPasses: hover.glowFarPasses
+  }
+}
+
+function blurSignature(channel: GlowChannelConfig): string {
+  return [
+    channel.radius,
+    channel.nearRadiusRatio,
+    channel.farRadiusRatio,
+    channel.nearPasses,
+    channel.farPasses
+  ].join('|')
 }
 
 function safeProgress(value: number): number {
@@ -105,7 +172,6 @@ export function createMapOutwardGlowPipeline(
   try {
     const staticMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff })
     ownedMaterials.push(staticMaterial)
-
     for (const source of regionMeshes) {
       const staticClone = new THREE.Mesh(source.geometry, staticMaterial)
       staticClone.matrixAutoUpdate = false
@@ -121,7 +187,6 @@ export function createMapOutwardGlowPipeline(
       hoverMaskScene.add(hoverClone)
       hoverStates.set(source, { clone: hoverClone, material: hoverMaterial, progress: 0 })
     }
-
     staticTargets = createChannelTargets(createOwnedTarget)
     hoverTargets = createChannelTargets(createOwnedTarget)
     pingTarget = createOwnedTarget()
@@ -133,7 +198,17 @@ export function createMapOutwardGlowPipeline(
   }
 
   let config = snapshotConfig(MAP_EFFECT_DEFAULTS)
-  let metrics: GlowTargetMetrics = computeGlowTargetMetrics(0, 0, 1, GLOW_TARGET_SCALE)
+  let staticChannel = baseChannel(config)
+  let currentHoverChannel = hoverChannel(config)
+  let cssWidth = 0
+  let cssHeight = 0
+  let pixelRatio = 1
+  let metrics: GlowTargetMetrics = computeGlowTargetMetrics(
+    cssWidth,
+    cssHeight,
+    pixelRatio,
+    config.quality.renderScale
+  )
   let staticMaskDirty = true
   let staticBlurDirty = true
   let hoverMaskDirty = true
@@ -146,6 +221,16 @@ export function createMapOutwardGlowPipeline(
     hoverBlurDirty = true
   }
 
+  function resizeTargets(scale: MapEffectConfig['quality']['renderScale'], force = false): void {
+    const next = computeGlowTargetMetrics(cssWidth, cssHeight, pixelRatio, scale)
+    if (!force && next.width === metrics.width
+      && next.height === metrics.height
+      && next.pixelsPerCssPx === metrics.pixelsPerCssPx) return
+    metrics = next
+    for (const target of ownedTargets) target.setSize(metrics.width, metrics.height)
+    setAllDirty()
+  }
+
   function renderMask(
     scene: THREE.Scene,
     target: THREE.WebGLRenderTarget,
@@ -156,30 +241,42 @@ export function createMapOutwardGlowPipeline(
     renderer.render(scene, camera)
   }
 
-  function renderBlurredChannel(
-    targets: ChannelTargets,
-    radiusCssPx: number,
-    opacity: number
-  ): void {
-    const profile = deriveB3GlowProfile(radiusCssPx, opacity, metrics)
+  function profileFor(channel: GlowChannelConfig) {
+    return deriveGlowProfile({
+      radiusCssPx: channel.radius,
+      opacity: channel.opacity,
+      nearRadiusRatio: channel.nearRadiusRatio,
+      nearOpacityRatio: channel.nearOpacityRatio,
+      farRadiusRatio: channel.farRadiusRatio,
+      farOpacityRatio: channel.farOpacityRatio
+    }, metrics)
+  }
+
+  function renderBlurredChannel(targets: ChannelTargets, channel: GlowChannelConfig): void {
+    const profile = profileFor(channel)
     renderSeparableBlur(
-      renderer,
-      shaderResources,
-      targets.mask.texture,
-      pingTarget,
-      targets.near,
-      profile.nearRadiusTexels,
-      2
+      renderer, shaderResources, targets.mask.texture, pingTarget, targets.near,
+      profile.nearRadiusTexels, channel.nearPasses
     )
     renderSeparableBlur(
-      renderer,
-      shaderResources,
-      targets.mask.texture,
-      pingTarget,
-      targets.far,
-      profile.farRadiusTexels,
-      4
+      renderer, shaderResources, targets.mask.texture, pingTarget, targets.far,
+      profile.farRadiusTexels, channel.farPasses
     )
+  }
+
+  function renderComposite(targets: ChannelTargets, channel: GlowChannelConfig): void {
+    const profile = profileFor(channel)
+    renderOutwardComposite(renderer, shaderResources, {
+      mask: targets.mask.texture,
+      near: targets.near.texture,
+      far: targets.far.texture,
+      color: channel.color,
+      nearOpacity: profile.nearOpacity,
+      farOpacity: profile.farOpacity,
+      falloff: channel.falloff,
+      edgeSoftness: channel.edgeSoftness,
+      maxAlpha: config.quality.maxAlpha
+    })
   }
 
   function hasVisibleHover(): boolean {
@@ -189,44 +286,47 @@ export function createMapOutwardGlowPipeline(
     return false
   }
 
-  return {
-    setSize(cssWidth, cssHeight, pixelRatio) {
-      if (disposed) return
-      const next = computeGlowTargetMetrics(
-        cssWidth,
-        cssHeight,
-        pixelRatio,
-        GLOW_TARGET_SCALE
-      )
-      if (next.width === metrics.width
-        && next.height === metrics.height
-        && next.pixelsPerCssPx === metrics.pixelsPerCssPx) return
+  function baseState(): GlowChannelState {
+    if (!staticChannel.enabled) return 'disabled'
+    return isGlowEnabled(true, staticChannel.radius, staticChannel.opacity) ? 'enabled' : 'zero'
+  }
 
-      metrics = next
-      for (const target of ownedTargets) target.setSize(metrics.width, metrics.height)
-      setAllDirty()
+  function hoverState(): GlowChannelState {
+    if (!currentHoverChannel.enabled) return 'disabled'
+    if (!isGlowEnabled(true, currentHoverChannel.radius, currentHoverChannel.opacity)) return 'zero'
+    return hasVisibleHover() ? 'active' : 'ready'
+  }
+
+  return {
+    setSize(nextCssWidth, nextCssHeight, nextPixelRatio) {
+      if (disposed) return
+      cssWidth = nextCssWidth
+      cssHeight = nextCssHeight
+      pixelRatio = nextPixelRatio
+      resizeTargets(config.quality.renderScale)
     },
 
     setConfig(nextConfig) {
       if (disposed) return
-      if (!Object.is(config.base.outerGlowWidth, nextConfig.base.outerGlowWidth)) {
-        staticBlurDirty = true
-      }
-      if (!Object.is(config.hover.glowWidth, nextConfig.hover.glowWidth)) {
-        hoverBlurDirty = true
-      }
-      config = snapshotConfig(nextConfig)
+      const next = snapshotConfig(nextConfig)
+      const nextStaticChannel = baseChannel(next)
+      const nextHoverChannel = hoverChannel(next)
+      const scaleChanged = !Object.is(config.quality.renderScale, next.quality.renderScale)
+      if (blurSignature(staticChannel) !== blurSignature(nextStaticChannel)) staticBlurDirty = true
+      if (blurSignature(currentHoverChannel) !== blurSignature(nextHoverChannel)) hoverBlurDirty = true
+      config = next
+      staticChannel = nextStaticChannel
+      currentHoverChannel = nextHoverChannel
+      if (scaleChanged) resizeTargets(config.quality.renderScale, true)
     },
 
     setRegionProgress(source, easedProgress) {
       if (disposed) return
       const state = hoverStates.get(source)
       if (!state) return
-
       const nextProgress = safeProgress(easedProgress)
       const matrixChanged = !state.clone.matrix.equals(source.matrixWorld)
       if (state.progress === nextProgress && !matrixChanged) return
-
       state.progress = nextProgress
       state.material.color.setRGB(nextProgress, nextProgress, nextProgress)
       state.clone.visible = nextProgress > HOVER_VISIBILITY_THRESHOLD
@@ -236,93 +336,52 @@ export function createMapOutwardGlowPipeline(
     },
 
     markCameraDirty() {
-      if (disposed) return
-      setAllDirty()
+      if (!disposed) setAllDirty()
+    },
+
+    getStatus() {
+      return {
+        targetWidth: metrics.width,
+        targetHeight: metrics.height,
+        renderScale: config.quality.renderScale,
+        baseState: baseState(),
+        hoverState: hoverState()
+      }
     },
 
     render(mainScene, camera) {
       if (disposed) return
       const previousTarget = renderer.getRenderTarget()
       const previousAutoClear = renderer.autoClear
-      const staticEnabled = isGlowEnabled(
-        config.base.outerGlowWidth,
-        config.base.outerGlowStrength
-      )
-      const hoverVisible = hasVisibleHover()
-      const hoverEnabled = isGlowEnabled(
-        config.hover.glowWidth,
-        config.hover.glowStrength,
-        hoverVisible ? 1 : 0
-      )
-
+      const staticEnabled = baseState() === 'enabled'
+      const hoverEnabled = hoverState() === 'active'
       try {
         renderer.autoClear = false
-
         if (staticEnabled) {
           if (staticMaskDirty) {
             renderMask(staticMaskScene, staticTargets.mask, camera)
             staticMaskDirty = false
           }
           if (staticBlurDirty) {
-            renderBlurredChannel(
-              staticTargets,
-              config.base.outerGlowWidth,
-              config.base.outerGlowStrength
-            )
+            renderBlurredChannel(staticTargets, staticChannel)
             staticBlurDirty = false
           }
         }
-
         if (hoverEnabled) {
           if (hoverMaskDirty) {
             renderMask(hoverMaskScene, hoverTargets.mask, camera)
             hoverMaskDirty = false
           }
           if (hoverBlurDirty) {
-            renderBlurredChannel(
-              hoverTargets,
-              config.hover.glowWidth,
-              config.hover.glowStrength
-            )
+            renderBlurredChannel(hoverTargets, currentHoverChannel)
             hoverBlurDirty = false
           }
         }
-
         renderer.setRenderTarget(null)
         renderer.clear()
         renderer.render(mainScene, camera)
-
-        if (staticEnabled) {
-          const profile = deriveB3GlowProfile(
-            config.base.outerGlowWidth,
-            config.base.outerGlowStrength,
-            metrics
-          )
-          renderOutwardComposite(renderer, shaderResources, {
-            mask: staticTargets.mask.texture,
-            near: staticTargets.near.texture,
-            far: staticTargets.far.texture,
-            color: config.base.outerColor,
-            nearOpacity: profile.nearOpacity,
-            farOpacity: profile.farOpacity
-          })
-        }
-
-        if (hoverEnabled) {
-          const profile = deriveB3GlowProfile(
-            config.hover.glowWidth,
-            config.hover.glowStrength,
-            metrics
-          )
-          renderOutwardComposite(renderer, shaderResources, {
-            mask: hoverTargets.mask.texture,
-            near: hoverTargets.near.texture,
-            far: hoverTargets.far.texture,
-            color: config.hover.glowColor,
-            nearOpacity: profile.nearOpacity,
-            farOpacity: profile.farOpacity
-          })
-        }
+        if (staticEnabled) renderComposite(staticTargets, staticChannel)
+        if (hoverEnabled) renderComposite(hoverTargets, currentHoverChannel)
       } finally {
         renderer.setRenderTarget(previousTarget)
         renderer.autoClear = previousAutoClear

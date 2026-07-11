@@ -72,60 +72,17 @@ export function deriveGlowProfile(
   }
 }
 
-const B3_GLOW_PROFILE_DEFAULTS: GlowProfileInput = {
-  radiusCssPx: 54,
-  opacity: 0.23,
-  nearRadiusRatio: 0.35,
-  nearOpacityRatio: 0.83,
-  farRadiusRatio: 1,
-  farOpacityRatio: 1
-}
-
-export function deriveB3GlowProfile(
-  radiusCssPx: number,
-  opacity: number,
-  metrics: GlowTargetMetrics
-): GlowProfile {
-  return deriveGlowProfile({
-    ...B3_GLOW_PROFILE_DEFAULTS,
-    radiusCssPx,
-    opacity
-  }, metrics)
-}
-
 export function isGlowEnabled(
   enabled: boolean,
   radiusCssPx: number,
   opacity: number,
-  progress?: number
-): boolean
-export function isGlowEnabled(
-  radiusCssPx: number,
-  opacity: number,
-  progress?: number
-): boolean
-export function isGlowEnabled(
-  enabledOrRadiusCssPx: boolean | number,
-  radiusCssPxOrOpacity: number,
-  opacityOrProgress?: number,
   progress = 1
 ): boolean {
-  const enabled = typeof enabledOrRadiusCssPx === 'boolean' ? enabledOrRadiusCssPx : true
-  const radiusCssPx = typeof enabledOrRadiusCssPx === 'boolean'
-    ? radiusCssPxOrOpacity
-    : enabledOrRadiusCssPx
-  const opacity = typeof enabledOrRadiusCssPx === 'boolean'
-    ? (opacityOrProgress ?? 0)
-    : radiusCssPxOrOpacity
-  const visibleProgress = typeof enabledOrRadiusCssPx === 'boolean'
-    ? progress
-    : (opacityOrProgress ?? 1)
-
   return enabled
     && Number.isFinite(radiusCssPx)
     && Number.isFinite(opacity)
-    && Number.isFinite(visibleProgress)
+    && Number.isFinite(progress)
     && radiusCssPx > 0
     && opacity > 0
-    && visibleProgress > 0.001
+    && progress > 0.001
 }

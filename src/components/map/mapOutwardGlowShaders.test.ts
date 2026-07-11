@@ -108,7 +108,7 @@ describe('mapOutwardGlowShaders', () => {
     disposeGlowShaderResources(resources)
   })
 
-  it('falls back to narrow transitional composite defaults when the new controls are omitted', () => {
+  it('keeps required composite controls finite when callers supply non-finite values directly', () => {
     const resources = createGlowShaderResources()
     const renderer = recordingRenderer()
 
@@ -118,7 +118,10 @@ describe('mapOutwardGlowShaders', () => {
       far: new THREE.Texture(),
       color: '#ffffff',
       nearOpacity: 0,
-      farOpacity: 0
+      farOpacity: 0,
+      falloff: Number.NaN,
+      edgeSoftness: Number.POSITIVE_INFINITY,
+      maxAlpha: Number.NEGATIVE_INFINITY
     })
 
     expect(resources.compositeMaterial.uniforms).toMatchObject({
