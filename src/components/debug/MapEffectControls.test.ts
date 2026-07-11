@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
-import type { MapEffectConfig } from '@/components/map/mapEffectConfig'
+import {
+  B3_GLOW_PROFILE_DEFAULTS,
+  MAP_EFFECT_DEFAULTS,
+  type MapEffectConfig
+} from '@/components/map/mapEffectConfig'
 
 type MountedControls = {
   app: App
@@ -72,8 +76,101 @@ describe('MapEffectControls', () => {
       .toBe('Hover 扩散半径')
     expect(root.querySelector('label[for="effect-hover-glowStrength-number"]')?.textContent)
       .toBe('Hover 辉光透明度')
-    expect([baseRadius.max, baseRadius.step]).toEqual(['120', '1'])
-    expect([hoverRadius.max, hoverRadius.step]).toEqual(['120', '1'])
+    expect([baseRadius.max, baseRadius.step]).toEqual(['200', '1'])
+    expect([hoverRadius.max, hoverRadius.step]).toEqual(['200', '1'])
+    app.unmount()
+  })
+
+  it('renders the five advanced groups with stable accessible controls and design ranges', async () => {
+    const { app, root } = await mountControls()
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+    const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
+
+    expect(groups.map((element) => element.querySelector('h3')?.textContent)).toEqual([
+      '常态边界',
+      '常态外扩柔光',
+      'Hover 表面',
+      'Hover 外扩柔光',
+      '渲染质量与性能',
+      '可复制参数'
+    ])
+
+    const baseGlow = group('常态外扩柔光')
+    const hoverGlow = group('Hover 外扩柔光')
+    const glowKeys = [
+      'Enabled', 'Color', 'Width', 'Strength', 'NearRadiusRatio', 'NearOpacityRatio',
+      'FarRadiusRatio', 'FarOpacityRatio', 'Falloff', 'EdgeSoftness', 'NearPasses', 'FarPasses'
+    ]
+
+    for (const key of glowKeys) {
+      const baseKey = `outerGlow${key}`
+      const hoverKey = `glow${key}`
+      const control = key === 'Enabled' ? 'checkbox' : key === 'Color' ? 'color' : 'number'
+      expect(baseGlow.querySelector(`#effect-base-${baseKey}-${control}`)).not.toBeNull()
+      expect(hoverGlow.querySelector(`#effect-hover-${hoverKey}-${control}`)).not.toBeNull()
+    }
+
+    const ranges: Array<[string, string, string, string, string]> = [
+      ['base', 'outerGlowWidth', '0', '200', '1'],
+      ['hover', 'glowWidth', '0', '200', '1'],
+      ['base', 'outerGlowStrength', '0', '1', '0.01'],
+      ['hover', 'glowStrength', '0', '1', '0.01'],
+      ['base', 'outerGlowNearRadiusRatio', '0', '1.5', '0.01'],
+      ['hover', 'glowNearRadiusRatio', '0', '1.5', '0.01'],
+      ['base', 'outerGlowNearOpacityRatio', '0', '2', '0.01'],
+      ['hover', 'glowNearOpacityRatio', '0', '2', '0.01'],
+      ['base', 'outerGlowFarRadiusRatio', '0.25', '2', '0.01'],
+      ['hover', 'glowFarRadiusRatio', '0.25', '2', '0.01'],
+      ['base', 'outerGlowFarOpacityRatio', '0', '2', '0.01'],
+      ['hover', 'glowFarOpacityRatio', '0', '2', '0.01'],
+      ['base', 'outerGlowFalloff', '0.25', '4', '0.05'],
+      ['hover', 'glowFalloff', '0.25', '4', '0.05'],
+      ['base', 'outerGlowEdgeSoftness', '0', '1', '0.01'],
+      ['hover', 'glowEdgeSoftness', '0', '1', '0.01'],
+      ['base', 'outerGlowNearPasses', '1', '8', '1'],
+      ['hover', 'glowNearPasses', '1', '8', '1'],
+      ['base', 'outerGlowFarPasses', '1', '8', '1'],
+      ['hover', 'glowFarPasses', '1', '8', '1']
+    ]
+
+    for (const [section, key, min, max, step] of ranges) {
+      const input = root.querySelector<HTMLInputElement>(`#effect-${section}-${key}-number`)
+      expect(input).not.toBeNull()
+      expect([input!.min, input!.max, input!.step]).toEqual([min, max, step])
+    }
+
+    const maxAlpha = root.querySelector<HTMLInputElement>('#effect-quality-maxAlpha-number')
+    expect([maxAlpha?.min, maxAlpha?.max, maxAlpha?.step]).toEqual(['0.1', '1', '0.05'])
+    expect(baseGlow.querySelector('label[for="effect-base-outerGlowEnabled-checkbox"]')?.textContent)
+      .toBe('启用常态外扩柔光')
+    expect(hoverGlow.querySelector('label[for="effect-hover-glowEnabled-checkbox"]')?.textContent)
+      .toBe('启用 Hover 外扩柔光')
+
+    const renderScale = root.querySelector<HTMLSelectElement>('#effect-quality-renderScale-select')
+    expect(renderScale?.options.length).toBe(4)
+    expect(Array.from(renderScale?.options ?? [], (option) => option.value)).toEqual(['0.25', '0.5', '0.75', '1'])
+    expect(root.querySelector('#effect-quality-renderScale-range')).toBeNull()
+    app.unmount()
+  })
+
+  it('keeps disabled glow settings editable and writes render scale from the select', async () => {
+    const { app, root, effect } = await mountControls()
+    const enabled = root.querySelector<HTMLInputElement>('#effect-base-outerGlowEnabled-checkbox')!
+    const radius = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    const renderScale = root.querySelector<HTMLSelectElement>('#effect-quality-renderScale-select')!
+
+    enabled.checked = false
+    enabled.dispatchEvent(new Event('change', { bubbles: true }))
+    radius.value = '76'
+    radius.dispatchEvent(new Event('change', { bubbles: true }))
+    renderScale.value = '0.75'
+    renderScale.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    expect(effect.base.outerGlowEnabled).toBe(false)
+    expect(effect.base.outerGlowWidth).toBe(76)
+    expect(effect.quality.renderScale).toBe(0.75)
+    expect(radius.disabled).toBe(false)
     app.unmount()
   })
 
@@ -138,12 +235,167 @@ describe('MapEffectControls', () => {
     expect(enterMs.value).toBe('260')
 
     const reset = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.textContent === '恢复默认值')!
+      .find((button) => button.textContent === '恢复全部默认值')!
     reset.click()
     await nextTick()
     expect(opacity.value).toBe('0.55')
     expect(enterMs.value).toBe('400')
 
+    app.unmount()
+  })
+
+  it('applies the B3 preset to either glow channel without replacing its identity controls', async () => {
+    const { app, root, effect } = await mountControls()
+    const groupButton = (title: string, label: string) => Array.from(
+      Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+        .find((group) => group.querySelector('h3')?.textContent === title)!
+        .querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === label)!
+
+    effect.base.outerGlowEnabled = false
+    effect.base.outerGlowColor = '#123456'
+    effect.base.outerGlowWidth = 88
+    effect.base.outerGlowStrength = 0.41
+    effect.base.outerGlowNearRadiusRatio = 0.81
+    effect.base.outerGlowNearOpacityRatio = 0.77
+    effect.base.outerGlowFarRadiusRatio = 0.91
+    effect.base.outerGlowFarOpacityRatio = 0.66
+    effect.base.outerGlowFalloff = 2
+    effect.base.outerGlowEdgeSoftness = 0.42
+    effect.base.outerGlowNearPasses = 7
+    effect.base.outerGlowFarPasses = 3
+    groupButton('常态外扩柔光', '应用 B3 参考预设').click()
+    await nextTick()
+
+    expect(effect.base).toMatchObject({
+      outerGlowEnabled: false,
+      outerGlowColor: '#123456',
+      outerGlowWidth: 88,
+      outerGlowStrength: 0.41,
+      outerGlowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
+      outerGlowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
+      outerGlowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
+      outerGlowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
+      outerGlowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
+      outerGlowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
+      outerGlowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
+      outerGlowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
+    })
+
+    effect.hover.glowEnabled = false
+    effect.hover.glowColor = '#654321'
+    effect.hover.glowWidth = 79
+    effect.hover.glowStrength = 0.36
+    effect.hover.glowNearRadiusRatio = 0.72
+    effect.hover.glowNearOpacityRatio = 0.71
+    effect.hover.glowFarRadiusRatio = 0.89
+    effect.hover.glowFarOpacityRatio = 0.62
+    effect.hover.glowFalloff = 1.5
+    effect.hover.glowEdgeSoftness = 0.33
+    effect.hover.glowNearPasses = 6
+    effect.hover.glowFarPasses = 3
+    groupButton('Hover 外扩柔光', '应用 B3 参考预设').click()
+    await nextTick()
+
+    expect(effect.hover).toMatchObject({
+      glowEnabled: false,
+      glowColor: '#654321',
+      glowWidth: 79,
+      glowStrength: 0.36,
+      glowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
+      glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
+      glowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
+      glowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
+      glowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
+      glowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
+      glowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
+      glowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
+    })
+    app.unmount()
+  })
+
+  it('resets only the selected glow group and restores the full v2 config on all-reset', async () => {
+    const { app, root, effect } = await mountControls()
+    const groupButton = (title: string, label: string) => Array.from(
+      Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+        .find((group) => group.querySelector('h3')?.textContent === title)!
+        .querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === label)!
+
+    effect.base.innerWidth = 3.2
+    effect.hover.surfaceColor = '#112233'
+    effect.base.outerGlowEnabled = false
+    effect.base.outerGlowColor = '#123456'
+    effect.base.outerGlowWidth = 88
+    effect.base.outerGlowStrength = 0.41
+    effect.base.outerGlowNearRadiusRatio = 0.81
+    effect.base.outerGlowNearOpacityRatio = 0.77
+    effect.base.outerGlowFarRadiusRatio = 0.91
+    effect.base.outerGlowFarOpacityRatio = 0.66
+    effect.base.outerGlowFalloff = 2
+    effect.base.outerGlowEdgeSoftness = 0.42
+    effect.base.outerGlowNearPasses = 7
+    effect.base.outerGlowFarPasses = 3
+    groupButton('常态外扩柔光', '重置本组').click()
+    await nextTick()
+
+    expect(effect.base.innerWidth).toBe(3.2)
+    expect(effect.hover.surfaceColor).toBe('#112233')
+    expect(effect.base).toMatchObject({
+      outerGlowEnabled: MAP_EFFECT_DEFAULTS.base.outerGlowEnabled,
+      outerGlowColor: MAP_EFFECT_DEFAULTS.base.outerGlowColor,
+      outerGlowWidth: MAP_EFFECT_DEFAULTS.base.outerGlowWidth,
+      outerGlowStrength: MAP_EFFECT_DEFAULTS.base.outerGlowStrength,
+      outerGlowNearRadiusRatio: MAP_EFFECT_DEFAULTS.base.outerGlowNearRadiusRatio,
+      outerGlowNearOpacityRatio: MAP_EFFECT_DEFAULTS.base.outerGlowNearOpacityRatio,
+      outerGlowFarRadiusRatio: MAP_EFFECT_DEFAULTS.base.outerGlowFarRadiusRatio,
+      outerGlowFarOpacityRatio: MAP_EFFECT_DEFAULTS.base.outerGlowFarOpacityRatio,
+      outerGlowFalloff: MAP_EFFECT_DEFAULTS.base.outerGlowFalloff,
+      outerGlowEdgeSoftness: MAP_EFFECT_DEFAULTS.base.outerGlowEdgeSoftness,
+      outerGlowNearPasses: MAP_EFFECT_DEFAULTS.base.outerGlowNearPasses,
+      outerGlowFarPasses: MAP_EFFECT_DEFAULTS.base.outerGlowFarPasses
+    })
+
+    effect.base.innerWidth = 3.7
+    effect.hover.glowEnabled = false
+    effect.hover.glowColor = '#654321'
+    effect.hover.glowWidth = 79
+    effect.hover.glowStrength = 0.36
+    effect.hover.glowNearRadiusRatio = 0.72
+    effect.hover.glowNearOpacityRatio = 0.71
+    effect.hover.glowFarRadiusRatio = 0.89
+    effect.hover.glowFarOpacityRatio = 0.62
+    effect.hover.glowFalloff = 1.5
+    effect.hover.glowEdgeSoftness = 0.33
+    effect.hover.glowNearPasses = 6
+    effect.hover.glowFarPasses = 3
+    groupButton('Hover 外扩柔光', '重置本组').click()
+    await nextTick()
+
+    expect(effect.base.innerWidth).toBe(3.7)
+    expect(effect.hover).toMatchObject({
+      glowEnabled: MAP_EFFECT_DEFAULTS.hover.glowEnabled,
+      glowColor: MAP_EFFECT_DEFAULTS.hover.glowColor,
+      glowWidth: MAP_EFFECT_DEFAULTS.hover.glowWidth,
+      glowStrength: MAP_EFFECT_DEFAULTS.hover.glowStrength,
+      glowNearRadiusRatio: MAP_EFFECT_DEFAULTS.hover.glowNearRadiusRatio,
+      glowNearOpacityRatio: MAP_EFFECT_DEFAULTS.hover.glowNearOpacityRatio,
+      glowFarRadiusRatio: MAP_EFFECT_DEFAULTS.hover.glowFarRadiusRatio,
+      glowFarOpacityRatio: MAP_EFFECT_DEFAULTS.hover.glowFarOpacityRatio,
+      glowFalloff: MAP_EFFECT_DEFAULTS.hover.glowFalloff,
+      glowEdgeSoftness: MAP_EFFECT_DEFAULTS.hover.glowEdgeSoftness,
+      glowNearPasses: MAP_EFFECT_DEFAULTS.hover.glowNearPasses,
+      glowFarPasses: MAP_EFFECT_DEFAULTS.hover.glowFarPasses
+    })
+
+    effect.base.innerWidth = 3.5
+    effect.hover.enterMs = 800
+    effect.quality.maxAlpha = 0.55
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === '恢复全部默认值')!
+      .click()
+    await nextTick()
+    expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })
 
