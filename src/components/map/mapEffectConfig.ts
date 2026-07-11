@@ -113,6 +113,32 @@ const LEGACY_APPROVED_V1_DEFAULTS: LegacyMapEffectConfig = {
   }
 }
 
+const LEGACY_INITIAL_V1_DEFAULTS: LegacyMapEffectConfig = {
+  version: 1,
+  base: {
+    innerColor: '#4da3ff',
+    innerWidth: 1,
+    innerOpacity: 0.55,
+    outerColor: '#7fcbff',
+    outerCoreWidth: 1.8,
+    outerGlowWidth: 10,
+    outerGlowStrength: 0.3
+  },
+  hover: {
+    surfaceColor: '#7fcbff',
+    emissiveColor: '#168dff',
+    emissiveIntensity: 0.8,
+    outlineColor: '#d8f5ff',
+    outlineWidth: 2.4,
+    glowColor: '#27a7ff',
+    glowWidth: 7,
+    glowStrength: 0.35,
+    lift: 1,
+    enterMs: 180,
+    leaveMs: 220
+  }
+}
+
 const V2_BASE_DEFAULTS: MapEffectBaseConfigV2 = {
   innerColor: '#ffffff',
   innerWidth: 1.5,
@@ -395,7 +421,9 @@ function normalizeLegacyHover(value: unknown): MapEffectHoverConfig {
 }
 
 function migrateLegacyConfig(value: unknown): MapEffectConfig {
-  if (isExactValue(value, LEGACY_APPROVED_V1_DEFAULTS)) return cloneDefaults()
+  if (isExactValue(value, LEGACY_APPROVED_V1_DEFAULTS) || isExactValue(value, LEGACY_INITIAL_V1_DEFAULTS)) {
+    return cloneDefaults()
+  }
 
   const root = isRecord(value) ? value : {}
   if (root.version !== 1) return cloneDefaults()

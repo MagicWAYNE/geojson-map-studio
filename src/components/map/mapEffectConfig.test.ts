@@ -85,6 +85,32 @@ const APPROVED_V1_DEFAULTS = {
   }
 } as const
 
+const INITIAL_V1_DEFAULTS = {
+  version: 1,
+  base: {
+    innerColor: '#4da3ff',
+    innerWidth: 1,
+    innerOpacity: 0.55,
+    outerColor: '#7fcbff',
+    outerCoreWidth: 1.8,
+    outerGlowWidth: 10,
+    outerGlowStrength: 0.3
+  },
+  hover: {
+    surfaceColor: '#7fcbff',
+    emissiveColor: '#168dff',
+    emissiveIntensity: 0.8,
+    outlineColor: '#d8f5ff',
+    outlineWidth: 2.4,
+    glowColor: '#27a7ff',
+    glowWidth: 7,
+    glowStrength: 0.35,
+    lift: 1,
+    enterMs: 180,
+    leaveMs: 220
+  }
+} as const
+
 const APPROVED_V1_CUSTOM_0 = {
   version: 1,
   base: {
@@ -154,6 +180,12 @@ describe('mapEffectConfig', () => {
       .toEqual(V2_DEFAULTS)
   })
 
+  it('migrates the initial blue v1 defaults to the new v2 defaults', () => {
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(INITIAL_V1_DEFAULTS) : null
+    })).toEqual(V2_DEFAULTS)
+  })
+
   it('preserves custom v1 values and explicit zeroes while filling v2 defaults', () => {
     expect(loadMapEffectConfig({ getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(APPROVED_V1_CUSTOM_0) : null }))
       .toEqual({
@@ -169,6 +201,46 @@ describe('mapEffectConfig', () => {
           enterMs: 360
         }
       })
+  })
+
+  it('treats a near-match of the initial blue v1 defaults as custom, not as defaults', () => {
+    const initialNearMatch = {
+      ...INITIAL_V1_DEFAULTS,
+      base: {
+        ...INITIAL_V1_DEFAULTS.base,
+        outerGlowStrength: 0.31
+      }
+    } as const
+
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(initialNearMatch) : null
+    })).toEqual({
+      ...V2_DEFAULTS,
+      base: {
+        ...V2_DEFAULTS.base,
+        innerColor: '#4da3ff',
+        innerWidth: 1,
+        innerOpacity: 0.55,
+        outerColor: '#7fcbff',
+        outerCoreWidth: 1.8,
+        outerGlowWidth: 10,
+        outerGlowStrength: 0.31
+      },
+      hover: {
+        ...V2_DEFAULTS.hover,
+        surfaceColor: '#7fcbff',
+        emissiveColor: '#168dff',
+        emissiveIntensity: 0.8,
+        outlineColor: '#d8f5ff',
+        outlineWidth: 2.4,
+        glowColor: '#27a7ff',
+        glowWidth: 7,
+        glowStrength: 0.35,
+        lift: 1,
+        enterMs: 180,
+        leaveMs: 220
+      }
+    })
   })
 
   it('prefers valid v2 over v1, but does not fall back to v1 when v2 is broken', () => {
