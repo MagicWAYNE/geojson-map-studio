@@ -33,16 +33,31 @@ uniform sampler2D tFar;
 uniform vec3 uColor;
 uniform float uNearOpacity;
 uniform float uFarOpacity;
+uniform float uFalloff;
+uniform float uEdgeSoftness;
+uniform float uMaxAlpha;
 varying vec2 vUv;
 void main() {
-  float mask = texture2D(tMask, vUv).r;
-  float outside = 1.0 - smoothstep(0.02, 0.98, mask);
-  float nearGlow = texture2D(tNear, vUv).r * uNearOpacity;
-  float farGlow = texture2D(tFar, vUv).r * uFarOpacity;
-  float alpha = clamp((nearGlow + farGlow) * outside, 0.0, 1.0);
+  float mask = clamp(texture2D(tMask, vUv).r, 0.0, 1.0);
+  float softness = max(clamp(uEdgeSoftness, 0.0, 1.0), 0.001);
+  float halfBand = 0.49 * softness;
+  float outside = 1.0 - smoothstep(0.5 - halfBand, 0.5 + halfBand, mask);
+  float combined = clamp(
+    texture2D(tNear, vUv).r * uNearOpacity
+    + texture2D(tFar, vUv).r * uFarOpacity,
+    0.0,
+    1.0
+  );
+  float clampedFalloff = clamp(uFalloff, 0.25, 4.0);
+  float shaped = pow(combined, clampedFalloff);
+  float alpha = min(shaped * outside, clamp(uMaxAlpha, 0.1, 1.0));
   gl_FragColor = vec4(uColor, alpha);
 }
 `
+
+const DEFAULT_COMPOSITE_FALLOFF = 1
+const DEFAULT_COMPOSITE_EDGE_SOFTNESS = 0.96
+const DEFAULT_COMPOSITE_MAX_ALPHA = 1
 
 export interface GlowShaderResources {
   blurMaterial: THREE.ShaderMaterial
@@ -58,6 +73,20 @@ export interface OutwardCompositeInputs {
   color: THREE.ColorRepresentation
   nearOpacity: number
   farOpacity: number
+  falloff?: number
+  edgeSoftness?: number
+  maxAlpha?: number
+}
+
+function finiteClamped(
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback
 }
 
 export function createGlowShaderResources(): GlowShaderResources {
@@ -81,7 +110,10 @@ export function createGlowShaderResources(): GlowShaderResources {
       tFar: { value: null },
       uColor: { value: new THREE.Color() },
       uNearOpacity: { value: 0 },
-      uFarOpacity: { value: 0 }
+      uFarOpacity: { value: 0 },
+      uFalloff: { value: DEFAULT_COMPOSITE_FALLOFF },
+      uEdgeSoftness: { value: DEFAULT_COMPOSITE_EDGE_SOFTNESS },
+      uMaxAlpha: { value: DEFAULT_COMPOSITE_MAX_ALPHA }
     },
     vertexShader,
     fragmentShader: compositeFragmentShader,
@@ -159,6 +191,24 @@ export function renderOutwardComposite(
   compositeMaterial.uniforms.uColor.value.set(inputs.color)
   compositeMaterial.uniforms.uNearOpacity.value = inputs.nearOpacity
   compositeMaterial.uniforms.uFarOpacity.value = inputs.farOpacity
+  compositeMaterial.uniforms.uFalloff.value = finiteClamped(
+    inputs.falloff,
+    DEFAULT_COMPOSITE_FALLOFF,
+    0.25,
+    4
+  )
+  compositeMaterial.uniforms.uEdgeSoftness.value = finiteClamped(
+    inputs.edgeSoftness,
+    DEFAULT_COMPOSITE_EDGE_SOFTNESS,
+    0,
+    1
+  )
+  compositeMaterial.uniforms.uMaxAlpha.value = finiteClamped(
+    inputs.maxAlpha,
+    DEFAULT_COMPOSITE_MAX_ALPHA,
+    0.1,
+    1
+  )
   quad.material = compositeMaterial
   renderer.setRenderTarget(null)
   quad.render(renderer)

@@ -76,7 +76,10 @@ describe('mapOutwardGlowShaders', () => {
       far,
       color: '#27a7ff',
       nearOpacity: 0.1909,
-      farOpacity: 0.23
+      farOpacity: 0.23,
+      falloff: 99,
+      edgeSoftness: -1,
+      maxAlpha: 0.05
     })
 
     expect(resources.compositeMaterial.uniforms).toMatchObject({
@@ -84,7 +87,10 @@ describe('mapOutwardGlowShaders', () => {
       tNear: { value: near },
       tFar: { value: far },
       uNearOpacity: { value: 0.1909 },
-      uFarOpacity: { value: 0.23 }
+      uFarOpacity: { value: 0.23 },
+      uFalloff: { value: 4 },
+      uEdgeSoftness: { value: 0 },
+      uMaxAlpha: { value: 0.1 }
     })
     expect(resources.compositeMaterial.uniforms.uColor.value).toMatchObject(
       new THREE.Color('#27a7ff')
@@ -102,9 +108,37 @@ describe('mapOutwardGlowShaders', () => {
     disposeGlowShaderResources(resources)
   })
 
+  it('falls back to narrow transitional composite defaults when the new controls are omitted', () => {
+    const resources = createGlowShaderResources()
+    const renderer = recordingRenderer()
+
+    renderOutwardComposite(renderer, resources, {
+      mask: new THREE.Texture(),
+      near: new THREE.Texture(),
+      far: new THREE.Texture(),
+      color: '#ffffff',
+      nearOpacity: 0,
+      farOpacity: 0
+    })
+
+    expect(resources.compositeMaterial.uniforms).toMatchObject({
+      uFalloff: { value: 1 },
+      uEdgeSoftness: { value: 0.96 },
+      uMaxAlpha: { value: 1 }
+    })
+
+    disposeGlowShaderResources(resources)
+  })
+
   it('uses the exact blur sampling statements and subtracts the mask from the composite', () => {
     const resources = createGlowShaderResources()
 
+    expect(Object.keys(resources.blurMaterial.uniforms)).toEqual([
+      'tDiffuse',
+      'uTexelSize',
+      'uDirection',
+      'uRadius'
+    ])
     expect(resources.blurMaterial.fragmentShader).toContain(
       'float value = texture2D(tDiffuse, vUv).r * 0.227027;'
     )
@@ -121,11 +155,28 @@ describe('mapOutwardGlowShaders', () => {
       'value += texture2D(tDiffuse, vUv - stepUv * 3.230769).r * 0.070270;'
     )
     expect(resources.compositeMaterial.fragmentShader).toContain(
-      'float outside = 1.0 - smoothstep(0.02, 0.98, mask);'
+      'float softness = max(clamp(uEdgeSoftness, 0.0, 1.0), 0.001);'
     )
     expect(resources.compositeMaterial.fragmentShader).toContain(
-      'float alpha = clamp((nearGlow + farGlow) * outside, 0.0, 1.0);'
+      'float halfBand = 0.49 * softness;'
     )
+    expect(resources.compositeMaterial.fragmentShader).toContain(
+      'float outside = 1.0 - smoothstep(0.5 - halfBand, 0.5 + halfBand, mask);'
+    )
+    expect(resources.compositeMaterial.fragmentShader).toContain(
+      'float combined = clamp('
+    )
+    expect(resources.compositeMaterial.fragmentShader).toContain(
+      'float clampedFalloff = clamp(uFalloff, 0.25, 4.0);'
+    )
+    expect(resources.compositeMaterial.fragmentShader).toContain(
+      'float shaped = pow(combined, clampedFalloff);'
+    )
+    expect(resources.compositeMaterial.fragmentShader).toContain(
+      'float alpha = min(shaped * outside, clamp(uMaxAlpha, 0.1, 1.0));'
+    )
+    expect(resources.compositeMaterial.fragmentShader).not.toContain('0.000001')
+    expect(resources.compositeMaterial.fragmentShader).not.toContain('pow(max(combined')
 
     disposeGlowShaderResources(resources)
   })
