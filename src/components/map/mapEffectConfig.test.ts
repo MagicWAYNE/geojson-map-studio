@@ -130,6 +130,26 @@ describe('mapEffectConfig', () => {
     expect(value.hover.leaveMs).toBe(160)
   })
 
+  it('把常态和 hover 扩散半径按屏幕像素裁剪到 0–120', () => {
+    const high = normalizeMapEffectConfig({
+      ...MAP_EFFECT_DEFAULTS,
+      base: { ...MAP_EFFECT_DEFAULTS.base, outerGlowWidth: 999 },
+      hover: { ...MAP_EFFECT_DEFAULTS.hover, glowWidth: 999 }
+    })
+    expect(high.base.outerGlowWidth).toBe(120)
+    expect(high.hover.glowWidth).toBe(120)
+
+    const low = normalizeMapEffectConfig({
+      ...MAP_EFFECT_DEFAULTS,
+      base: { ...MAP_EFFECT_DEFAULTS.base, outerGlowWidth: -1 },
+      hover: { ...MAP_EFFECT_DEFAULTS.hover, glowWidth: -1 }
+    })
+    expect(low.base.outerGlowWidth).toBe(0)
+    expect(low.hover.glowWidth).toBe(0)
+    expect(MAP_EFFECT_DEFAULTS.base.outerGlowWidth).toBe(0)
+    expect(MAP_EFFECT_DEFAULTS.hover.glowWidth).toBe(0)
+  })
+
   it('非法字段逐项回退，版本不支持时整份回退', () => {
     const partial = normalizeMapEffectConfig({
       version: 1,

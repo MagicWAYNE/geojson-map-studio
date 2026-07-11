@@ -34,8 +34,8 @@ const GROUPS: ReadonlyArray<{ title: string; fields: readonly Field[] }> = [
       { section: 'base', key: 'innerOpacity', label: '内部线透明度', kind: 'number', min: 0, max: 1, step: 0.01 },
       { section: 'base', key: 'outerColor', label: '外圈颜色', kind: 'color' },
       { section: 'base', key: 'outerCoreWidth', label: '外圈亮芯宽度', kind: 'number', min: 0, max: 6, step: 0.1 },
-      { section: 'base', key: 'outerGlowWidth', label: '外圈辉光宽度', kind: 'number', min: 0, max: 24, step: 0.5 },
-      { section: 'base', key: 'outerGlowStrength', label: '外圈辉光强度', kind: 'number', min: 0, max: 1, step: 0.01 }
+      { section: 'base', key: 'outerGlowWidth', label: '外圈扩散半径', kind: 'number', min: 0, max: 120, step: 1 },
+      { section: 'base', key: 'outerGlowStrength', label: '外圈辉光透明度', kind: 'number', min: 0, max: 1, step: 0.01 }
     ]
   },
   {
@@ -53,8 +53,8 @@ const GROUPS: ReadonlyArray<{ title: string; fields: readonly Field[] }> = [
       { section: 'hover', key: 'outlineColor', label: '亮芯颜色', kind: 'color' },
       { section: 'hover', key: 'outlineWidth', label: '亮芯宽度', kind: 'number', min: 0, max: 8, step: 0.1 },
       { section: 'hover', key: 'glowColor', label: '辉光颜色', kind: 'color' },
-      { section: 'hover', key: 'glowWidth', label: '辉光宽度', kind: 'number', min: 0, max: 20, step: 0.5 },
-      { section: 'hover', key: 'glowStrength', label: '辉光强度', kind: 'number', min: 0, max: 1, step: 0.01 },
+      { section: 'hover', key: 'glowWidth', label: 'Hover 扩散半径', kind: 'number', min: 0, max: 120, step: 1 },
+      { section: 'hover', key: 'glowStrength', label: 'Hover 辉光透明度', kind: 'number', min: 0, max: 1, step: 0.01 },
       { section: 'hover', key: 'enterMs', label: '进入时长 ms', kind: 'number', min: 0, max: 1000, step: 10 },
       { section: 'hover', key: 'leaveMs', label: '离开时长 ms', kind: 'number', min: 0, max: 1000, step: 10 }
     ]

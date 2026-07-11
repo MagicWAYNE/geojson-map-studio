@@ -59,6 +59,24 @@ afterEach(() => {
 })
 
 describe('MapEffectControls', () => {
+  it('exposes real glow radius and opacity controls', async () => {
+    const { app, root } = await mountControls()
+    const baseRadius = root.querySelector<HTMLInputElement>('#effect-base-outerGlowWidth-number')!
+    const hoverRadius = root.querySelector<HTMLInputElement>('#effect-hover-glowWidth-number')!
+
+    expect(root.querySelector('label[for="effect-base-outerGlowWidth-number"]')?.textContent)
+      .toBe('外圈扩散半径')
+    expect(root.querySelector('label[for="effect-base-outerGlowStrength-number"]')?.textContent)
+      .toBe('外圈辉光透明度')
+    expect(root.querySelector('label[for="effect-hover-glowWidth-number"]')?.textContent)
+      .toBe('Hover 扩散半径')
+    expect(root.querySelector('label[for="effect-hover-glowStrength-number"]')?.textContent)
+      .toBe('Hover 辉光透明度')
+    expect([baseRadius.max, baseRadius.step]).toEqual(['120', '1'])
+    expect([hoverRadius.max, hoverRadius.step]).toEqual(['120', '1'])
+    app.unmount()
+  })
+
   it('gives every effect field stable programmatic labels with distinct paired control names', async () => {
     const { app, root } = await mountControls()
     const fields = [

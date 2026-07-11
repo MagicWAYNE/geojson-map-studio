@@ -142,7 +142,7 @@ export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
       innerOpacity: numberInRange(base.innerOpacity, MAP_EFFECT_DEFAULTS.base.innerOpacity, 0, 1),
       outerColor: color(base.outerColor, MAP_EFFECT_DEFAULTS.base.outerColor),
       outerCoreWidth: numberInRange(base.outerCoreWidth, MAP_EFFECT_DEFAULTS.base.outerCoreWidth, 0, 6),
-      outerGlowWidth: numberInRange(base.outerGlowWidth, MAP_EFFECT_DEFAULTS.base.outerGlowWidth, 0, 24),
+      outerGlowWidth: numberInRange(base.outerGlowWidth, MAP_EFFECT_DEFAULTS.base.outerGlowWidth, 0, 120),
       outerGlowStrength: numberInRange(base.outerGlowStrength, MAP_EFFECT_DEFAULTS.base.outerGlowStrength, 0, 1)
     },
     hover: {
@@ -152,7 +152,7 @@ export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
       outlineColor: color(hover.outlineColor, MAP_EFFECT_DEFAULTS.hover.outlineColor),
       outlineWidth: numberInRange(hover.outlineWidth, MAP_EFFECT_DEFAULTS.hover.outlineWidth, 0, 8),
       glowColor: color(hover.glowColor, MAP_EFFECT_DEFAULTS.hover.glowColor),
-      glowWidth: numberInRange(hover.glowWidth, MAP_EFFECT_DEFAULTS.hover.glowWidth, 0, 20),
+      glowWidth: numberInRange(hover.glowWidth, MAP_EFFECT_DEFAULTS.hover.glowWidth, 0, 120),
       glowStrength: numberInRange(hover.glowStrength, MAP_EFFECT_DEFAULTS.hover.glowStrength, 0, 1),
       lift: numberInRange(hover.lift, MAP_EFFECT_DEFAULTS.hover.lift, 0, 3),
       enterMs: numberInRange(hover.enterMs, MAP_EFFECT_DEFAULTS.hover.enterMs, 0, 1000),
