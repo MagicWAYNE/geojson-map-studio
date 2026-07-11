@@ -1,6 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { MAP_EFFECT_DEFAULTS } from '@/components/map/mapEffectConfig'
+import {
+  MAP_EFFECT_DEFAULTS,
+  MAP_EFFECT_STORAGE_KEY,
+  MAP_EFFECT_STORAGE_KEY_V1
+} from '@/components/map/mapEffectConfig'
+import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 import {
   applyHoverGlowConfig,
   applyStaticGlowConfig,
@@ -11,55 +16,160 @@ import type { BoundarySegments, Segment } from '@/components/map/mapGeometry'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   vi.resetModules()
 })
 
 describe('useMapDebug effects', () => {
-  it('restores only effect defaults without changing the saved layout state', async () => {
+  it('restores v2 defaults with stable nested identities without changing the saved layout state', async () => {
     const values = new Map<string, string>()
+    values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
+      version: 1,
+      base: {
+        innerColor: '#112233',
+        innerWidth: 1.25,
+        innerOpacity: 0.45,
+        outerColor: '#445566',
+        outerCoreWidth: 2.25,
+        outerGlowWidth: 13,
+        outerGlowStrength: 0.21
+      },
+      hover: {
+        surfaceColor: '#778899',
+        emissiveColor: '#abcdef',
+        emissiveIntensity: 0.7,
+        outlineColor: '#fedcba',
+        outlineWidth: 3.5,
+        glowColor: '#123456',
+        glowWidth: 22,
+        glowStrength: 0.3,
+        lift: 2.5,
+        enterMs: 260,
+        leaveMs: 180
+      }
+    }))
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value)
     })
 
-    const { MAP_EFFECT_DEFAULTS } = await import('@/components/map/mapEffectConfig')
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
+    const base = debug.effect.base
+    const hover = debug.effect.hover
+    const quality = debug.effect.quality
 
     debug.layout.left = 480
     debug.effect.base.outerGlowWidth = 22
     debug.effect.hover.lift = 2
+    debug.effect.quality.maxAlpha = 0.25
     debug.resetEffect()
+    await nextTick()
 
     expect(debug.layout.left).toBe(480)
     expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
+    expect(debug.effect.base).toBe(base)
+    expect(debug.effect.hover).toBe(hover)
+    expect(debug.effect.quality).toBe(quality)
+    expect(debug.effect.quality).toEqual(MAP_EFFECT_DEFAULTS.quality)
+    expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
+      version: 2,
+      quality: { maxAlpha: 1 }
+    })
+    expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(true)
   })
 
-  it('persists the versioned effect payload and restores it after a module reload', async () => {
+  it('persists deep v2 changes only to the v2 key and restores them after a module reload', async () => {
     const values = new Map<string, string>()
+    values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
+      version: 1,
+      base: {
+        innerColor: '#112233',
+        innerWidth: 1.25,
+        innerOpacity: 0.45,
+        outerColor: '#445566',
+        outerCoreWidth: 2.25,
+        outerGlowWidth: 13,
+        outerGlowStrength: 0.21
+      },
+      hover: {
+        surfaceColor: '#778899',
+        emissiveColor: '#abcdef',
+        emissiveIntensity: 0.7,
+        outlineColor: '#fedcba',
+        outlineWidth: 3.5,
+        glowColor: '#123456',
+        glowWidth: 22,
+        glowStrength: 0.3,
+        lift: 2.5,
+        enterMs: 260,
+        leaveMs: 180
+      }
+    }))
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value)
     })
 
-    const { MAP_EFFECT_STORAGE_KEY } = await import('@/components/map/mapEffectConfig')
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
     debug.effect.base.outerGlowWidth = 17.4
     debug.effect.hover.enterMs = 350
+    debug.effect.quality.maxAlpha = 0.25
     await nextTick()
 
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
       version: 2,
       base: { outerGlowWidth: 17.4 },
-      hover: { enterMs: 350 }
+      hover: { enterMs: 350 },
+      quality: { maxAlpha: 0.25 }
     })
+    expect(values.get(MAP_EFFECT_STORAGE_KEY_V1)).toBeDefined()
 
     vi.resetModules()
     const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
     const reloaded = reloadedUseMapDebug()
     expect(reloaded.effect.base.outerGlowWidth).toBe(17.4)
     expect(reloaded.effect.hover.enterMs).toBe(350)
+    expect(reloaded.effect.quality.maxAlpha).toBe(0.25)
+  })
+
+  it('deduplicates runtime status updates without mutating when unchanged', async () => {
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS, useMapDebug } = await import('./useMapDebug')
+    const debug = useMapDebug()
+    const assignSpy = vi.spyOn(Object, 'assign')
+    const initial = debug.effectRuntimeStatus
+
+    expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(false)
+    expect(assignSpy).not.toHaveBeenCalled()
+    expect(debug.effectRuntimeStatus).toBe(initial)
+    expect(debug.effectRuntimeStatus).toEqual(DEFAULT_MAP_EFFECT_RUNTIME_STATUS)
+
+    expect(debug.updateEffectRuntimeStatus({
+      ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
+      targetWidth: 2,
+      hoverState: 'active'
+    })).toBe(true)
+    expect(assignSpy).toHaveBeenCalledTimes(1)
+    expect(debug.effectRuntimeStatus).toBe(initial)
+    expect(debug.effectRuntimeStatus.targetWidth).toBe(2)
+    expect(debug.effectRuntimeStatus.hoverState).toBe('active')
+  })
+
+  it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapDebug')
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS).toEqual({
+      targetWidth: 1,
+      targetHeight: 1,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'zero',
+      degraded: false
+    })
+    expectTypeOf<MapOutwardGlowPipelineStatus['baseState']>()
+      .toEqualTypeOf<'enabled' | 'zero' | 'disabled'>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['hoverState']>()
+      .toEqualTypeOf<'ready' | 'active' | 'zero' | 'disabled'>()
   })
 
   it('applies changed configuration to existing static and hover glow materials', () => {
