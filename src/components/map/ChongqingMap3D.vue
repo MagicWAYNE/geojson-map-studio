@@ -192,7 +192,7 @@ function renderGlowFrame(
   if (!pipeline) return false
   try {
     pipeline.render(mainScene, mainCamera, nowMs)
-    return true
+    return publishGlowStatus()
   } catch (cause) {
     handleGlowPipelineFailure(pipeline, cause, 'runtime')
     return false
