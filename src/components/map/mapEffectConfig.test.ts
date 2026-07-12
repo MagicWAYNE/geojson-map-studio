@@ -19,9 +19,9 @@ const V2_DEFAULTS = {
     outerColor: '#ffffff',
     outerCoreWidth: 2,
     outerGlowEnabled: true,
-    outerGlowColor: '#ffffff',
-    outerGlowWidth: 54,
-    outerGlowStrength: 0.23,
+    outerGlowColor: '#8ab7ff',
+    outerGlowWidth: 72,
+    outerGlowStrength: 0.48,
     outerGlowNearRadiusRatio: 0.35,
     outerGlowNearOpacityRatio: 0.83,
     outerGlowFarRadiusRatio: 1,
@@ -37,10 +37,10 @@ const V2_DEFAULTS = {
     emissiveIntensity: 0.5,
     outlineColor: '#d8f5ff',
     outlineWidth: 2.4,
-    glowEnabled: true,
-    glowColor: '#27a7ff',
-    glowWidth: 0,
-    glowStrength: 0,
+    glowEnabled: false,
+    glowColor: '#ffffff',
+    glowWidth: 110,
+    glowStrength: 0.15,
     glowNearRadiusRatio: 0.35,
     glowNearOpacityRatio: 0.83,
     glowFarRadiusRatio: 1,
@@ -198,6 +198,9 @@ describe('mapEffectConfig', () => {
         },
         hover: {
           ...V2_DEFAULTS.hover,
+          glowColor: '#27a7ff',
+          glowWidth: 0,
+          glowStrength: 0,
           enterMs: 360
         }
       })
@@ -253,6 +256,17 @@ describe('mapEffectConfig', () => {
     }
 
     expect(loadMapEffectConfig(v1Reader)).toEqual(V2_DEFAULTS)
+  })
+
+  it('preserves a valid custom v2 cache instead of replacing it with tuned defaults', () => {
+    const custom = {
+      ...V2_DEFAULTS,
+      base: { ...V2_DEFAULTS.base, outerGlowWidth: 91 },
+      hover: { ...V2_DEFAULTS.hover, glowEnabled: true }
+    }
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY ? JSON.stringify(custom) : null
+    })).toEqual(custom)
   })
 
   it('normalizes legal v2 configs and rejects invalid v2 payloads', () => {
@@ -333,7 +347,7 @@ describe('mapEffectConfig', () => {
         glowEnabled: true,
         glowColor: '#dd44ff',
         glowWidth: 0,
-        glowStrength: 0,
+        glowStrength: 0.15,
         glowNearRadiusRatio: 0.21,
         glowNearOpacityRatio: 0.77,
         glowFarRadiusRatio: 2,
