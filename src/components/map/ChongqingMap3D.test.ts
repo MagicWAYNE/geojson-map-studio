@@ -17,7 +17,11 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   targetHeight: 1,
   renderScale: 0.5 as const,
   baseState: 'enabled' as const,
-  hoverState: 'zero' as const,
+  hoverState: 'disabled' as const,
+  baseInwardState: 'active' as const,
+  hoverInwardState: 'ready' as const,
+  baseWaveActive: true,
+  hoverWaveActive: false,
   degraded: false
 }))
 const mapDebugMocks = vi.hoisted(() => ({
@@ -119,7 +123,11 @@ beforeEach(() => {
     targetHeight: 680,
     renderScale: 0.5,
     baseState: 'enabled',
-    hoverState: 'ready'
+    hoverState: 'ready',
+    baseInwardState: 'active',
+    hoverInwardState: 'ready',
+    baseWaveActive: false,
+    hoverWaveActive: false
   })
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
@@ -210,7 +218,7 @@ function expectDegradedGlowFallback(
 }
 
 describe('ChongqingMap3D effect wiring', () => {
-  it('publishes pipeline status after setup, config, resize, and hover threshold crossings only', async () => {
+  it('publishes pipeline status after setup, config, resize, render, and hover threshold crossings', async () => {
     const mounted = await mountInitializedMap()
     expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
       targetWidth: 680,
@@ -218,6 +226,10 @@ describe('ChongqingMap3D effect wiring', () => {
       renderScale: 0.5,
       baseState: 'enabled',
       hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      baseWaveActive: false,
+      hoverWaveActive: false,
       degraded: false
     })
 
@@ -238,8 +250,8 @@ describe('ChongqingMap3D effect wiring', () => {
     pipelineMocks.instance.getStatus.mockClear()
     mounted.runFrame(16)
     mounted.runFrame(32)
-    expect(pipelineMocks.instance.getStatus).not.toHaveBeenCalled()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).not.toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(2)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(2)
 
     const [, meshes] = pipelineMocks.create.mock.calls[0]
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
@@ -254,21 +266,60 @@ describe('ChongqingMap3D effect wiring', () => {
     }))
     mounted.runFrame(48)
     expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalled()
-    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(2)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(2)
 
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
     pipelineMocks.instance.getStatus.mockClear()
     mounted.runFrame(64)
     expect(pipelineMocks.instance.render).toHaveBeenCalled()
-    expect(pipelineMocks.instance.getStatus).not.toHaveBeenCalled()
-    expect(mapDebugMocks.updateEffectRuntimeStatus).not.toHaveBeenCalled()
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
 
     pipelineMocks.instance.setRegionProgress.mockReturnValueOnce(true)
     mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerleave'))
     mounted.runFrame(80)
+    expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(3)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(3)
+    mounted.app.unmount()
+  })
+
+  it('publishes the inward wave state established by the current render frame', async () => {
+    let baseWaveActive = false
+    pipelineMocks.instance.getStatus.mockImplementation(() => ({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      baseWaveActive,
+      hoverWaveActive: false
+    }))
+    pipelineMocks.instance.render.mockImplementation(() => { baseWaveActive = true })
+    const mounted = await mountInitializedMap()
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    pipelineMocks.instance.getStatus.mockClear()
+
+    mounted.runFrame(1250)
+
+    expect(pipelineMocks.instance.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera), 1250)
     expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      baseWaveActive: true,
+      hoverWaveActive: false,
+      degraded: false
+    })
+
     mounted.app.unmount()
   })
 
@@ -347,7 +398,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 2,
+      version: 3,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) })
@@ -364,15 +415,29 @@ describe('ChongqingMap3D effect wiring', () => {
     const lastPipelineSizeOrder = pipelineMocks.instance.setSize.mock.invocationCallOrder.at(-1)!
     expect(lastPixelRatioOrder).toBeLessThan(lastPipelineSizeOrder)
 
-    mounted.runFrame()
+    mounted.runFrame(1234)
     expect(pipelineMocks.instance.render)
-      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera), 1234)
     expect(mounted.renderer.render).not.toHaveBeenCalled()
 
     mounted.app.unmount()
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(pipelineMocks.instance.dispose.mock.invocationCallOrder[0])
       .toBeLessThan(mounted.renderer.dispose.mock.invocationCallOrder[0])
+  })
+
+  it('passes real extrude source meshes with both top and side material groups to the pipeline', async () => {
+    const mounted = await mountInitializedMap()
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    const source = meshes[0] as THREE.Mesh<THREE.ExtrudeGeometry, THREE.Material[]>
+
+    expect(source.geometry).toBeInstanceOf(THREE.ExtrudeGeometry)
+    expect(source.geometry.groups.map(({ materialIndex }) => materialIndex)).toEqual(
+      expect.arrayContaining([0, 1])
+    )
+    expect(source.material).toHaveLength(2)
+
+    mounted.app.unmount()
   })
 
   it('starts from the tuned camera position and controls target', async () => {
@@ -416,6 +481,51 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.setRegionProgress)
       .toHaveBeenCalledWith(expect.any(THREE.Mesh), expect.any(Number))
 
+    mounted.app.unmount()
+  })
+
+  it('forwards decreasing and restarted hover progress across pointer move, leave, and switch', async () => {
+    const mounted = await mountInitializedMap(2)
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    const map = mounted.root.querySelector('.cq-map3d')!
+    const progressFor = (source: THREE.Mesh) => pipelineMocks.instance.setRegionProgress.mock.calls
+      .filter(([candidate]) => candidate === source)
+      .map(([, progress]) => progress as number)
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
+      .mockReturnValueOnce([{ object: meshes[0] } as THREE.Intersection])
+      .mockReturnValueOnce([{ object: meshes[1] } as THREE.Intersection])
+    pipelineMocks.instance.setRegionProgress.mockClear()
+
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
+    mounted.runFrame(100)
+    mounted.runFrame(200)
+    const establishedProgress = progressFor(meshes[0]).at(-1)!
+
+    map.dispatchEvent(new PointerEvent('pointerleave'))
+    mounted.runFrame(216)
+    const leavingProgress = progressFor(meshes[0]).at(-1)!
+    const callsBeforeSwitch = pipelineMocks.instance.setRegionProgress.mock.calls.length
+
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
+    mounted.runFrame(232)
+    mounted.runFrame(248)
+    const switchCalls = pipelineMocks.instance.setRegionProgress.mock.calls.slice(callsBeforeSwitch)
+    const outgoingAfterSwitch = switchCalls
+      .filter(([source]) => source === meshes[0])
+      .map(([, progress]) => progress as number)
+    const incomingAfterSwitch = switchCalls
+      .filter(([source]) => source === meshes[1])
+      .map(([, progress]) => progress as number)
+    const firstIncomingPositiveProgress = incomingAfterSwitch.find((progress) => progress > 0)
+
+    expect(establishedProgress).toBeGreaterThan(0)
+    expect(leavingProgress).toBeLessThan(establishedProgress)
+    expect(outgoingAfterSwitch).toHaveLength(2)
+    expect(outgoingAfterSwitch[0]).toBeLessThan(leavingProgress)
+    expect(outgoingAfterSwitch[1]).toBeLessThan(outgoingAfterSwitch[0])
+    expect(firstIncomingPositiveProgress).toBeGreaterThan(0)
+    expect(firstIncomingPositiveProgress).toBeLessThan(1)
+    expect(firstIncomingPositiveProgress).toBeLessThan(establishedProgress)
     mounted.app.unmount()
   })
 

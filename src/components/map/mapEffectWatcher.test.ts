@@ -1,15 +1,10 @@
 import { nextTick, reactive } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
+import { cloneMapEffectConfig, MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 
 function createEffectConfig(): MapEffectConfig {
-  return {
-    ...MAP_EFFECT_DEFAULTS,
-    base: { ...MAP_EFFECT_DEFAULTS.base },
-    hover: { ...MAP_EFFECT_DEFAULTS.hover },
-    quality: { ...MAP_EFFECT_DEFAULTS.quality }
-  }
+  return cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
 }
 
 describe('watchMapEffectConfig', () => {
@@ -33,7 +28,7 @@ describe('watchMapEffectConfig', () => {
     expect(apply).toHaveBeenCalledTimes(2)
   })
 
-  it('tracks full v2 quality and advanced base and hover fields', async () => {
+  it('tracks full v3 quality, advanced base and hover, and nested inward wave fields', async () => {
     const effect = reactive(createEffectConfig())
     const snapshots: MapEffectConfig[] = []
     const apply = vi.fn(() => snapshots.push(JSON.parse(JSON.stringify(effect))))
@@ -43,16 +38,28 @@ describe('watchMapEffectConfig', () => {
     effect.quality.maxAlpha = 0.65
     effect.base.outerGlowFarPasses = 7
     effect.base.outerGlowEdgeSoftness = 0.42
+    effect.base.inwardGlow.strength = 0.36
+    effect.base.inwardGlow.wave.periodMs = 4800
     effect.hover.glowNearPasses = 6
     effect.hover.glowFalloff = 2.25
+    effect.hover.inwardGlow.width = 96
+    effect.hover.inwardGlow.wave.easing = 'linear'
     await nextTick()
 
     expect(apply).toHaveBeenCalledTimes(2)
     expect(snapshots.at(-1)).toMatchObject({
-      version: 2,
+      version: 3,
       quality: { renderScale: 0.75, maxAlpha: 0.65 },
-      base: { outerGlowFarPasses: 7, outerGlowEdgeSoftness: 0.42 },
-      hover: { glowNearPasses: 6, glowFalloff: 2.25 }
+      base: {
+        outerGlowFarPasses: 7,
+        outerGlowEdgeSoftness: 0.42,
+        inwardGlow: { strength: 0.36, wave: { periodMs: 4800 } }
+      },
+      hover: {
+        glowNearPasses: 6,
+        glowFalloff: 2.25,
+        inwardGlow: { width: 96, wave: { easing: 'linear' } }
+      }
     })
     stop()
   })

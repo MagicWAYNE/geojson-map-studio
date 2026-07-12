@@ -1,6 +1,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
   MAP_EFFECT_DEFAULTS,
+  assignMapEffectConfig,
+  cloneMapEffectConfig,
   formatMapEffectConfig,
   loadMapEffectConfig,
   normalizeMapEffectConfig,
@@ -26,7 +28,11 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetHeight: 1,
   renderScale: 0.5,
   baseState: 'enabled',
-  hoverState: 'zero',
+  hoverState: 'disabled',
+  baseInwardState: 'active',
+  hoverInwardState: 'ready',
+  baseWaveActive: true,
+  hoverWaveActive: false,
   degraded: false
 }
 const LAYOUT_KEY = 'cq-map-debug-layout'
@@ -73,9 +79,7 @@ watch(layout, (value) => {
 
 watch(effect, (value) => {
   const normalized = normalizeMapEffectConfig(value)
-  Object.assign(effect.base, normalized.base)
-  Object.assign(effect.hover, normalized.hover)
-  Object.assign(effect.quality, normalized.quality)
+  assignMapEffectConfig(effect, normalized)
   saveMapEffectConfig(storage(), normalized)
 }, { deep: true })
 
@@ -84,10 +88,7 @@ function resetLayout(): void {
 }
 
 function resetEffect(): void {
-  const defaults = normalizeMapEffectConfig(MAP_EFFECT_DEFAULTS)
-  Object.assign(effect.base, defaults.base)
-  Object.assign(effect.hover, defaults.hover)
-  Object.assign(effect.quality, defaults.quality)
+  assignMapEffectConfig(effect, cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
 }
 
 function sameEffectRuntimeStatus(
@@ -99,6 +100,10 @@ function sameEffectRuntimeStatus(
     && next.renderScale === current.renderScale
     && next.baseState === current.baseState
     && next.hoverState === current.hoverState
+    && next.baseInwardState === current.baseInwardState
+    && next.hoverInwardState === current.hoverInwardState
+    && next.baseWaveActive === current.baseWaveActive
+    && next.hoverWaveActive === current.hoverWaveActive
     && next.degraded === current.degraded
 }
 

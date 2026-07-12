@@ -202,8 +202,10 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(2)
+    expect(draftCopy.version).toBe(3)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
+    expect(draftCopy.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
+    expect(draftCopy.hover.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.hover.inwardGlow)
     expect(effect.base.outerGlowWidth).not.toBe(151)
 
     await setLivePreview(root, true)
@@ -221,6 +223,10 @@ describe('MapEffectControls', () => {
       renderScale: 0.5,
       baseState: 'enabled',
       hoverState: 'active',
+      baseInwardState: 'active',
+      hoverInwardState: 'active',
+      baseWaveActive: true,
+      hoverWaveActive: false,
       degraded: false
     })
     await nextTick()
@@ -230,6 +236,10 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('离屏精度: 50%')
     expect(status.textContent).toContain('常态: 已启用')
     expect(status.textContent).toContain('Hover: 生效中')
+    expect(status.textContent).toContain('常态内扩: 生效中')
+    expect(status.textContent).toContain('Hover 内扩: 生效中')
+    expect(status.textContent).toContain('常态传播波: 生效中')
+    expect(status.textContent).toContain('Hover 传播波: 未生效')
     expect(status.textContent).toContain('运行状态: 正常')
     expect(root.textContent).not.toContain('性能提示')
 
@@ -237,6 +247,7 @@ describe('MapEffectControls', () => {
     await nextTick()
     expect(root.textContent).toContain('性能提示')
     effect.quality.renderScale = 0.5
+    effect.hover.glowEnabled = true
     effect.hover.glowFarPasses = 6
     await nextTick()
     expect(root.textContent).toContain('性能提示')
@@ -247,11 +258,19 @@ describe('MapEffectControls', () => {
       renderScale: 0.5,
       baseState: 'disabled',
       hoverState: 'zero',
+      baseInwardState: 'disabled',
+      hoverInwardState: 'zero',
+      baseWaveActive: false,
+      hoverWaveActive: true,
       degraded: true
     })
     await nextTick()
     expect(status.textContent).toContain('常态: 已关闭')
     expect(status.textContent).toContain('Hover: 参数为零')
+    expect(status.textContent).toContain('常态内扩: 已关闭')
+    expect(status.textContent).toContain('Hover 内扩: 参数为零')
+    expect(status.textContent).toContain('常态传播波: 未生效')
+    expect(status.textContent).toContain('Hover 传播波: 生效中')
     expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
     app.unmount()
   })
@@ -274,7 +293,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('renders the five advanced groups with stable accessible controls and design ranges', async () => {
+  it('renders the seven advanced groups with stable accessible controls and design ranges', async () => {
     const { app, root } = await mountControls()
     const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
     const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
@@ -282,8 +301,10 @@ describe('MapEffectControls', () => {
     expect(groups.map((element) => element.querySelector('h3')?.textContent)).toEqual([
       '常态边界',
       '常态外扩柔光',
+      '常态内扩柔光',
       'Hover 表面',
       'Hover 外扩柔光',
+      'Hover 内扩柔光',
       '渲染质量与性能',
       '可复制参数'
     ])
@@ -507,7 +528,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('resets only the selected glow group and restores the full v2 config on all-reset', async () => {
+  it('resets only the selected glow group and restores the full v3 config on all-reset', async () => {
     const { app, root, effect } = await mountControls()
     const groupButton = (title: string, label: string) => Array.from(
       Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
@@ -616,6 +637,109 @@ describe('MapEffectControls', () => {
     vi.advanceTimersByTime(1500)
     await nextTick()
     expect(copy.textContent).toBe('复制效果参数')
+    app.unmount()
+  })
+
+  it('isolates nested inward drafts and applies them in place with stable nested identities', async () => {
+    const { app, root, effect, setItem } = await mountControls()
+    const base = effect.base
+    const inward = effect.base.inwardGlow
+    const wave = inward.wave
+    const originalPeriod = wave.periodMs
+    await setLivePreview(root, false)
+    setItem.mockClear()
+
+    const period = root.querySelector<HTMLInputElement>('#effect-base-inward-wave-periodMs-number')!
+    period.value = '4321'
+    period.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(period.value).toBe('4300')
+    expect(effect.base.inwardGlow.wave.periodMs).toBe(originalPeriod)
+    expect(setItem).not.toHaveBeenCalled()
+
+    button(root, '应用参数').click()
+    await nextTick()
+    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+    expect(effect.base).toBe(base)
+    expect(effect.base.inwardGlow).toBe(inward)
+    expect(effect.base.inwardGlow.wave).toBe(wave)
+    expect(setItem).toHaveBeenCalled()
+
+    period.value = '5100'
+    period.dispatchEvent(new Event('change', { bubbles: true }))
+    button(root, '放弃草稿').click()
+    await nextTick()
+    expect(period.value).toBe('4300')
+    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+
+    effect.base.inwardGlow.wave.periodMs = 4700
+    await nextTick()
+    expect(period.value).toBe('4700')
+    app.unmount()
+  })
+
+  it('renders independent inward groups and resets one without touching outward or the other inward group', async () => {
+    const { app, root, effect } = await mountControls()
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+    const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
+    const groupButton = (title: string, label: string) => Array.from(group(title).querySelectorAll<HTMLButtonElement>('button'))
+      .find((candidate) => candidate.textContent === label)!
+
+    expect(group('常态内扩柔光').querySelector('#effect-base-inward-wave-easing-select')).not.toBeNull()
+    expect(group('Hover 内扩柔光').querySelector('#effect-hover-inward-wave-easing-select')).not.toBeNull()
+
+    effect.base.outerGlowWidth = 123
+    effect.hover.inwardGlow.width = 101
+    effect.base.inwardGlow.width = 99
+    effect.base.inwardGlow.wave.periodMs = 7777
+    const inwardIdentity = effect.base.inwardGlow
+    const waveIdentity = effect.base.inwardGlow.wave
+    groupButton('常态内扩柔光', '重置本组').click()
+    await nextTick()
+
+    expect(effect.base.outerGlowWidth).toBe(123)
+    expect(effect.hover.inwardGlow.width).toBe(101)
+    expect(effect.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
+    expect(effect.base.inwardGlow).toBe(inwardIdentity)
+    expect(effect.base.inwardGlow.wave).toBe(waveIdentity)
+
+    effect.base.inwardGlow.width = 88
+    groupButton('常态内扩柔光', '应用 B1 预设').click()
+    await nextTick()
+    expect(effect.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
+
+    button(root, '恢复全部默认值').click()
+    await nextTick()
+    expect(effect.version).toBe(3)
+    expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
+    app.unmount()
+  })
+
+  it('warns only after the fourth glow channel is enabled when every pass count is below six', async () => {
+    const { app, root, effect } = await mountControls()
+    const hasWarning = () => root.textContent?.includes('性能提示') === true
+
+    effect.quality.renderScale = 0.5
+    effect.base.outerGlowNearPasses = 5
+    effect.base.outerGlowFarPasses = 5
+    effect.hover.glowNearPasses = 5
+    effect.hover.glowFarPasses = 5
+    effect.base.inwardGlow.nearPasses = 5
+    effect.base.inwardGlow.farPasses = 5
+    effect.hover.inwardGlow.nearPasses = 5
+    effect.hover.inwardGlow.farPasses = 5
+    effect.base.outerGlowEnabled = true
+    effect.hover.glowEnabled = true
+    effect.base.inwardGlow.enabled = true
+    effect.hover.inwardGlow.enabled = false
+    await nextTick()
+    expect(hasWarning()).toBe(false)
+
+    effect.hover.inwardGlow.enabled = true
+    await nextTick()
+    expect(hasWarning()).toBe(true)
+    expect(root.querySelector('.performance-warning')?.textContent).toContain('renderScale')
+    expect(root.querySelector('.performance-warning')?.textContent).toContain('passes')
     app.unmount()
   })
 })
