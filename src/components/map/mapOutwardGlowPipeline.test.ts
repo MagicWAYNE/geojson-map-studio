@@ -1,6 +1,10 @@
 import * as THREE from 'three'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
+import {
+  B3_GLOW_PROFILE_DEFAULTS,
+  MAP_EFFECT_DEFAULTS,
+  type MapEffectConfig
+} from './mapEffectConfig'
 import {
   createMapOutwardGlowPipeline,
   type MapOutwardGlowPipelineStatus
@@ -76,15 +80,33 @@ function configWith({
     base: {
       ...MAP_EFFECT_DEFAULTS.base,
       outerColor: baseColor,
+      outerGlowEnabled: true,
       outerGlowColor: baseColor,
       outerGlowWidth: baseRadius,
-      outerGlowStrength: baseOpacity
+      outerGlowStrength: baseOpacity,
+      outerGlowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
+      outerGlowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
+      outerGlowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
+      outerGlowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
+      outerGlowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
+      outerGlowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
+      outerGlowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
+      outerGlowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
     },
     hover: {
       ...MAP_EFFECT_DEFAULTS.hover,
+      glowEnabled: true,
       glowColor: hoverColor,
       glowWidth: hoverRadius,
-      glowStrength: hoverOpacity
+      glowStrength: hoverOpacity,
+      glowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
+      glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
+      glowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
+      glowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
+      glowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
+      glowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
+      glowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
+      glowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
     },
     quality: {
       ...MAP_EFFECT_DEFAULTS.quality,
@@ -122,7 +144,12 @@ describe('mapOutwardGlowPipeline', () => {
   it('renders the v2 default base channel immediately with its glow color and dynamic passes', () => {
     const setSize = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'setSize')
     const { pipeline, renderer, scene, camera } = fixture()
-    const config = configWith()
+    const config: MapEffectConfig = {
+      ...MAP_EFFECT_DEFAULTS,
+      base: { ...MAP_EFFECT_DEFAULTS.base },
+      hover: { ...MAP_EFFECT_DEFAULTS.hover },
+      quality: { ...MAP_EFFECT_DEFAULTS.quality }
+    }
     config.base.outerColor = '#d40000'
     config.base.outerGlowColor = '#00d4ff'
     pipeline.setSize(680, 680, 2)
@@ -133,7 +160,7 @@ describe('mapOutwardGlowPipeline', () => {
     expect(setSize).toHaveBeenCalledWith(680, 680)
     expect(renderedMaskScenes(renderer, scene)).toHaveLength(1)
     expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(2)
-    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[6])).toEqual([2, 4])
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[6])).toEqual([4, 4])
     expect(shaderMocks.renderComposite).toHaveBeenCalledWith(
       renderer,
       expect.any(Object),
