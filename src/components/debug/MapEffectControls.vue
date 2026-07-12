@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   B3_GLOW_PROFILE_DEFAULTS,
+  assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
   MAP_EFFECT_DEFAULTS,
@@ -11,8 +12,13 @@ import {
   type MapEffectHoverConfigV2,
   type MapEffectQualityConfig
 } from '@/components/map/mapEffectConfig'
+import {
+  assignInwardGlowConfig,
+  type MapInwardGlowConfig
+} from '@/components/map/mapInwardGlowConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
+import MapInwardGlowControls from './MapInwardGlowControls.vue'
 
 type GlowChannel = 'base' | 'hover'
 type BaseColorKey = 'innerColor' | 'outerColor' | 'outerGlowColor'
@@ -142,10 +148,7 @@ let copiedTimer = 0
 let applyingDraft = false
 
 function syncDraft(config: MapEffectConfig = effect): void {
-  const next = cloneMapEffectConfig(config)
-  Object.assign(draft.base, next.base)
-  Object.assign(draft.hover, next.hover)
-  Object.assign(draft.quality, next.quality)
+  assignMapEffectConfig(draft, cloneMapEffectConfig(config))
 }
 
 function changeLivePreview(event: Event): void {
@@ -157,9 +160,7 @@ function changeLivePreview(event: Event): void {
 function applyDraft(): void {
   const normalized = normalizeMapEffectConfig(draft)
   applyingDraft = true
-  Object.assign(effect.base, normalized.base)
-  Object.assign(effect.hover, normalized.hover)
-  Object.assign(effect.quality, normalized.quality)
+  assignMapEffectConfig(effect, normalized)
   applyingDraft = false
   syncDraft(normalized)
 }
@@ -175,11 +176,24 @@ const stopEffectDraftSync = watch(effect, () => {
 const editableJson = computed(() => formatMapEffectConfig(editTarget.value))
 const performanceWarning = computed(() => {
   const target = editTarget.value
+  const baseOutwardHighPass = target.base.outerGlowEnabled
+    && (target.base.outerGlowNearPasses >= 6 || target.base.outerGlowFarPasses >= 6)
+  const hoverOutwardHighPass = target.hover.glowEnabled
+    && (target.hover.glowNearPasses >= 6 || target.hover.glowFarPasses >= 6)
+  const baseInwardHighPass = target.base.inwardGlow.enabled
+    && (target.base.inwardGlow.nearPasses >= 6 || target.base.inwardGlow.farPasses >= 6)
+  const hoverInwardHighPass = target.hover.inwardGlow.enabled
+    && (target.hover.inwardGlow.nearPasses >= 6 || target.hover.inwardGlow.farPasses >= 6)
+  const allGlowChannelsEnabled = target.base.outerGlowEnabled
+    && target.hover.glowEnabled
+    && target.base.inwardGlow.enabled
+    && target.hover.inwardGlow.enabled
   return target.quality.renderScale >= 0.75
-    || target.base.outerGlowNearPasses >= 6
-    || target.base.outerGlowFarPasses >= 6
-    || target.hover.glowNearPasses >= 6
-    || target.hover.glowFarPasses >= 6
+    || baseOutwardHighPass
+    || hoverOutwardHighPass
+    || baseInwardHighPass
+    || hoverInwardHighPass
+    || allGlowChannelsEnabled
 })
 
 function baseStatusLabel(): string {
@@ -197,6 +211,27 @@ function hoverStatusLabel(): string {
     zero: '参数为零',
     disabled: '已关闭'
   }[effectRuntimeStatus.hoverState]
+}
+
+function baseInwardStatusLabel(): string {
+  return {
+    active: '生效中',
+    zero: '参数为零',
+    disabled: '已关闭'
+  }[effectRuntimeStatus.baseInwardState]
+}
+
+function hoverInwardStatusLabel(): string {
+  return {
+    ready: '等待 Hover',
+    active: '生效中',
+    zero: '参数为零',
+    disabled: '已关闭'
+  }[effectRuntimeStatus.hoverInwardState]
+}
+
+function replaceInwardGlow(channel: GlowChannel, value: MapInwardGlowConfig): void {
+  assignInwardGlowConfig(editTarget.value[channel].inwardGlow, value)
 }
 
 function isBaseColorField(field: Field): field is Extract<ColorField, { section: 'base' }> {
@@ -389,9 +424,7 @@ function resetAll(target: MapEffectConfig): void {
     resetEffect()
     return
   }
-  Object.assign(target.base, MAP_EFFECT_DEFAULTS.base)
-  Object.assign(target.hover, MAP_EFFECT_DEFAULTS.hover)
-  Object.assign(target.quality, MAP_EFFECT_DEFAULTS.quality)
+  assignMapEffectConfig(target, MAP_EFFECT_DEFAULTS)
 }
 
 function runB3Preset(channel: GlowChannel | undefined): void {
@@ -445,14 +478,15 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section v-for="group in GROUPS" :key="group.title" class="effect-group">
-      <h3>{{ group.title }}</h3>
-      <div v-for="field in group.fields" :key="field.key" class="field">
-        <div class="field-head">
-          <label :for="fieldId(field, field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : field.kind === 'boolean' ? 'checkbox' : 'select')">
-            {{ field.label }}
-          </label>
-          <template v-if="field.kind === 'color'">
+    <template v-for="group in GROUPS" :key="group.title">
+      <section class="effect-group">
+        <h3>{{ group.title }}</h3>
+        <div v-for="field in group.fields" :key="field.key" class="field">
+          <div class="field-head">
+            <label :for="fieldId(field, field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : field.kind === 'boolean' ? 'checkbox' : 'select')">
+              {{ field.label }}
+            </label>
+            <template v-if="field.kind === 'color'">
             <input
               :id="fieldId(field, 'color')"
               class="color"
@@ -468,26 +502,26 @@ onBeforeUnmount(() => {
               :aria-label="field.label + '十六进制颜色'"
               @change="updateColor(field, $event)"
             />
-          </template>
-          <input
-            v-else-if="field.kind === 'boolean'"
+            </template>
+            <input
+              v-else-if="field.kind === 'boolean'"
             :id="fieldId(field, 'checkbox')"
             class="checkbox"
             type="checkbox"
             :checked="checkedValue(field)"
             @change="updateBoolean(field, $event)"
-          />
-          <select
-            v-else-if="field.kind === 'select'"
+            />
+            <select
+              v-else-if="field.kind === 'select'"
             :id="fieldId(field, 'select')"
             class="select"
             :value="valueOf(field)"
             @change="updateSelect(field, $event)"
           >
             <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-          </select>
-          <input
-            v-else
+            </select>
+            <input
+              v-else
             :id="fieldId(field, 'number')"
             class="num"
             type="number"
@@ -498,10 +532,10 @@ onBeforeUnmount(() => {
             @input="updateNumberDraft(field, $event)"
             @change="commitNumber(field, $event)"
             @blur="commitNumber(field, $event)"
-          />
-        </div>
-        <input
-          v-if="field.kind === 'number'"
+            />
+          </div>
+          <input
+            v-if="field.kind === 'number'"
           :id="fieldId(field, 'range')"
           class="slider"
           type="range"
@@ -511,23 +545,48 @@ onBeforeUnmount(() => {
           :step="field.step"
           :aria-label="field.label + '滑块'"
           @input="updateRange(field, $event)"
+          />
+        </div>
+        <div v-if="group.glowChannel" class="effect-actions group-actions">
+          <button class="btn" @click="runB3Preset(group.glowChannel)">应用 B3 参考预设</button>
+          <button class="btn ghost" @click="resetGroup(group.glowChannel)">重置本组</button>
+        </div>
+        <div v-if="group.title === '渲染质量与性能'" class="runtime-status" role="status" aria-live="polite">
+          <span>RenderTarget: {{ effectRuntimeStatus.targetWidth }} × {{ effectRuntimeStatus.targetHeight }}</span>
+          <span>离屏精度: {{ Math.round(effectRuntimeStatus.renderScale * 100) }}%</span>
+          <span>常态: {{ baseStatusLabel() }}</span>
+          <span>Hover: {{ hoverStatusLabel() }}</span>
+          <span>常态内扩: {{ baseInwardStatusLabel() }}</span>
+          <span>Hover 内扩: {{ hoverInwardStatusLabel() }}</span>
+          <span>常态传播波: {{ effectRuntimeStatus.baseWaveActive ? '生效中' : '未生效' }}</span>
+          <span>Hover 传播波: {{ effectRuntimeStatus.hoverWaveActive ? '生效中' : '未生效' }}</span>
+          <span>运行状态: {{ effectRuntimeStatus.degraded ? '外扩柔光已降级关闭（屏幕空间柔光）' : '正常' }}</span>
+        </div>
+        <p v-if="group.title === '渲染质量与性能' && performanceWarning" class="performance-warning">
+          性能提示：建议先降低 renderScale 或已启用通道的 passes，减少 GPU 负载。
+        </p>
+      </section>
+
+      <section v-if="group.title === '常态外扩柔光'" class="effect-group">
+        <h3>常态内扩柔光</h3>
+        <MapInwardGlowControls
+          channel="base"
+          :model-value="editTarget.base.inwardGlow"
+          :state-label="baseInwardStatusLabel()"
+          @update:model-value="replaceInwardGlow('base', $event)"
         />
-      </div>
-      <div v-if="group.glowChannel" class="effect-actions group-actions">
-        <button class="btn" @click="runB3Preset(group.glowChannel)">应用 B3 参考预设</button>
-        <button class="btn ghost" @click="resetGroup(group.glowChannel)">重置本组</button>
-      </div>
-      <div v-if="group.title === '渲染质量与性能'" class="runtime-status" role="status" aria-live="polite">
-        <span>RenderTarget: {{ effectRuntimeStatus.targetWidth }} × {{ effectRuntimeStatus.targetHeight }}</span>
-        <span>离屏精度: {{ Math.round(effectRuntimeStatus.renderScale * 100) }}%</span>
-        <span>常态: {{ baseStatusLabel() }}</span>
-        <span>Hover: {{ hoverStatusLabel() }}</span>
-        <span>运行状态: {{ effectRuntimeStatus.degraded ? '外扩柔光已降级关闭' : '正常' }}</span>
-      </div>
-      <p v-if="group.title === '渲染质量与性能' && performanceWarning" class="performance-warning">
-        性能提示：较高离屏精度或模糊次数可能增加 GPU 负载。
-      </p>
-    </section>
+      </section>
+
+      <section v-if="group.title === 'Hover 外扩柔光'" class="effect-group">
+        <h3>Hover 内扩柔光</h3>
+        <MapInwardGlowControls
+          channel="hover"
+          :model-value="editTarget.hover.inwardGlow"
+          :state-label="hoverInwardStatusLabel()"
+          @update:model-value="replaceInwardGlow('hover', $event)"
+        />
+      </section>
+    </template>
 
     <section class="effect-group">
       <h3>可复制参数</h3>
