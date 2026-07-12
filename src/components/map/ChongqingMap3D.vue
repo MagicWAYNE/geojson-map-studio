@@ -4,8 +4,28 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
 import { getDistrictMapData } from '@/api'
-import { useMapDebug } from '@/composables/useMapDebug'
+import {
+  DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
+  useMapDebug
+} from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
+import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
+import { applyMapEffectConfig } from './mapEffectRuntime'
+import { watchMapEffectConfig } from './mapEffectWatcher'
+import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
+import {
+  createMapOutwardGlowPipeline,
+  type MapOutwardGlowPipeline
+} from './mapOutwardGlowPipeline'
+import {
+  createHoverGlowLayers,
+  createStaticGlowLayers,
+  setHoverGlowProgress,
+  setGlowResolution,
+  updateHoverVisualState,
+  type HoverGlowBundle,
+  type StaticGlowBundle
+} from './mapGlow'
 
 /**
  * POC：Three.js 挤出版重庆主城区地图（渝中/两江新区/南岸/九龙坡/沙坪坝/大渡口/北碚/巴南）。
@@ -18,9 +38,6 @@ withDefaults(defineProps<{ focus?: string; showLines?: boolean }>(), {
   showLines: true
 })
 
-type Ring = [number, number][]
-type Region = { name: string; outers: { ring: Ring; holes: Ring[] }[] }
-
 const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比例等比
 const DEPTH = 4 // 挤出厚度
 
@@ -30,7 +47,7 @@ const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
 
 const router = useRouter()
-const { cameraView } = useMapDebug()
+const { cameraView, effect, updateEffectRuntimeStatus } = useMapDebug()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -39,117 +56,194 @@ let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
 let raf = 0
 let ro: ResizeObserver | null = null
+let staticGlow: StaticGlowBundle | null = null
+let outwardGlow: MapOutwardGlowPipeline | null = null
+let mounted = false
+let initGeneration = 0
+let pendingInitCleanup: (() => void) | null = null
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
+const disposedGlowPipelines = new WeakSet<MapOutwardGlowPipeline>()
+let glowFailureWarned = false
+
+interface RegionVisual {
+  mesh: THREE.Mesh
+  group: THREE.Group
+  topMaterial: THREE.MeshStandardMaterial
+  hoverGlow: HoverGlowBundle | null
+  progress: number
+  active: boolean
+}
+
+const regionVisuals: RegionVisual[] = []
+const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
+let glowStatusPublicationPending = false
+
+type GlowFailurePhase = 'initialization' | 'runtime'
+
+function disposeGlowPipeline(pipeline: MapOutwardGlowPipeline): void {
+  if (disposedGlowPipelines.has(pipeline)) return
+  disposedGlowPipelines.add(pipeline)
+  try {
+    pipeline.dispose()
+  } catch {
+    // Direct rendering and component teardown must survive glow cleanup failures.
+  }
+}
+
+function handleGlowPipelineFailure(
+  pipeline: MapOutwardGlowPipeline | null,
+  cause: unknown,
+  phase: GlowFailurePhase
+): void {
+  if (pipeline && outwardGlow === pipeline) outwardGlow = null
+  if (pipeline) disposeGlowPipeline(pipeline)
+  updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: true })
+  if (glowFailureWarned) return
+  glowFailureWarned = true
+  console.warn(
+    phase === 'initialization'
+      ? '外扩柔光初始化失败，保留清晰边界'
+      : '外扩柔光运行失败，已关闭柔光并保留清晰边界',
+    cause
+  )
+}
+
+function setGlowConfig(
+  pipeline: MapOutwardGlowPipeline,
+  config: MapEffectConfig,
+  phase: GlowFailurePhase = 'runtime'
+): boolean {
+  try {
+    pipeline.setConfig(config)
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return false
+  }
+}
+
+function setCurrentGlowConfig(config: MapEffectConfig): boolean {
+  const pipeline = outwardGlow
+  return pipeline ? setGlowConfig(pipeline, config) : false
+}
+
+function setGlowSize(
+  pipeline: MapOutwardGlowPipeline,
+  width: number,
+  height: number,
+  pixelRatio: number,
+  phase: GlowFailurePhase = 'runtime'
+): boolean {
+  try {
+    pipeline.setSize(width, height, pixelRatio)
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return false
+  }
+}
+
+function setCurrentGlowSize(width: number, height: number, pixelRatio: number): boolean {
+  const pipeline = outwardGlow
+  return pipeline ? setGlowSize(pipeline, width, height, pixelRatio) : false
+}
+
+function markCurrentGlowCameraDirty(): void {
+  const pipeline = outwardGlow
+  if (!pipeline) return
+  try {
+    pipeline.markCameraDirty()
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+  }
+}
+
+function publishGlowStatus(phase: GlowFailurePhase = 'runtime'): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  try {
+    const status = pipeline.getStatus()
+    updateEffectRuntimeStatus({ ...status, degraded: false })
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, phase)
+    return false
+  }
+}
+
+function setGlowRegionProgress(source: THREE.Mesh, easedProgress: number): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  try {
+    return pipeline.setRegionProgress(source, easedProgress)
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+    return false
+  }
+}
+
+function renderGlowFrame(mainScene: THREE.Scene, mainCamera: THREE.Camera): boolean {
+  const pipeline = outwardGlow
+  if (!pipeline) return false
+  try {
+    pipeline.render(mainScene, mainCamera)
+    return true
+  } catch (cause) {
+    handleGlowPipelineFailure(pipeline, cause, 'runtime')
+    return false
+  }
+}
 
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
 const TOP_COLOR = 0xcfe0ff
 const TOP_EMISSIVE = 0x0a2a66
-const HOVER_COLOR = 0x1e7dff
-const HOVER_EMISSIVE = 0x00a8d8
+const baseTopColor = new THREE.Color(TOP_COLOR)
+const baseTopEmissive = new THREE.Color(TOP_EMISSIVE)
+const hoverSurfaceTarget = new THREE.Color(effect.hover.surfaceColor)
+const hoverEmissiveTarget = new THREE.Color(effect.hover.emissiveColor)
 
-/** 解析 path 的 d 属性（生成器只输出 M/L/Z 多边形命令）为环数组 */
-function parsePathD(d: string): Ring[] {
-  const rings: Ring[] = []
-  let cur: Ring = []
-  for (const m of d.matchAll(/([MLZ])([^MLZ]*)/g)) {
-    if (m[1] === 'Z') {
-      if (cur.length) rings.push(cur)
-      cur = []
-      continue
-    }
-    const nums = m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number)
-    const pts: Ring = []
-    for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]])
-    if (m[1] === 'M') {
-      if (cur.length) rings.push(cur)
-      cur = pts
-    } else {
-      cur.push(...pts)
-    }
-  }
-  if (cur.length) rings.push(cur)
-  return rings
+function applyEffectConfig(): void {
+  hoverSurfaceTarget.set(effect.hover.surfaceColor)
+  hoverEmissiveTarget.set(effect.hover.emissiveColor)
+  applyMapEffectConfig(effect, {
+    staticGlow,
+    hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
+  })
+  const configUpdated = setCurrentGlowConfig(effect)
+  updateRegionVisuals(0, true)
+  if (configUpdated && outwardGlow) publishGlowStatus()
 }
 
-function pointInRing([x, y]: [number, number], ring: Ring) {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [x1, y1] = ring[i]
-    const [x2, y2] = ring[j]
-    if (y1 > y !== y2 > y && x < ((x2 - x1) * (y - y1)) / (y2 - y1) + x1) inside = !inside
-  }
-  return inside
-}
-
-/** 每个 path 一个板块；子路径按环嵌套分类：被包含的环是孔洞（如九龙坡区），独立环是江心岛等 */
-function parseSvgRegions(svgText: string): Region[] {
-  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml')
-  const regions: Region[] = []
-  for (const path of Array.from(doc.querySelectorAll('path[data-name]'))) {
-    const rings = parsePathD(path.getAttribute('d') ?? '')
-    const outerRings = rings.filter((r) => !rings.some((o) => o !== r && pointInRing(r[0], o)))
-    const holeRings = rings.filter((r) => !outerRings.includes(r))
-    regions.push({
-      name: path.getAttribute('data-name')!,
-      outers: outerRings.map((ring) => ({
-        ring,
-        holes: holeRings.filter((h) => pointInRing(h[0], ring))
-      }))
-    })
-  }
-  return regions
-}
+const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
 
 function buildRegions(
   regions: Region[],
   byName: Map<string, DistrictMapItem>,
   terrainTex: THREE.Texture
 ) {
-  // 按全部板块的内容 bbox 等比适配到 PLANE_MAX 并居中（SVG y 向下 → three 平面 y 向上）
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const rg of regions) {
-    for (const o of rg.outers) {
-      for (const ring of [o.ring, ...o.holes]) {
-        for (const [x, y] of ring) {
-          if (x < minX) minX = x
-          if (x > maxX) maxX = x
-          if (y < minY) minY = y
-          if (y > maxY) maxY = y
-        }
-      }
-    }
-  }
-  const scale = PLANE_MAX / Math.max(maxX - minX, maxY - minY)
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
-  const project = ([x, y]: [number, number]): [number, number] => [(x - cx) * scale, (cy - y) * scale]
+  const projected = projectRegions(regions, PLANE_MAX)
+  const [cx, cy] = projected.center
+  const scale = projected.scale
 
   // 顶面 UV 是 shape 平面坐标（ExtrudeGeometry 默认），用纹理变换把它映射回地形图像素：
   // world = ((px-cx)·s, (cy-py)·s)，目标 u = px/W、v = 1 - py/H（flipY）
   const texImg = terrainTex.image as { width: number; height: number }
-  const texW = texImg.width
-  const texH = texImg.height
-  terrainTex.repeat.set(1 / (scale * texW), 1 / (scale * texH))
-  terrainTex.offset.set(cx / texW, 1 - cy / texH)
+  terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
+  terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
 
   const group = new THREE.Group()
   const sideMat = new THREE.MeshStandardMaterial({ color: 0x05173a, roughness: 0.68, metalness: 0.3 })
-  const lineMat = new THREE.LineBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.85 })
+  const boundaries = classifyBoundarySegments(projected.regions)
 
-  for (const region of regions) {
+  for (const region of projected.regions) {
     const name = region.name
     const shapes: THREE.Shape[] = []
-    const rings: [number, number][][] = []
 
     for (const outer of region.outers) {
-      const outerPts = outer.ring.map(project)
-      const shape = new THREE.Shape(outerPts.map(([x, y]) => new THREE.Vector2(x, y)))
-      rings.push(outerPts)
+      const shape = new THREE.Shape(outer.ring.map(([x, y]) => new THREE.Vector2(x, y)))
       for (const holeRing of outer.holes) {
-        const hole = holeRing.map(project)
-        shape.holes.push(new THREE.Path(hole.map(([x, y]) => new THREE.Vector2(x, y))))
-        rings.push(hole)
+        shape.holes.push(new THREE.Path(holeRing.map(([x, y]) => new THREE.Vector2(x, y))))
       }
       shapes.push(shape)
     }
@@ -166,13 +260,51 @@ function buildRegions(
     const mesh = new THREE.Mesh(geometry, [topMat, sideMat])
     mesh.userData = { name, item: byName.get(name) }
     regionMeshes.push(mesh)
-    group.add(mesh)
+    const regionGroup = new THREE.Group()
+    regionGroup.add(mesh)
+    let hoverGlow: HoverGlowBundle | null = null
+    try {
+      hoverGlow = createHoverGlowLayers(
+        boundaries.byRegion.get(name) ?? [],
+        MAP_EFFECT_DEFAULTS,
+        DEPTH + 0.12
+      )
+      regionGroup.add(hoverGlow.group)
+    } catch (cause) {
+      console.warn(`区块 ${name} 的 hover 宽线初始化失败，保留材质高亮和轻抬`, cause)
+    }
+    const visual: RegionVisual = {
+      mesh,
+      group: regionGroup,
+      topMaterial: topMat,
+      hoverGlow,
+      progress: 0,
+      active: false
+    }
+    regionVisuals.push(visual)
+    visualByMesh.set(mesh, visual)
+    group.add(regionGroup)
+  }
 
-    // 顶面边界描边（POC 用 1px 线，正式阶段换 Line2 发光粗线）
-    for (const ring of rings) {
-      const pts = ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts)
-      group.add(new THREE.LineLoop(lineGeo, lineMat))
+  try {
+    staticGlow = createStaticGlowLayers(boundaries, MAP_EFFECT_DEFAULTS, DEPTH + 0.06)
+    group.add(staticGlow.group)
+  } catch (cause) {
+    console.warn('宽线光效初始化失败，回退 1px 区界', cause)
+    const fallbackMaterial = new THREE.LineBasicMaterial({
+      color: 0x3fa9ff,
+      transparent: true,
+      opacity: 0.85
+    })
+    for (const region of projected.regions) {
+      for (const outer of region.outers) {
+        for (const ring of [outer.ring, ...outer.holes]) {
+          const geometry = new THREE.BufferGeometry().setFromPoints(
+            ring.map(([x, y]) => new THREE.Vector3(x, y, DEPTH + 0.05))
+          )
+          group.add(new THREE.LineLoop(geometry, fallbackMaterial))
+        }
+      }
     }
   }
 
@@ -193,74 +325,144 @@ function updatePixelRatio() {
   renderer?.setPixelRatio(Math.min(window.devicePixelRatio * screenScale(), 2))
 }
 
-function setupScene(mapGroup: THREE.Group) {
-  const el = container.value!
-  scene = new THREE.Scene()
-  scene.add(mapGroup)
-
-  scene.add(new THREE.AmbientLight(0x88b4ff, 1.0))
-  const sun = new THREE.DirectionalLight(0xdfeeff, 1.7)
-  sun.position.set(60, 120, 60)
-  scene.add(sun)
-  const rim = new THREE.DirectionalLight(0x2483ff, 0.8)
-  rim.position.set(-80, 40, -60)
-  scene.add(rim)
-
-  camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
-  camera.position.set(-51.5, 121.2, 82.0)
-
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(el.clientWidth, el.clientHeight, false)
+function handleWindowResize(): void {
   updatePixelRatio()
-  renderer.domElement.className = 'gl'
-  el.prepend(renderer.domElement)
+  const el = container.value
+  if (!renderer || !el || !el.clientWidth || !el.clientHeight) return
+  if (setCurrentGlowSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())) publishGlowStatus()
+}
 
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.target.set(1.5, 2.1, 1.7)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.12
-  // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
-  const syncCamView = () => {
-    if (!camera || !controls) return
-    const p = camera.position
-    const t = controls.target
-    cameraView.value =
-      `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
-      `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
+function updateGlowResolution(): void {
+  const el = container.value
+  if (!el) return
+  if (staticGlow) setGlowResolution(staticGlow, el.clientWidth, el.clientHeight)
+  for (const visual of regionVisuals) {
+    if (visual.hoverGlow) setGlowResolution(visual.hoverGlow, el.clientWidth, el.clientHeight)
   }
-  controls.addEventListener('change', syncCamView)
-  syncCamView()
+}
 
-  ro = new ResizeObserver(() => {
-    if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
+function setupScene(mapGroup: THREE.Group) {
+  try {
+    const el = container.value!
+    scene = new THREE.Scene()
+    scene.add(mapGroup)
+
+    scene.add(new THREE.AmbientLight(0x88b4ff, 1.0))
+    const sun = new THREE.DirectionalLight(0xdfeeff, 1.7)
+    sun.position.set(60, 120, 60)
+    scene.add(sun)
+    const rim = new THREE.DirectionalLight(0x2483ff, 0.8)
+    rim.position.set(-80, 40, -60)
+    scene.add(rim)
+
+    camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
+    camera.position.set(-62.1, 94.9, 108.9)
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(el.clientWidth, el.clientHeight, false)
-    camera.aspect = el.clientWidth / el.clientHeight
-    camera.updateProjectionMatrix()
+    updateGlowResolution()
     updatePixelRatio()
-  })
-  ro.observe(el)
-  window.addEventListener('resize', updatePixelRatio)
+
+    mapGroup.updateMatrixWorld(true)
+    let pendingOutwardGlow: MapOutwardGlowPipeline | null = null
+    try {
+      pendingOutwardGlow = createMapOutwardGlowPipeline(renderer, regionMeshes)
+      const sizeSucceeded = setGlowSize(
+        pendingOutwardGlow,
+        el.clientWidth,
+        el.clientHeight,
+        renderer.getPixelRatio(),
+        'initialization'
+      )
+      const configSucceeded = sizeSucceeded
+        ? setGlowConfig(pendingOutwardGlow, effect, 'initialization')
+        : false
+      if (configSucceeded) {
+        outwardGlow = pendingOutwardGlow
+        publishGlowStatus('initialization')
+      }
+    } catch (cause) {
+      handleGlowPipelineFailure(pendingOutwardGlow, cause, 'initialization')
+    }
+
+    renderer.domElement.className = 'gl'
+    el.prepend(renderer.domElement)
+
+    controls = new OrbitControls(camera, renderer.domElement)
+    controls.target.set(17.2, -3.5, 22.5)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.12
+    // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
+    const syncCamView = () => {
+      if (!camera || !controls) return
+      const p = camera.position
+      const t = controls.target
+      cameraView.value =
+        `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
+        `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
+      markCurrentGlowCameraDirty()
+    }
+    controls.addEventListener('change', syncCamView)
+    syncCamView()
+
+    ro = new ResizeObserver(() => {
+      if (!renderer || !camera || !el.clientWidth || !el.clientHeight) return
+      renderer.setSize(el.clientWidth, el.clientHeight, false)
+      updatePixelRatio()
+      if (setCurrentGlowSize(el.clientWidth, el.clientHeight, renderer.getPixelRatio())) {
+        publishGlowStatus()
+      }
+      updateGlowResolution()
+      camera.aspect = el.clientWidth / el.clientHeight
+      camera.updateProjectionMatrix()
+    })
+    ro.observe(el)
+    window.addEventListener('resize', handleWindowResize)
+  } catch (cause) {
+    cleanupScene(mapGroup)
+    throw cause
+  }
 }
 
 // —— hover / tooltip / 点击下钻 ——
-let hovered: THREE.Mesh | null = null
+let hoveredVisual: RegionVisual | null = null
 let downX = 0
 let downY = 0
 
-function setHover(mesh: THREE.Mesh | null) {
-  if (mesh === hovered) return
-  if (hovered) {
-    const m = (hovered.material as THREE.Material[])[0] as THREE.MeshStandardMaterial
-    m.color.setHex(TOP_COLOR)
-    m.emissive.setHex(TOP_EMISSIVE)
+function setHover(mesh: THREE.Mesh | null): void {
+  const next = mesh ? visualByMesh.get(mesh) ?? null : null
+  if (next === hoveredVisual) return
+  if (hoveredVisual) hoveredVisual.active = false
+  hoveredVisual = next
+  if (hoveredVisual) hoveredVisual.active = true
+  if (container.value) container.value.style.cursor = next ? 'pointer' : 'default'
+}
+
+function renderRegionVisual(visual: RegionVisual, eased: number): void {
+  const hover = effect.hover
+  visual.group.position.z = hover.lift * eased
+  visual.group.updateMatrixWorld(true)
+  visual.topMaterial.color.copy(baseTopColor).lerp(hoverSurfaceTarget, eased)
+  visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
+  visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
+  if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
+  if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
+}
+
+function updateRegionVisuals(deltaMs: number, force = false): boolean {
+  const hover = effect.hover
+  glowStatusPublicationPending = false
+  for (const visual of regionVisuals) {
+    updateHoverVisualState(
+      visual,
+      deltaMs,
+      hover.enterMs,
+      hover.leaveMs,
+      renderRegionVisual,
+      force
+    )
   }
-  hovered = mesh
-  if (mesh) {
-    const m = (mesh.material as THREE.Material[])[0] as THREE.MeshStandardMaterial
-    m.color.setHex(HOVER_COLOR)
-    m.emissive.setHex(HOVER_EMISSIVE)
-  }
-  if (container.value) container.value.style.cursor = mesh ? 'pointer' : 'default'
+  return glowStatusPublicationPending
 }
 
 function pick(e: PointerEvent): THREE.Mesh | null {
@@ -318,11 +520,20 @@ function onPointerLeave() {
 // —— 渲染循环 + FPS ——
 let frames = 0
 let lastFpsAt = 0
+let lastFrameAt = 0
 
 function loop(now: number) {
   raf = requestAnimationFrame(loop)
+  const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
+  lastFrameAt = now
+  const glowStatusChanged = updateRegionVisuals(deltaMs)
+  if (glowStatusChanged) publishGlowStatus()
   controls?.update()
-  if (renderer && scene && camera) renderer.render(scene, camera)
+  if (renderer && scene && camera) {
+    if (outwardGlow) {
+      if (!renderGlowFrame(scene, camera)) renderer.render(scene, camera)
+    } else renderer.render(scene, camera)
+  }
   frames++
   if (now - lastFpsAt >= 1000) {
     fps.value = frames
@@ -331,16 +542,43 @@ function loop(now: number) {
   }
 }
 
-async function init() {
+function isCurrentInit(generation: number): boolean {
+  return mounted && generation === initGeneration && container.value !== null
+}
+
+async function init(generation: number) {
+  let terrainTex: THREE.Texture | null = null
+  let textureOwnedByScene = false
+  let textureDisposed = false
+  let textureCleanupRequested = false
+  const cleanupPendingTexture = () => {
+    textureCleanupRequested = true
+    if (terrainTex && !textureOwnedByScene && !textureDisposed) {
+      textureDisposed = true
+      terrainTex.dispose()
+    }
+  }
+  pendingInitCleanup = cleanupPendingTexture
+  const terrainTexturePromise = new THREE.TextureLoader()
+    .loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
+    .then((texture) => {
+      terrainTex = texture
+      if (textureCleanupRequested) cleanupPendingTexture()
+      return texture
+    })
   try {
-    const [svgRes, data, terrainTex] = await Promise.all([
+    const [svgRes, data, loadedTerrainTex] = await Promise.all([
       fetch(`${import.meta.env.BASE_URL}maps/chongqing-selected-districts-tianditu-imagery-z12.svg`),
       getDistrictMapData(),
-      new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
+      terrainTexturePromise
     ])
+    terrainTex = loadedTerrainTex
+    if (!isCurrentInit(generation)) return
     if (!svgRes.ok) throw new Error(`地图加载失败: HTTP ${svgRes.status}`)
     terrainTex.colorSpace = THREE.SRGBColorSpace
-    const regions = parseSvgRegions(await svgRes.text())
+    const svgText = await svgRes.text()
+    if (!isCurrentInit(generation)) return
+    const regions = parseSvgRegions(svgText)
     const byName = new Map(data.map((d) => [d.name, d]))
     // 两江新区是国家级新区（≈江北区+渝北区），行政区划数据里没有条目，取两区之和
     const jb = byName.get('江北区')
@@ -354,9 +592,19 @@ async function init() {
       })
     }
 
-    setupScene(buildRegions(regions, byName, terrainTex))
+    const mapGroup = buildRegions(regions, byName, terrainTex)
+    if (!isCurrentInit(generation)) {
+      disposeSceneResources(mapGroup)
+      textureDisposed = true
+      return
+    }
+    textureOwnedByScene = true
+    setupScene(mapGroup)
+    if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
+    applyEffectConfig()
 
-    const el = container.value!
+    const el = container.value
+    if (!el || !isCurrentInit(generation)) return
     el.addEventListener('pointermove', onPointerMove)
     el.addEventListener('pointerdown', onPointerDown)
     el.addEventListener('click', onClick as EventListener)
@@ -365,36 +613,83 @@ async function init() {
     lastFpsAt = performance.now()
     raf = requestAnimationFrame(loop)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    if (isCurrentInit(generation)) error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    if (!textureOwnedByScene) cleanupPendingTexture()
+    if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
   }
 }
 
-onMounted(init)
+onMounted(() => {
+  mounted = true
+  updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
+  const generation = ++initGeneration
+  void init(generation)
+})
 
-onBeforeUnmount(() => {
-  cancelAnimationFrame(raf)
-  ro?.disconnect()
-  window.removeEventListener('resize', updatePixelRatio)
-  cameraView.value = ''
-  controls?.dispose()
-  scene?.traverse((obj) => {
-    const o = obj as THREE.Mesh
-    if (o.geometry) o.geometry.dispose()
-    if (o.material) {
-      const mats = Array.isArray(o.material) ? o.material : [o.material]
-      mats.forEach((m) => {
-        ;(m as THREE.MeshStandardMaterial).map?.dispose()
-        m.dispose()
-      })
+function disposeSceneResources(root: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  const textures = new Set<THREE.Texture>()
+
+  root.traverse((object) => {
+    const renderable = object as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry
+      material?: THREE.Material | THREE.Material[]
+    }
+    if (renderable.geometry) geometries.add(renderable.geometry)
+    if (!renderable.material) return
+    const objectMaterials = Array.isArray(renderable.material)
+      ? renderable.material
+      : [renderable.material]
+    for (const material of objectMaterials) {
+      materials.add(material)
+      const map = (material as THREE.MeshStandardMaterial).map
+      if (map) textures.add(map)
     }
   })
+
+  geometries.forEach((geometry) => geometry.dispose())
+  materials.forEach((material) => material.dispose())
+  textures.forEach((texture) => texture.dispose())
+}
+
+function cleanupScene(fallbackRoot?: THREE.Object3D): void {
+  cancelAnimationFrame(raf)
+  raf = 0
+  ro?.disconnect()
+  ro = null
+  window.removeEventListener('resize', handleWindowResize)
+  controls?.dispose()
+  controls = null
+  const root = scene ?? fallbackRoot
+  if (root) disposeSceneResources(root)
+  const pipeline = outwardGlow
+  outwardGlow = null
+  if (pipeline) disposeGlowPipeline(pipeline)
   renderer?.dispose()
   renderer?.domElement.remove()
   renderer = null
   scene = null
   camera = null
-  controls = null
+  staticGlow = null
+  cameraView.value = ''
   regionMeshes.length = 0
+  regionVisuals.length = 0
+  visualByMesh.clear()
+  hoveredVisual = null
+  frames = 0
+  lastFpsAt = 0
+  lastFrameAt = 0
+}
+
+onBeforeUnmount(() => {
+  mounted = false
+  initGeneration++
+  pendingInitCleanup?.()
+  pendingInitCleanup = null
+  stopEffectWatch()
+  cleanupScene()
 })
 </script>
 

@@ -61,7 +61,7 @@ async function toggleFs() {
         stroke-linecap="round"
         @click="drawerOpen = !drawerOpen"
       >
-        <title>地图位置调试</title>
+        <title>地图调试</title>
         <line x1="4" y1="7" x2="20" y2="7" />
         <circle cx="9" cy="7" r="2.4" fill="#061228" />
         <line x1="4" y1="12" x2="20" y2="12" />

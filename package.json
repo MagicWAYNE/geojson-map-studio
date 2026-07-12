@@ -3,13 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "gen:mocks": "node scripts/gen-district-mocks.mjs",
-    "gen:map": "node scripts/geojson-to-svg.mjs"
+    "gen:map": "node scripts/geojson-to-svg.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "echarts": "^5.6.0",
@@ -20,11 +24,13 @@
   },
   "devDependencies": {
     "@types/d3-geo": "^3.1.0",
-    "d3-geo": "^3.1.1",
     "@types/three": "^0.185.1",
     "@vitejs/plugin-vue": "^5.2.1",
+    "d3-geo": "^3.1.1",
+    "happy-dom": "20.10.6",
     "typescript": "~5.7.2",
     "vite": "^6.0.7",
+    "vitest": "^3.2.6",
     "vue-tsc": "^2.2.0"
   }
 }
