@@ -4,9 +4,7 @@ import {
   assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
-  loadMapEffectConfig,
-  normalizeMapEffectConfig,
-  saveMapEffectConfig
+  normalizeMapEffectConfig
 } from '@/components/map/mapEffectConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 
@@ -63,7 +61,7 @@ function loadLayout(): MapLayout {
 // 模块级单例：HeaderBar（开关）、抽屉、HomeView（应用样式）、3D 地图（视角上报）共享同一份状态
 const drawerOpen = ref(false)
 const layout = reactive<MapLayout>(loadLayout())
-const effect = reactive(loadMapEffectConfig(storage()))
+const effect = reactive(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
 const effectRuntimeStatus = reactive<MapEffectRuntimeStatus>({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })
 // 3D 相机实时视角（由 ChongqingMap3D 在 OrbitControls change 时写入），仅运行时读数，不持久化
 const cameraView = ref('')
@@ -80,7 +78,6 @@ watch(layout, (value) => {
 watch(effect, (value) => {
   const normalized = normalizeMapEffectConfig(value)
   assignMapEffectConfig(effect, normalized)
-  saveMapEffectConfig(storage(), normalized)
 }, { deep: true })
 
 function resetLayout(): void {

@@ -4,7 +4,8 @@ import {
   MAP_EFFECT_DEFAULTS,
   MAP_EFFECT_STORAGE_KEY,
   MAP_EFFECT_STORAGE_KEY_V1,
-  MAP_EFFECT_STORAGE_KEY_V2
+  MAP_EFFECT_STORAGE_KEY_V2,
+  cloneMapEffectConfig
 } from '@/components/map/mapEffectConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 import {
@@ -52,8 +53,16 @@ describe('useMapDebug layout defaults', () => {
 })
 
 describe('useMapDebug effects', () => {
-  it('resets v3 defaults while preserving every nested identity without changing the saved layout state', async () => {
+  it('ignores v1, v2, and v3 effect caches while preserving the layout cache', async () => {
     const values = new Map<string, string>()
+    const savedLayout = { left: 88, top: 99, width: 777, height: 666 }
+    const cachedV3 = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
+    cachedV3.base.outerGlowWidth = 17
+    const getItem = vi.fn((key: string) => values.get(key) ?? null)
+    const setItem = vi.fn((key: string, value: string) => values.set(key, value))
+    const removeItem = vi.fn((key: string) => values.delete(key))
+
+    values.set('cq-map-debug-layout', JSON.stringify(savedLayout))
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
       version: 1,
       base: {
@@ -79,98 +88,92 @@ describe('useMapDebug effects', () => {
         leaveMs: 180
       }
     }))
+    values.set(MAP_EFFECT_STORAGE_KEY_V2, JSON.stringify({
+      version: 2,
+      base: { outerGlowWidth: 31 },
+      hover: { glowWidth: 37 },
+      quality: { renderScale: 1, maxAlpha: 0.25 }
+    }))
+    values.set(MAP_EFFECT_STORAGE_KEY, JSON.stringify(cachedV3))
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value)
+      getItem,
+      setItem,
+      removeItem
     })
 
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
-    const effect = debug.effect
-    const base = debug.effect.base
-    const hover = debug.effect.hover
-    const quality = debug.effect.quality
-    const baseInward = debug.effect.base.inwardGlow
-    const hoverInward = debug.effect.hover.inwardGlow
-    const baseWave = debug.effect.base.inwardGlow.wave
-    const hoverWave = debug.effect.hover.inwardGlow.wave
+
+    expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
+    expect(debug.layout).toEqual(savedLayout)
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+      expect(getItem).not.toHaveBeenCalledWith(key)
+      expect(removeItem).not.toHaveBeenCalledWith(key)
+      expect(values.has(key)).toBe(true)
+    }
+    expect(getItem).toHaveBeenCalledWith('cq-map-debug-layout')
 
     debug.layout.left = 480
-    debug.effect.base.outerGlowWidth = 22
-    debug.effect.hover.lift = 2
-    debug.effect.quality.maxAlpha = 0.25
-    debug.resetEffect()
     await nextTick()
-
-    expect(debug.layout.left).toBe(480)
-    expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
-    expect(debug.effect).toBe(effect)
-    expect(debug.effect.base).toBe(base)
-    expect(debug.effect.hover).toBe(hover)
-    expect(debug.effect.quality).toBe(quality)
-    expect(debug.effect.base.inwardGlow).toBe(baseInward)
-    expect(debug.effect.hover.inwardGlow).toBe(hoverInward)
-    expect(debug.effect.base.inwardGlow.wave).toBe(baseWave)
-    expect(debug.effect.hover.inwardGlow.wave).toBe(hoverWave)
-    expect(debug.effect.quality).toEqual(MAP_EFFECT_DEFAULTS.quality)
-    expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 3,
-      quality: { maxAlpha: 1 }
-    })
-    expect(values.has(MAP_EFFECT_STORAGE_KEY_V2)).toBe(false)
-    expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(true)
+    expect(setItem).toHaveBeenCalledWith(
+      'cq-map-debug-layout',
+      JSON.stringify({ ...savedLayout, left: 480 })
+    )
   })
 
-  it('persists deep v3 inward-wave changes only to the v3 key and restores them after a module reload', async () => {
+  it('keeps deep changes only for the current module session and reloads source defaults', async () => {
     const values = new Map<string, string>()
     const writes: Array<[string, string]> = []
+    const getItem = vi.fn((key: string) => values.get(key) ?? null)
+    const setItem = vi.fn((key: string, value: string) => {
+      writes.push([key, value])
+      values.set(key, value)
+    })
+    const removeItem = vi.fn((key: string) => values.delete(key))
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        writes.push([key, value])
-        values.set(key, value)
-      }
+      getItem,
+      setItem,
+      removeItem
     })
 
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
-    debug.effect.base.outerGlowNearRadiusRatio = 0.42
-    debug.effect.hover.glowFarOpacityRatio = 0.63
+    debug.effect.base.outerGlowWidth = 42
     debug.effect.base.inwardGlow.wave.periodMs = 4200
     debug.effect.hover.inwardGlow.wave.strength = 0.9
-    debug.effect.quality.maxAlpha = 0.25
+    debug.effect.hover.glowFarOpacityRatio = 0.63
     await nextTick()
 
-    expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(false)
-    expect(values.has(MAP_EFFECT_STORAGE_KEY_V2)).toBe(false)
-    expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
-    expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 3,
-      base: { outerGlowNearRadiusRatio: 0.42, inwardGlow: { wave: { periodMs: 4200 } } },
-      hover: { glowFarOpacityRatio: 0.63, inwardGlow: { wave: { strength: 0.9 } } },
-      quality: { maxAlpha: 0.25 }
-    })
-    expect(writes.length).toBeGreaterThan(0)
+    expect(debug.effect.base.outerGlowWidth).toBe(42)
+    expect(debug.effect.base.inwardGlow.wave.periodMs).toBe(4200)
+    expect(debug.effect.hover.inwardGlow.wave.strength).toBe(0.9)
+    expect(debug.effect.hover.glowFarOpacityRatio).toBe(0.63)
+    expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+      expect(getItem).not.toHaveBeenCalledWith(key)
+      expect(removeItem).not.toHaveBeenCalledWith(key)
+    }
 
+    await nextTick()
     vi.resetModules()
     const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
     const reloaded = reloadedUseMapDebug()
-    expect(reloaded.effect.base.outerGlowNearRadiusRatio).toBe(0.42)
-    expect(reloaded.effect.hover.glowFarOpacityRatio).toBe(0.63)
-    expect(reloaded.effect.base.inwardGlow.wave.periodMs).toBe(4200)
-    expect(reloaded.effect.hover.inwardGlow.wave.strength).toBe(0.9)
-    expect(reloaded.effect.quality.maxAlpha).toBe(0.25)
+    expect(reloaded.effect).toEqual(MAP_EFFECT_DEFAULTS)
   })
 
-  it('converges watcher normalization and stops writing after the normalized state settles', async () => {
+  it('normalizes invalid deep values in place without writing an effect cache', async () => {
     const values = new Map<string, string>()
     const writes: Array<[string, string]> = []
+    const getItem = vi.fn((key: string) => values.get(key) ?? null)
+    const setItem = vi.fn((key: string, value: string) => {
+      writes.push([key, value])
+      values.set(key, value)
+    })
+    const removeItem = vi.fn((key: string) => values.delete(key))
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        writes.push([key, value])
-        values.set(key, value)
-      }
+      getItem,
+      setItem,
+      removeItem
     })
 
     const { useMapDebug } = await import('./useMapDebug')
@@ -194,31 +197,50 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.quality.maxAlpha).toBe(1)
     expect(debug.effect.base.inwardGlow.wave.periodMs).toBe(250)
     expect(debug.effect.hover.inwardGlow.maxAlpha).toBe(1)
-
-    const persisted = JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)
-    expect(persisted).toMatchObject({
-      version: 3,
-      base: {
-        outerGlowColor: '#abcdef',
-        outerGlowFalloff: 4,
-        inwardGlow: { wave: { periodMs: 250 } }
-      },
-      hover: {
-        glowFalloff: 0.25,
-        glowFarOpacityRatio: 2,
-        inwardGlow: { maxAlpha: 1 }
-      },
-      quality: {
-        maxAlpha: 1
-      }
-    })
-
-    const writesAfterSettle = writes.length
-    expect(writesAfterSettle).toBeGreaterThan(0)
     await nextTick()
-    expect(writes.length).toBe(writesAfterSettle)
-    expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
-    expect(writes.some(([key]) => key === MAP_EFFECT_STORAGE_KEY_V2)).toBe(false)
+    expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+      expect(getItem).not.toHaveBeenCalledWith(key)
+      expect(removeItem).not.toHaveBeenCalledWith(key)
+    }
+  })
+
+  it('resetEffect restores defaults without replacing any nested reactive object', async () => {
+    const values = new Map<string, string>()
+    const setItem = vi.fn((key: string, value: string) => values.set(key, value))
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem,
+      removeItem: vi.fn((key: string) => values.delete(key))
+    })
+    const { useMapDebug } = await import('./useMapDebug')
+    const debug = useMapDebug()
+    const effect = debug.effect
+    const base = effect.base
+    const hover = effect.hover
+    const quality = effect.quality
+    const baseInward = base.inwardGlow
+    const hoverInward = hover.inwardGlow
+    const baseWave = baseInward.wave
+    const hoverWave = hoverInward.wave
+
+    effect.base.outerGlowWidth = 22
+    effect.base.inwardGlow.wave.periodMs = 4200
+    effect.hover.inwardGlow.wave.strength = 0.9
+    effect.quality.maxAlpha = 0.25
+    debug.resetEffect()
+    await nextTick()
+
+    expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
+    expect(debug.effect).toBe(effect)
+    expect(debug.effect.base).toBe(base)
+    expect(debug.effect.hover).toBe(hover)
+    expect(debug.effect.quality).toBe(quality)
+    expect(debug.effect.base.inwardGlow).toBe(baseInward)
+    expect(debug.effect.hover.inwardGlow).toBe(hoverInward)
+    expect(debug.effect.base.inwardGlow.wave).toBe(baseWave)
+    expect(debug.effect.hover.inwardGlow.wave).toBe(hoverWave)
+    expect(setItem).not.toHaveBeenCalledWith(MAP_EFFECT_STORAGE_KEY, expect.any(String))
   })
 
   it('deduplicates runtime status updates without mutating when unchanged', async () => {
