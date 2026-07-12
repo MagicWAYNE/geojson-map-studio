@@ -18,6 +18,10 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   renderScale: 0.5 as const,
   baseState: 'enabled' as const,
   hoverState: 'zero' as const,
+  baseInwardState: 'active' as const,
+  hoverInwardState: 'ready' as const,
+  baseWaveActive: false,
+  hoverWaveActive: false,
   degraded: false
 }))
 const mapDebugMocks = vi.hoisted(() => ({
@@ -119,7 +123,11 @@ beforeEach(() => {
     targetHeight: 680,
     renderScale: 0.5,
     baseState: 'enabled',
-    hoverState: 'ready'
+    hoverState: 'ready',
+    baseInwardState: 'active',
+    hoverInwardState: 'ready',
+    baseWaveActive: false,
+    hoverWaveActive: false
   })
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
@@ -218,6 +226,10 @@ describe('ChongqingMap3D effect wiring', () => {
       renderScale: 0.5,
       baseState: 'enabled',
       hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      baseWaveActive: false,
+      hoverWaveActive: false,
       degraded: false
     })
 
@@ -347,7 +359,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 2,
+      version: 3,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) })
@@ -364,9 +376,9 @@ describe('ChongqingMap3D effect wiring', () => {
     const lastPipelineSizeOrder = pipelineMocks.instance.setSize.mock.invocationCallOrder.at(-1)!
     expect(lastPixelRatioOrder).toBeLessThan(lastPipelineSizeOrder)
 
-    mounted.runFrame()
+    mounted.runFrame(1234)
     expect(pipelineMocks.instance.render)
-      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera), 1234)
     expect(mounted.renderer.render).not.toHaveBeenCalled()
 
     mounted.app.unmount()

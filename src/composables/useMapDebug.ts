@@ -29,6 +29,10 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   renderScale: 0.5,
   baseState: 'enabled',
   hoverState: 'zero',
+  baseInwardState: 'active',
+  hoverInwardState: 'ready',
+  baseWaveActive: false,
+  hoverWaveActive: false,
   degraded: false
 }
 const LAYOUT_KEY = 'cq-map-debug-layout'
@@ -96,6 +100,10 @@ function sameEffectRuntimeStatus(
     && next.renderScale === current.renderScale
     && next.baseState === current.baseState
     && next.hoverState === current.hoverState
+    && next.baseInwardState === current.baseInwardState
+    && next.hoverInwardState === current.hoverInwardState
+    && next.baseWaveActive === current.baseWaveActive
+    && next.hoverWaveActive === current.hoverWaveActive
     && next.degraded === current.degraded
 }
 

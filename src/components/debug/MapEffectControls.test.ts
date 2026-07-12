@@ -221,6 +221,10 @@ describe('MapEffectControls', () => {
       renderScale: 0.5,
       baseState: 'enabled',
       hoverState: 'active',
+      baseInwardState: 'active',
+      hoverInwardState: 'active',
+      baseWaveActive: false,
+      hoverWaveActive: false,
       degraded: false
     })
     await nextTick()
@@ -247,6 +251,10 @@ describe('MapEffectControls', () => {
       renderScale: 0.5,
       baseState: 'disabled',
       hoverState: 'zero',
+      baseInwardState: 'disabled',
+      hoverInwardState: 'disabled',
+      baseWaveActive: false,
+      hoverWaveActive: false,
       degraded: true
     })
     await nextTick()

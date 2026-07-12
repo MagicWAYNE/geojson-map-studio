@@ -241,6 +241,19 @@ describe('useMapDebug effects', () => {
     expect(debug.effectRuntimeStatus).toBe(initial)
     expect(debug.effectRuntimeStatus.targetWidth).toBe(2)
     expect(debug.effectRuntimeStatus.hoverState).toBe('active')
+
+    const inwardStatuses = [
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseInwardState: 'zero' as const },
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverInwardState: 'active' as const },
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: true },
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverWaveActive: true }
+    ]
+    expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(true)
+    for (const status of inwardStatuses) {
+      expect(debug.updateEffectRuntimeStatus(status)).toBe(true)
+      expect(debug.updateEffectRuntimeStatus({ ...status })).toBe(false)
+      expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(true)
+    }
   })
 
   it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
@@ -251,12 +264,22 @@ describe('useMapDebug effects', () => {
       renderScale: 0.5,
       baseState: 'enabled',
       hoverState: 'zero',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      baseWaveActive: false,
+      hoverWaveActive: false,
       degraded: false
     })
     expectTypeOf<MapOutwardGlowPipelineStatus['baseState']>()
       .toEqualTypeOf<'enabled' | 'zero' | 'disabled'>()
     expectTypeOf<MapOutwardGlowPipelineStatus['hoverState']>()
       .toEqualTypeOf<'ready' | 'active' | 'zero' | 'disabled'>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['baseInwardState']>()
+      .toEqualTypeOf<'active' | 'zero' | 'disabled'>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['hoverInwardState']>()
+      .toEqualTypeOf<'ready' | 'active' | 'zero' | 'disabled'>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['baseWaveActive']>().toEqualTypeOf<boolean>()
+    expectTypeOf<MapOutwardGlowPipelineStatus['hoverWaveActive']>().toEqualTypeOf<boolean>()
   })
 
   it('applies changed configuration to existing static and hover glow materials', () => {

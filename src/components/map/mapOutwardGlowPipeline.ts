@@ -42,15 +42,6 @@ export interface MapOutwardGlowPipelineStatus {
   renderScale: MapEffectConfig['quality']['renderScale']
   baseState: MapOutwardGlowBaseState
   hoverState: MapOutwardGlowHoverState
-  // Optional only for source compatibility with Task 6's not-yet-migrated runtime fixtures.
-  // Pipeline snapshots always provide these fields through the required subtype below.
-  baseInwardState?: MapOutwardGlowBaseInwardState
-  hoverInwardState?: MapOutwardGlowHoverInwardState
-  baseWaveActive?: boolean
-  hoverWaveActive?: boolean
-}
-
-export interface MapOutwardGlowPipelineStatusSnapshot extends MapOutwardGlowPipelineStatus {
   baseInwardState: MapOutwardGlowBaseInwardState
   hoverInwardState: MapOutwardGlowHoverInwardState
   baseWaveActive: boolean
@@ -62,8 +53,8 @@ export interface MapOutwardGlowPipeline {
   setConfig(config: MapEffectConfig): void
   setRegionProgress(source: THREE.Mesh, easedProgress: number): boolean
   markCameraDirty(): void
-  getStatus(): MapOutwardGlowPipelineStatusSnapshot
-  render(mainScene: THREE.Scene, camera: THREE.Camera, nowMs?: number): void
+  getStatus(): MapOutwardGlowPipelineStatus
+  render(mainScene: THREE.Scene, camera: THREE.Camera, nowMs: number): void
   dispose(): void
 }
 
@@ -697,7 +688,7 @@ export function createMapOutwardGlowPipeline(
       }
     },
 
-    render(mainScene, camera, nowMs = 0) {
+    render(mainScene, camera, nowMs) {
       if (disposed) return
       const previousTarget = renderer.getRenderTarget()
       const previousAutoClear = renderer.autoClear
