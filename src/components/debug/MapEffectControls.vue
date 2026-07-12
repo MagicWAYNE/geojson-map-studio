@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import {
   B3_GLOW_PROFILE_DEFAULTS,
+  cloneMapEffectConfig,
   formatMapEffectConfig,
   MAP_EFFECT_DEFAULTS,
   normalizeMapEffectConfig,
@@ -132,7 +133,7 @@ const GROUPS: readonly Group[] = [
 
 const { effect, effectRuntimeStatus, resetEffect } = useMapDebug()
 const livePreview = ref(true)
-const draft = reactive<MapEffectConfig>(cloneConfig(effect))
+const draft = reactive<MapEffectConfig>(cloneMapEffectConfig(effect))
 const editTarget = computed<MapEffectConfig>(() => livePreview.value ? effect : draft)
 const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
 const HEX = /^#[0-9a-f]{6}$/i
@@ -140,17 +141,8 @@ const numberDrafts = reactive<Record<string, string>>({})
 let copiedTimer = 0
 let applyingDraft = false
 
-function cloneConfig(config: MapEffectConfig): MapEffectConfig {
-  return {
-    version: 2,
-    base: { ...config.base },
-    hover: { ...config.hover },
-    quality: { ...config.quality }
-  }
-}
-
 function syncDraft(config: MapEffectConfig = effect): void {
-  const next = cloneConfig(config)
+  const next = cloneMapEffectConfig(config)
   Object.assign(draft.base, next.base)
   Object.assign(draft.hover, next.hover)
   Object.assign(draft.quality, next.quality)
