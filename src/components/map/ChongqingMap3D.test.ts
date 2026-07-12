@@ -283,11 +283,6 @@ describe('ChongqingMap3D effect wiring', () => {
       degraded: false
     })
 
-    districtBarMocks.applyConfig.mockClear()
-    const [, apply] = watchMapEffectConfig.mock.calls[0]
-    apply()
-    expect(districtBarMocks.applyConfig).toHaveBeenCalledWith(layer, mapDebugMocks.effect!.bars)
-
     const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
     const intersectObjects = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
       { object: regionMeshes[0] } as THREE.Intersection
@@ -312,6 +307,15 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(intersectObjects).toHaveBeenLastCalledWith(regionMeshes, false)
     expect(intersectObjects.mock.calls.at(-1)![0]).not.toContain(barMesh)
 
+    const elapsedBeforeConfig = districtBarMocks.update.mock.calls.at(-1)![2] as number
+    districtBarMocks.applyConfig.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    apply()
+    expect(districtBarMocks.applyConfig).toHaveBeenCalledWith(layer, mapDebugMocks.effect!.bars)
+    mounted.runFrame(48)
+    const elapsedAfterConfig = districtBarMocks.update.mock.calls.at(-1)![2] as number
+    expect(elapsedAfterConfig).toBeGreaterThan(elapsedBeforeConfig)
+
     mounted.app.unmount()
     expect(districtBarMocks.dispose).toHaveBeenCalledWith(layer)
     expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenLastCalledWith({
@@ -320,6 +324,107 @@ describe('ChongqingMap3D effect wiring', () => {
       dataMax: null,
       degraded: false
     })
+  })
+
+  it('isolates a district bar creation failure and keeps direct base rendering available', async () => {
+    districtBarMocks.create.mockImplementationOnce(() => {
+      throw new Error('bar creation failed')
+    })
+    pipelineMocks.instance.setConfig.mockImplementationOnce(() => {
+      throw new Error('disable glow for direct rendering')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    expect(warn).toHaveBeenCalledWith('区县柱体初始化失败，保留地图底图', expect.any(Error))
+    expect(warn.mock.calls.filter(([message]) => message === '区县柱体初始化失败，保留地图底图'))
+      .toHaveLength(1)
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: true
+    })
+    expect(districtBarMocks.dispose).not.toHaveBeenCalled()
+
+    expect(() => mounted.runFrame(16)).not.toThrow()
+    expect(districtBarMocks.update).not.toHaveBeenCalled()
+    expect(mounted.renderer.render)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
+
+    mounted.app.unmount()
+  })
+
+  it('isolates a district bar config failure, disposes it once, and keeps later frames rendering', async () => {
+    const mounted = await mountInitializedMap()
+    const layer = districtBarMocks.layer!
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    districtBarMocks.applyConfig.mockImplementationOnce(() => {
+      throw new Error('bar config failed')
+    })
+    districtBarMocks.update.mockClear()
+    pipelineMocks.instance.render.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+
+    expect(() => apply()).not.toThrow()
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+    expect(districtBarMocks.dispose).toHaveBeenCalledWith(layer)
+    expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
+    expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
+      .toHaveLength(1)
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: true
+    })
+
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+    expect(districtBarMocks.update).not.toHaveBeenCalled()
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
+      .toHaveLength(1)
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(2)
+
+    mounted.app.unmount()
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('isolates a district bar animation failure and keeps current and later frames rendering', async () => {
+    const mounted = await mountInitializedMap()
+    const layer = districtBarMocks.layer!
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    districtBarMocks.update.mockImplementationOnce(() => {
+      throw new Error('bar update failed')
+    })
+    pipelineMocks.instance.render.mockClear()
+
+    expect(() => mounted.runFrame(16)).not.toThrow()
+    expect(districtBarMocks.update).toHaveBeenCalledTimes(1)
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+    expect(districtBarMocks.dispose).toHaveBeenCalledWith(layer)
+    expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
+    expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
+      .toHaveLength(1)
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: true
+    })
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+
+    mounted.runFrame(32)
+    mounted.runFrame(48)
+    expect(districtBarMocks.update).toHaveBeenCalledTimes(1)
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
+      .toHaveLength(1)
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(3)
+
+    mounted.app.unmount()
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
   })
 
   it('publishes pipeline status after setup, config, resize, render, and hover threshold crossings', async () => {
