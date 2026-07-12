@@ -185,15 +185,63 @@ describe('mapEffectConfig', () => {
     })
   })
 
-  it('preserves custom v2 fields and fills v3 inward defaults', () => {
-    const customV2 = { ...V2_DEFAULTS, base: { ...V2_DEFAULTS.base, outerGlowWidth: 91 } }
+  it('migrates the complete 2026-07-12 v2 profile and fills v3 inward defaults', () => {
     expect(loadMapEffectConfig({
-      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(customV2) : null
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(V2_DEFAULTS) : null
     })).toEqual({
       version: 3,
-      base: { ...customV2.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
-      hover: { ...customV2.hover, inwardGlow: HOVER_INWARD_GLOW_DEFAULTS },
-      quality: customV2.quality
+      base: { ...V2_DEFAULTS.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
+      hover: { ...V2_DEFAULTS.hover, inwardGlow: HOVER_INWARD_GLOW_DEFAULTS },
+      quality: V2_DEFAULTS.quality
+    })
+  })
+
+  it('migrates partial v2 payloads with the 2026-07-12 v2 fallback profile', () => {
+    const partialV2 = {
+      version: 2,
+      base: { outerGlowWidth: 91 },
+      hover: { glowWidth: 77 },
+      quality: {}
+    }
+
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(partialV2) : null
+    })).toEqual({
+      version: 3,
+      base: { ...V2_DEFAULTS.base, outerGlowWidth: 91, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
+      hover: { ...V2_DEFAULTS.hover, glowWidth: 77, inwardGlow: HOVER_INWARD_GLOW_DEFAULTS },
+      quality: V2_DEFAULTS.quality
+    })
+  })
+
+  it('migrates invalid v2 colors and numeric fields with the 2026-07-12 v2 fallback profile', () => {
+    const invalidV2 = {
+      version: 2,
+      base: {
+        innerColor: 'white', outerColor: '#nothex', outerGlowColor: 'blue',
+        innerWidth: '1.5', outerCoreWidth: null, outerGlowWidth: '72',
+        outerGlowStrength: {}, outerGlowNearRadiusRatio: '0.35',
+        outerGlowNearOpacityRatio: [], outerGlowFarRadiusRatio: '0.7',
+        outerGlowFarOpacityRatio: {}, outerGlowFalloff: '0.9',
+        outerGlowEdgeSoftness: null, outerGlowNearPasses: '4', outerGlowFarPasses: {}
+      },
+      hover: {
+        surfaceColor: 'cyan', emissiveColor: '#invalid', outlineColor: 'white', glowColor: 'blue',
+        emissiveIntensity: '0.5', outlineWidth: null, glowWidth: '110', glowStrength: {},
+        glowNearRadiusRatio: '0.35', glowNearOpacityRatio: [], glowFarRadiusRatio: '1',
+        glowFarOpacityRatio: {}, glowFalloff: '1', glowEdgeSoftness: null,
+        glowNearPasses: '2', glowFarPasses: {}, lift: '2', enterMs: null, leaveMs: {}
+      },
+      quality: { renderScale: 0.6, maxAlpha: '1' }
+    }
+
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(invalidV2) : null
+    })).toEqual({
+      version: 3,
+      base: { ...V2_DEFAULTS.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
+      hover: { ...V2_DEFAULTS.hover, inwardGlow: HOVER_INWARD_GLOW_DEFAULTS },
+      quality: V2_DEFAULTS.quality
     })
   })
 
