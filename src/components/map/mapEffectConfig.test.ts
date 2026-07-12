@@ -23,12 +23,12 @@ const V2_DEFAULTS = {
     outerGlowWidth: 72,
     outerGlowStrength: 0.48,
     outerGlowNearRadiusRatio: 0.35,
-    outerGlowNearOpacityRatio: 0.83,
-    outerGlowFarRadiusRatio: 1,
-    outerGlowFarOpacityRatio: 1,
-    outerGlowFalloff: 1,
+    outerGlowNearOpacityRatio: 1.25,
+    outerGlowFarRadiusRatio: 0.7,
+    outerGlowFarOpacityRatio: 0.75,
+    outerGlowFalloff: 0.9,
     outerGlowEdgeSoftness: 0.96,
-    outerGlowNearPasses: 2,
+    outerGlowNearPasses: 4,
     outerGlowFarPasses: 4
   },
   hover: {

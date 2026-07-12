@@ -150,12 +150,12 @@ const V2_BASE_DEFAULTS: MapEffectBaseConfigV2 = {
   outerGlowWidth: 72,
   outerGlowStrength: 0.48,
   outerGlowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
-  outerGlowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
-  outerGlowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
-  outerGlowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
-  outerGlowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
+  outerGlowNearOpacityRatio: 1.25,
+  outerGlowFarRadiusRatio: 0.7,
+  outerGlowFarOpacityRatio: 0.75,
+  outerGlowFalloff: 0.9,
   outerGlowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
-  outerGlowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
+  outerGlowNearPasses: 4,
   outerGlowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
 }
 
