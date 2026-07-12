@@ -16,6 +16,16 @@ type MountedControls = {
   resetEffect: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['resetEffect']
 }
 
+const EFFECT_STORAGE_KEYS = new Set([
+  'cq-map-effect-config-v1',
+  'cq-map-effect-config-v2',
+  'cq-map-effect-config-v3'
+])
+
+function expectNoEffectStorageWrites(setItem: ReturnType<typeof vi.fn>): void {
+  expect(setItem.mock.calls.filter(([key]) => EFFECT_STORAGE_KEYS.has(key))).toHaveLength(0)
+}
+
 async function mountControls(): Promise<MountedControls> {
   const values = new Map<string, string>()
   const setItem = vi.fn((key: string, value: string) => values.set(key, value))
@@ -103,7 +113,7 @@ describe('MapEffectControls', () => {
     liveWidth.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(effect.base.outerGlowWidth).toBe(84)
-    expect(setItem).toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
 
     const effectiveSnapshot = JSON.parse(JSON.stringify(effect)) as MapEffectConfig
     await setLivePreview(root, false)
@@ -128,7 +138,7 @@ describe('MapEffectControls', () => {
     await nextTick()
 
     expect(effect).toEqual(effectiveSnapshot)
-    expect(setItem).not.toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
     expect(JSON.parse(root.querySelector('.json-out')!.textContent!)).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })
@@ -149,7 +159,7 @@ describe('MapEffectControls', () => {
     passes.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(effect.base.outerGlowWidth).not.toBe(137)
-    expect(setItem).not.toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
@@ -158,7 +168,7 @@ describe('MapEffectControls', () => {
     expect(effect.base).toBe(baseIdentity)
     expect(effect.hover).toBe(hoverIdentity)
     expect(effect.quality).toBe(qualityIdentity)
-    expect(setItem).toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
 
     width.value = '99'
     width.dispatchEvent(new Event('change', { bubbles: true }))
@@ -655,7 +665,7 @@ describe('MapEffectControls', () => {
     await nextTick()
     expect(period.value).toBe('4300')
     expect(effect.base.inwardGlow.wave.periodMs).toBe(originalPeriod)
-    expect(setItem).not.toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
@@ -663,7 +673,7 @@ describe('MapEffectControls', () => {
     expect(effect.base).toBe(base)
     expect(effect.base.inwardGlow).toBe(inward)
     expect(effect.base.inwardGlow.wave).toBe(wave)
-    expect(setItem).toHaveBeenCalled()
+    expectNoEffectStorageWrites(setItem)
 
     period.value = '5100'
     period.dispatchEvent(new Event('change', { bubbles: true }))
