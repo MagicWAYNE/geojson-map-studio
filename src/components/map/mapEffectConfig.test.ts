@@ -255,6 +255,16 @@ describe('mapEffectConfig', () => {
     })).toEqual(V3_DEFAULTS)
   })
 
+  it('does not fall back to v1 when the v2 value is syntactically broken', () => {
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2
+        ? '{broken-v2'
+        : key === MAP_EFFECT_STORAGE_KEY_V1
+          ? JSON.stringify(APPROVED_V1_CUSTOM_0)
+          : null
+    })).toEqual(V3_DEFAULTS)
+  })
+
   it('does not fall back to older storage when a syntactically valid v3 payload has the wrong schema', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY

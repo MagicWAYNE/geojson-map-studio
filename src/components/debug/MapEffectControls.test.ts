@@ -241,7 +241,7 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('常态传播波: 生效中')
     expect(status.textContent).toContain('Hover 传播波: 未生效')
     expect(status.textContent).toContain('运行状态: 正常')
-    expect(root.textContent).not.toContain('性能提示')
+    expect(root.textContent).toContain('性能提示')
 
     effect.quality.renderScale = 0.75
     await nextTick()
