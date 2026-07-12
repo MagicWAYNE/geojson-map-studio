@@ -225,7 +225,7 @@ describe('MapEffectControls', () => {
       hoverState: 'active',
       baseInwardState: 'active',
       hoverInwardState: 'active',
-      baseWaveActive: false,
+      baseWaveActive: true,
       hoverWaveActive: false,
       degraded: false
     })
@@ -236,6 +236,10 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('离屏精度: 50%')
     expect(status.textContent).toContain('常态: 已启用')
     expect(status.textContent).toContain('Hover: 生效中')
+    expect(status.textContent).toContain('常态内扩: 生效中')
+    expect(status.textContent).toContain('Hover 内扩: 生效中')
+    expect(status.textContent).toContain('常态传播波: 生效中')
+    expect(status.textContent).toContain('Hover 传播波: 未生效')
     expect(status.textContent).toContain('运行状态: 正常')
     expect(root.textContent).not.toContain('性能提示')
 
@@ -255,14 +259,18 @@ describe('MapEffectControls', () => {
       baseState: 'disabled',
       hoverState: 'zero',
       baseInwardState: 'disabled',
-      hoverInwardState: 'disabled',
+      hoverInwardState: 'zero',
       baseWaveActive: false,
-      hoverWaveActive: false,
+      hoverWaveActive: true,
       degraded: true
     })
     await nextTick()
     expect(status.textContent).toContain('常态: 已关闭')
     expect(status.textContent).toContain('Hover: 参数为零')
+    expect(status.textContent).toContain('常态内扩: 已关闭')
+    expect(status.textContent).toContain('Hover 内扩: 参数为零')
+    expect(status.textContent).toContain('常态传播波: 未生效')
+    expect(status.textContent).toContain('Hover 传播波: 生效中')
     expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
     app.unmount()
   })
@@ -707,39 +715,31 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('warns for enabled high-pass channels, high render scale, or all four glow channels enabled', async () => {
+  it('warns only after the fourth glow channel is enabled when every pass count is below six', async () => {
     const { app, root, effect } = await mountControls()
     const hasWarning = () => root.textContent?.includes('性能提示') === true
 
-    effect.base.outerGlowEnabled = false
-    effect.hover.glowEnabled = false
-    effect.base.inwardGlow.enabled = false
-    effect.hover.inwardGlow.enabled = false
     effect.quality.renderScale = 0.5
-    effect.base.outerGlowNearPasses = 6
-    effect.hover.glowFarPasses = 6
-    effect.base.inwardGlow.nearPasses = 6
-    effect.hover.inwardGlow.farPasses = 6
+    effect.base.outerGlowNearPasses = 5
+    effect.base.outerGlowFarPasses = 5
+    effect.hover.glowNearPasses = 5
+    effect.hover.glowFarPasses = 5
+    effect.base.inwardGlow.nearPasses = 5
+    effect.base.inwardGlow.farPasses = 5
+    effect.hover.inwardGlow.nearPasses = 5
+    effect.hover.inwardGlow.farPasses = 5
+    effect.base.outerGlowEnabled = true
+    effect.hover.glowEnabled = true
+    effect.base.inwardGlow.enabled = true
+    effect.hover.inwardGlow.enabled = false
     await nextTick()
     expect(hasWarning()).toBe(false)
 
-    effect.base.inwardGlow.enabled = true
+    effect.hover.inwardGlow.enabled = true
     await nextTick()
     expect(hasWarning()).toBe(true)
     expect(root.querySelector('.performance-warning')?.textContent).toContain('renderScale')
     expect(root.querySelector('.performance-warning')?.textContent).toContain('passes')
-
-    effect.base.inwardGlow.nearPasses = 2
-    effect.quality.renderScale = 0.75
-    await nextTick()
-    expect(hasWarning()).toBe(true)
-
-    effect.quality.renderScale = 0.5
-    effect.base.outerGlowEnabled = true
-    effect.hover.glowEnabled = true
-    effect.hover.inwardGlow.enabled = true
-    await nextTick()
-    expect(hasWarning()).toBe(true)
     app.unmount()
   })
 })

@@ -147,6 +147,32 @@ describe('MapInwardGlowControls', () => {
     app.unmount()
   })
 
+  it('emits once when a root or wave number input changes and then blurs', async () => {
+    const { app, root, updates } = await mountControls()
+    const width = input(root, 'effect-base-inward-width-number')
+
+    width.value = '96'
+    width.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    width.dispatchEvent(new FocusEvent('blur', { bubbles: true }))
+    await nextTick()
+
+    expect(updates).toHaveLength(1)
+    expect(updates[0].width).toBe(96)
+
+    updates.length = 0
+    const period = input(root, 'effect-base-inward-wave-periodMs-number')
+    period.value = '4200'
+    period.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    period.dispatchEvent(new Event('change', { bubbles: true }))
+    period.dispatchEvent(new FocusEvent('blur', { bubbles: true }))
+    await nextTick()
+
+    expect(updates).toHaveLength(1)
+    expect(updates[0].wave.periodMs).toBe(4200)
+    app.unmount()
+  })
+
   it('emits fresh deep clones for B1 and group reset on each action', async () => {
     const { app, root, state, updates } = await mountControls('hover')
     state.value.width = 111

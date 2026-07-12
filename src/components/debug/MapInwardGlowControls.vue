@@ -59,6 +59,7 @@ const WAVE_FIELDS: readonly NumberField[] = [
 const EASINGS: readonly InwardWaveEasing[] = ['linear', 'ease-in', 'ease-out', 'ease-in-out']
 const HEX = /^#[0-9a-f]{6}$/i
 const numberDrafts = reactive<Record<string, string>>({})
+const committedNumbers = new Map<string, string>()
 
 function fieldName(field: NumberField): string {
   return field.scope === 'wave' ? `wave-${field.key}` : field.key
@@ -103,7 +104,9 @@ function numberDraft(field: NumberField): string {
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  numberDrafts[fieldName(field)] = (event.target as HTMLInputElement).value
+  const name = fieldName(field)
+  numberDrafts[name] = (event.target as HTMLInputElement).value
+  committedNumbers.delete(name)
 }
 
 function normalizedNumber(field: NumberField, raw: string): number {
@@ -117,7 +120,11 @@ function normalizedNumber(field: NumberField, raw: string): number {
 
 function writeNumber(field: NumberField, raw: string): void {
   const value = normalizedNumber(field, raw)
-  numberDrafts[fieldName(field)] = String(value)
+  const name = fieldName(field)
+  const normalized = String(value)
+  numberDrafts[name] = normalized
+  if (committedNumbers.get(name) === normalized || value === numberValue(field)) return
+  committedNumbers.set(name, normalized)
   emitClone((next) => {
     if (field.scope === 'wave') {
       next.wave[field.key as WaveNumberKey] = value
