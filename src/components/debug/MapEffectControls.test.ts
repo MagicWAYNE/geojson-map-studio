@@ -6,6 +6,7 @@ import {
   MAP_EFFECT_DEFAULTS,
   type MapEffectConfig
 } from '@/components/map/mapEffectConfig'
+import { MAP_DISTRICT_BAR_DEFAULTS } from '@/components/map/mapDistrictBarConfig'
 
 type MountedControls = {
   app: App
@@ -13,6 +14,7 @@ type MountedControls = {
   effect: MapEffectConfig
   setItem: ReturnType<typeof vi.fn>
   updateEffectRuntimeStatus: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['updateEffectRuntimeStatus']
+  updateDistrictBarRuntimeStatus: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['updateDistrictBarRuntimeStatus']
   resetEffect: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['resetEffect']
 }
 
@@ -36,6 +38,7 @@ async function mountControls(): Promise<MountedControls> {
     effect: debug.effect,
     setItem,
     updateEffectRuntimeStatus: debug.updateEffectRuntimeStatus,
+    updateDistrictBarRuntimeStatus: debug.updateDistrictBarRuntimeStatus,
     resetEffect: debug.resetEffect
   }
 }
@@ -202,7 +205,7 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(3)
+    expect(draftCopy.version).toBe(4)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
     expect(draftCopy.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(draftCopy.hover.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.hover.inwardGlow)
@@ -293,7 +296,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('renders the seven advanced groups with stable accessible controls and design ranges', async () => {
+  it('renders the advanced groups with stable accessible controls and design ranges', async () => {
     const { app, root } = await mountControls()
     const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
     const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
@@ -306,6 +309,7 @@ describe('MapEffectControls', () => {
       'Hover 外扩柔光',
       'Hover 内扩柔光',
       '渲染质量与性能',
+      '区级案件量柱状图',
       '可复制参数'
     ])
 
@@ -710,7 +714,7 @@ describe('MapEffectControls', () => {
 
     button(root, '恢复全部默认值').click()
     await nextTick()
-    expect(effect.version).toBe(3)
+    expect(effect.version).toBe(4)
     expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })
@@ -740,6 +744,75 @@ describe('MapEffectControls', () => {
     expect(hasWarning()).toBe(true)
     expect(root.querySelector('.performance-warning')?.textContent).toContain('renderScale')
     expect(root.querySelector('.performance-warning')?.textContent).toContain('passes')
+    app.unmount()
+  })
+
+  it('edits bar drafts, reports runtime status, and keeps v4 JSON and reset in the shared flow', async () => {
+    const { app, root, effect, setItem, updateDistrictBarRuntimeStatus } = await mountControls()
+    updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
+    await nextTick()
+
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
+    expect(groups.find((group) => group.querySelector('h3')?.textContent === '区级案件量柱状图')).toBeTruthy()
+    expect(root.textContent).toContain('有效柱体：8')
+    const json = JSON.parse(root.querySelector('.json-out')!.textContent!) as MapEffectConfig
+    expect(json.version).toBe(4)
+    expect(json.bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
+
+    await setLivePreview(root, false)
+    setItem.mockClear()
+    const width = root.querySelector<HTMLInputElement>('#effect-bars-width-number')!
+    width.value = '6.4'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(effect.bars.width).toBe(MAP_DISTRICT_BAR_DEFAULTS.width)
+    expect(setItem).not.toHaveBeenCalled()
+
+    button(root, '应用参数').click()
+    await nextTick()
+    expect(effect.bars.width).toBe(6.4)
+    expect(setItem).toHaveBeenCalled()
+
+    button(root, '恢复全部默认值').click()
+    await nextTick()
+    expect(JSON.parse(root.querySelector('.json-out')!.textContent!).bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
+    expect(effect.bars.width).toBe(6.4)
+
+    button(root, '应用参数').click()
+    await nextTick()
+    expect(effect.bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
+    app.unmount()
+  })
+
+  it('warns only when high bar glow and opacity are combined', async () => {
+    const { app, root, effect } = await mountControls()
+    effect.quality.renderScale = 0.5
+    effect.base.outerGlowNearPasses = 5
+    effect.base.outerGlowFarPasses = 5
+    effect.hover.glowNearPasses = 5
+    effect.hover.glowFarPasses = 5
+    effect.base.inwardGlow.nearPasses = 5
+    effect.base.inwardGlow.farPasses = 5
+    effect.hover.inwardGlow.nearPasses = 5
+    effect.hover.inwardGlow.farPasses = 5
+    effect.base.outerGlowEnabled = false
+    effect.hover.glowEnabled = false
+    effect.base.inwardGlow.enabled = false
+    effect.hover.inwardGlow.enabled = false
+    effect.quality.renderScale = 0.75
+    await nextTick()
+    expect(root.querySelector('.performance-warning')?.textContent).toContain('renderScale')
+    expect(root.querySelector('.performance-warning')?.textContent).not.toContain('柱体辉光或透明度')
+
+    effect.quality.renderScale = 0.5
+    effect.bars.glowStrength = 1.6
+    effect.bars.opacity = 0.8
+    await nextTick()
+    expect(root.textContent).not.toContain('性能提示')
+
+    effect.bars.opacity = 0.81
+    await nextTick()
+    expect(root.querySelector('.performance-warning')?.textContent).toContain('柱体辉光或透明度')
     app.unmount()
   })
 })

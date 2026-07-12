@@ -11,6 +11,29 @@ afterEach(() => {
 })
 
 describe('MapDebugDrawer copy feedback', () => {
+  it('renders district bar controls from the effect tab', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: vi.fn()
+    })
+    const { useMapDebug } = await import('@/composables/useMapDebug')
+    useMapDebug().drawerOpen.value = true
+    const { default: MapDebugDrawer } = await import('./MapDebugDrawer.vue')
+    const root = document.createElement('div')
+    const app = createApp(MapDebugDrawer)
+    app.mount(root)
+    await nextTick()
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === '效果')!
+      .click()
+    await nextTick()
+
+    expect(root.textContent).toContain('区级案件量柱状图')
+    expect(root.querySelector('#effect-bars-width-number')).not.toBeNull()
+    app.unmount()
+  })
+
   it('shows failure when the CSS clipboard fallback returns false', async () => {
     vi.stubGlobal('localStorage', {
       getItem: () => null,
