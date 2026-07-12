@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
 const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
 const sceneSetupMocks = vi.hoisted(() => ({
   controlsDispose: vi.fn(),
+  controlsTargetSet: vi.fn(),
   controlListeners: new Map<string, () => void>()
 }))
 const threeMocks = vi.hoisted(() => ({ createRenderer: vi.fn() }))
@@ -61,7 +62,7 @@ vi.mock('./mapOutwardGlowPipeline', () => ({
 vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
   OrbitControls: class {
-    target = { x: 0, y: 0, z: 0, set: vi.fn() }
+    target = { x: 0, y: 0, z: 0, set: sceneSetupMocks.controlsTargetSet }
     addEventListener = vi.fn((type: string, callback: () => void) => {
       sceneSetupMocks.controlListeners.set(type, callback)
     })
@@ -96,6 +97,7 @@ afterEach(() => {
   stopEffectWatch.mockClear()
   applyMapEffectConfig.mockClear()
   sceneSetupMocks.controlsDispose.mockClear()
+  sceneSetupMocks.controlsTargetSet.mockClear()
   sceneSetupMocks.controlListeners.clear()
   threeMocks.createRenderer.mockClear()
   pipelineMocks.create.mockReset()
@@ -371,6 +373,17 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(pipelineMocks.instance.dispose.mock.invocationCallOrder[0])
       .toBeLessThan(mounted.renderer.dispose.mock.invocationCallOrder[0])
+  })
+
+  it('starts from the tuned camera position and controls target', async () => {
+    const mounted = await mountInitializedMap()
+    mounted.runFrame()
+    const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
+
+    expect(camera.position.toArray()).toEqual([-62.1, 94.9, 108.9])
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(17.2, -3.5, 22.5)
+
+    mounted.app.unmount()
   })
 
   it('resizes pipeline targets on a window-only DPR change', async () => {

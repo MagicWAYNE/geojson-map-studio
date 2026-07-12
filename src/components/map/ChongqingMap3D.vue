@@ -356,7 +356,7 @@ function setupScene(mapGroup: THREE.Group) {
     scene.add(rim)
 
     camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
-    camera.position.set(-51.5, 121.2, 82.0)
+    camera.position.set(-62.1, 94.9, 108.9)
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(el.clientWidth, el.clientHeight, false)
@@ -389,7 +389,7 @@ function setupScene(mapGroup: THREE.Group) {
     el.prepend(renderer.domElement)
 
     controls = new OrbitControls(camera, renderer.domElement)
-    controls.target.set(1.5, 2.1, 1.7)
+    controls.target.set(17.2, -3.5, 22.5)
     controls.enableDamping = true
     controls.dampingFactor = 0.12
     // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
