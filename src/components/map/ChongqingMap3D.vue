@@ -6,13 +6,27 @@ import { useRouter } from 'vue-router'
 import { getDistrictMapData } from '@/api'
 import {
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
+  DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS,
   useMapDebug
 } from '@/composables/useMapDebug'
 import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
-import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
+import {
+  classifyBoundarySegments,
+  parseSvgRegions,
+  projectRegions,
+  type ProjectionResult
+} from './mapGeometry'
+import {
+  applyDistrictBarConfig,
+  createDistrictBarLayer,
+  disposeDistrictBarLayer,
+  setDistrictBarHoverProgress,
+  updateDistrictBarLayer,
+  type DistrictBarLayer
+} from './mapDistrictBarLayer'
 import {
   createMapOutwardGlowPipeline,
   type MapOutwardGlowPipeline
@@ -47,7 +61,12 @@ const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
 
 const router = useRouter()
-const { cameraView, effect, updateEffectRuntimeStatus } = useMapDebug()
+const {
+  cameraView,
+  effect,
+  updateEffectRuntimeStatus,
+  updateDistrictBarRuntimeStatus
+} = useMapDebug()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -61,6 +80,8 @@ let outwardGlow: MapOutwardGlowPipeline | null = null
 let mounted = false
 let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
+let districtBars: DistrictBarLayer | null = null
+let barAnimationStartedAt = 0
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 const disposedGlowPipelines = new WeakSet<MapOutwardGlowPipeline>()
@@ -78,6 +99,7 @@ interface RegionVisual {
 const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
 let glowStatusPublicationPending = false
+let districtBarFailureWarned = false
 
 type GlowFailurePhase = 'initialization' | 'runtime'
 
@@ -214,6 +236,14 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
+  const bars = districtBars
+  if (bars) {
+    try {
+      applyDistrictBarConfig(bars, effect.bars)
+    } catch (cause) {
+      handleDistrictBarFailure(cause, '更新')
+    }
+  }
   const configUpdated = setCurrentGlowConfig(effect)
   updateRegionVisuals(0, true)
   if (configUpdated && outwardGlow) publishGlowStatus()
@@ -221,12 +251,36 @@ function applyEffectConfig(): void {
 
 const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
 
+function publishDistrictBarRuntimeStatus(layer: DistrictBarLayer, degraded = false): void {
+  updateDistrictBarRuntimeStatus({
+    renderedCount: layer.byName.size,
+    dataMin: layer.range?.min ?? null,
+    dataMax: layer.range?.max ?? null,
+    degraded
+  })
+}
+
+function handleDistrictBarFailure(cause: unknown, phase: '初始化' | '更新'): void {
+  const layer = districtBars
+  districtBars = null
+  if (layer) {
+    try {
+      disposeDistrictBarLayer(layer)
+    } catch {
+      // The base map must remain available even if bar resource cleanup fails.
+    }
+  }
+  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS, degraded: true })
+  if (districtBarFailureWarned) return
+  districtBarFailureWarned = true
+  console.warn(`区县柱体${phase}失败，保留地图底图`, cause)
+}
+
 function buildRegions(
-  regions: Region[],
+  projected: ProjectionResult,
   byName: Map<string, DistrictMapItem>,
   terrainTex: THREE.Texture
 ) {
-  const projected = projectRegions(regions, PLANE_MAX)
   const [cx, cy] = projected.center
   const scale = projected.scale
 
@@ -312,7 +366,6 @@ function buildRegions(
     }
   }
 
-  group.rotation.x = -Math.PI / 2 // 放平到 XZ 平面，挤出方向朝上
   return group
 }
 
@@ -450,6 +503,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
+  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.mesh.userData.name, eased)
   if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
 
@@ -533,6 +587,14 @@ function loop(now: number) {
   const glowStatusChanged = updateRegionVisuals(deltaMs)
   if (glowStatusChanged) publishGlowStatus()
   controls?.update()
+  const bars = districtBars
+  if (bars) {
+    try {
+      updateDistrictBarLayer(bars, effect.bars, now - barAnimationStartedAt)
+    } catch (cause) {
+      handleDistrictBarFailure(cause, '更新')
+    }
+  }
   if (renderer && scene && camera) {
     if (outwardGlow) {
       if (!renderGlowFrame(scene, camera, now)) renderer.render(scene, camera)
@@ -596,7 +658,17 @@ async function init(generation: number) {
       })
     }
 
-    const mapGroup = buildRegions(regions, byName, terrainTex)
+    const projected = projectRegions(regions, PLANE_MAX)
+    const mapGroup = buildRegions(projected, byName, terrainTex)
+    try {
+      districtBars = createDistrictBarLayer(projected.regions, byName, effect.bars, DEPTH)
+      mapGroup.add(districtBars.group)
+      barAnimationStartedAt = performance.now()
+      publishDistrictBarRuntimeStatus(districtBars)
+    } catch (cause) {
+      handleDistrictBarFailure(cause, '初始化')
+    }
+    mapGroup.rotation.x = -Math.PI / 2 // 放平到 XZ 平面，挤出方向朝上
     if (!isCurrentInit(generation)) {
       disposeSceneResources(mapGroup)
       textureDisposed = true
@@ -626,7 +698,9 @@ async function init(generation: number) {
 
 onMounted(() => {
   mounted = true
+  districtBarFailureWarned = false
   updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
+  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
   const generation = ++initGeneration
   void init(generation)
 })
@@ -666,6 +740,10 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   window.removeEventListener('resize', handleWindowResize)
   controls?.dispose()
   controls = null
+  const bars = districtBars
+  districtBars = null
+  if (bars) disposeDistrictBarLayer(bars)
+  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
   const root = scene ?? fallbackRoot
   if (root) disposeSceneResources(root)
   const pipeline = outwardGlow
@@ -682,6 +760,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   regionVisuals.length = 0
   visualByMesh.clear()
   hoveredVisual = null
+  barAnimationStartedAt = 0
   frames = 0
   lastFpsAt = 0
   lastFrameAt = 0

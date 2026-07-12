@@ -21,6 +21,13 @@ export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
   degraded: boolean
 }
 
+export interface MapDistrictBarRuntimeStatus {
+  renderedCount: number
+  dataMin: number | null
+  dataMax: number | null
+  degraded: boolean
+}
+
 /** 与 HomeView 原 .pos-map 样式一致的默认值 */
 export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 40, top: 230, width: 1000, height: 680 }
 export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
@@ -33,6 +40,12 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   hoverInwardState: 'ready',
   baseWaveActive: true,
   hoverWaveActive: false,
+  degraded: false
+}
+export const DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: MapDistrictBarRuntimeStatus = {
+  renderedCount: 0,
+  dataMin: null,
+  dataMax: null,
   degraded: false
 }
 const LAYOUT_KEY = 'cq-map-debug-layout'
@@ -65,6 +78,9 @@ const drawerOpen = ref(false)
 const layout = reactive<MapLayout>(loadLayout())
 const effect = reactive(loadMapEffectConfig(storage()))
 const effectRuntimeStatus = reactive<MapEffectRuntimeStatus>({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })
+const districtBarRuntimeStatus = reactive<MapDistrictBarRuntimeStatus>({
+  ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS
+})
 // 3D 相机实时视角（由 ChongqingMap3D 在 OrbitControls change 时写入），仅运行时读数，不持久化
 const cameraView = ref('')
 const effectJson = computed(() => formatMapEffectConfig(effect))
@@ -113,6 +129,22 @@ function updateEffectRuntimeStatus(next: MapEffectRuntimeStatus): boolean {
   return true
 }
 
+function sameDistrictBarRuntimeStatus(
+  next: MapDistrictBarRuntimeStatus,
+  current: MapDistrictBarRuntimeStatus
+): boolean {
+  return next.renderedCount === current.renderedCount
+    && next.dataMin === current.dataMin
+    && next.dataMax === current.dataMax
+    && next.degraded === current.degraded
+}
+
+function updateDistrictBarRuntimeStatus(next: MapDistrictBarRuntimeStatus): boolean {
+  if (sameDistrictBarRuntimeStatus(next, districtBarRuntimeStatus)) return false
+  Object.assign(districtBarRuntimeStatus, next)
+  return true
+}
+
 export function useMapDebug() {
   return {
     drawerOpen,
@@ -121,6 +153,8 @@ export function useMapDebug() {
     effectJson,
     effectRuntimeStatus,
     updateEffectRuntimeStatus,
+    districtBarRuntimeStatus,
+    updateDistrictBarRuntimeStatus,
     resetLayout,
     resetEffect,
     cameraView

@@ -24,9 +24,28 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   hoverWaveActive: false,
   degraded: false
 }))
+const districtBarRuntimeStatusDefault = vi.hoisted(() => ({
+  renderedCount: 0,
+  dataMin: null,
+  dataMax: null,
+  degraded: false
+}))
 const mapDebugMocks = vi.hoisted(() => ({
   effect: null as MapEffectConfig | null,
-  updateEffectRuntimeStatus: vi.fn()
+  updateEffectRuntimeStatus: vi.fn(),
+  updateDistrictBarRuntimeStatus: vi.fn()
+}))
+const districtBarMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  applyConfig: vi.fn(),
+  update: vi.fn(),
+  setHoverProgress: vi.fn(),
+  dispose: vi.fn(),
+  layer: null as {
+    group: THREE.Group
+    byName: Map<string, unknown>
+    range: { min: number; max: number } | null
+  } | null
 }))
 const pipelineMocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -63,6 +82,13 @@ vi.mock('./mapEffectRuntime', () => ({ applyMapEffectConfig }))
 vi.mock('./mapOutwardGlowPipeline', () => ({
   createMapOutwardGlowPipeline: pipelineMocks.create
 }))
+vi.mock('./mapDistrictBarLayer', () => ({
+  createDistrictBarLayer: districtBarMocks.create,
+  applyDistrictBarConfig: districtBarMocks.applyConfig,
+  updateDistrictBarLayer: districtBarMocks.update,
+  setDistrictBarHoverProgress: districtBarMocks.setHoverProgress,
+  disposeDistrictBarLayer: districtBarMocks.dispose
+}))
 vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
   OrbitControls: class {
@@ -81,6 +107,7 @@ vi.mock('./mapGeometry', async (importOriginal) => ({
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/composables/useMapDebug', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
+  DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: districtBarRuntimeStatusDefault,
   useMapDebug: () => {
     const effect = reactive<MapEffectConfig>({
       ...MAP_EFFECT_DEFAULTS,
@@ -91,7 +118,9 @@ vi.mock('@/composables/useMapDebug', () => ({
     return {
       cameraView: { value: '' },
       effect,
-      updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus
+      updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus,
+      districtBarRuntimeStatus: { renderedCount: 0, dataMin: null, dataMax: null, degraded: false },
+      updateDistrictBarRuntimeStatus: mapDebugMocks.updateDistrictBarRuntimeStatus
     }
   }
 }))
@@ -107,6 +136,11 @@ afterEach(() => {
   pipelineMocks.create.mockReset()
   Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
   mapDebugMocks.updateEffectRuntimeStatus.mockReset()
+  mapDebugMocks.updateDistrictBarRuntimeStatus.mockReset()
+  Object.values(districtBarMocks).forEach((value) => {
+    if (typeof value === 'function' && 'mockReset' in value) value.mockReset()
+  })
+  districtBarMocks.layer = null
   mapDebugMocks.effect = null
   document.body.replaceChildren()
   vi.unstubAllGlobals()
@@ -132,6 +166,14 @@ beforeEach(() => {
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
   vi.spyOn(THREE.TextureLoader.prototype, 'loadAsync').mockImplementation(() => new Promise(() => {}))
+  const group = new THREE.Group()
+  group.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))
+  districtBarMocks.layer = {
+    group,
+    byName: new Map([['测试区0', {}], ['两江新区', {}]]),
+    range: { min: 20, max: 70 }
+  }
+  districtBarMocks.create.mockReturnValue(districtBarMocks.layer)
 })
 
 function deferred<T>() {
@@ -175,7 +217,10 @@ async function mountInitializedMap(regionCount = 1) {
     status: 200,
     text: vi.fn().mockResolvedValue('<svg/>')
   } as unknown as Response)
-  apiMocks.getDistrictMapData.mockResolvedValue([])
+  apiMocks.getDistrictMapData.mockResolvedValue([
+    { name: '江北区', aj: 20, ztje: 2, zzs: 3 },
+    { name: '渝北区', aj: 50, ztje: 5, zzs: 7 }
+  ])
   geometryMocks.parseSvgRegions.mockReturnValue(Array.from({ length: regionCount }, (_, index) => ({
     name: `测试区${index}`,
     outers: [{ ring: [[index * 120, 0], [index * 120 + 100, 0], [index * 120, 100]], holes: [] }]
@@ -218,6 +263,65 @@ function expectDegradedGlowFallback(
 }
 
 describe('ChongqingMap3D effect wiring', () => {
+  it('wires district bars through setup, config, animation, hover, and teardown without picking them', async () => {
+    const mounted = await mountInitializedMap()
+    const layer = districtBarMocks.layer!
+    const barMesh = layer.group.children[0]
+
+    expect(districtBarMocks.create).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(Map),
+      mapDebugMocks.effect!.bars,
+      4
+    )
+    const [, dataByName] = districtBarMocks.create.mock.calls[0]
+    expect(dataByName.get('两江新区')).toEqual({ name: '两江新区', aj: 70, ztje: 7, zzs: 10 })
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+      renderedCount: 2,
+      dataMin: 20,
+      dataMax: 70,
+      degraded: false
+    })
+
+    districtBarMocks.applyConfig.mockClear()
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    apply()
+    expect(districtBarMocks.applyConfig).toHaveBeenCalledWith(layer, mapDebugMocks.effect!.bars)
+
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    const intersectObjects = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[0] } as THREE.Intersection
+    ])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+
+    expect(districtBarMocks.update).toHaveBeenCalledWith(
+      layer,
+      mapDebugMocks.effect!.bars,
+      expect.any(Number)
+    )
+    expect(districtBarMocks.setHoverProgress).toHaveBeenCalledWith(
+      layer,
+      '测试区0',
+      expect.any(Number)
+    )
+    expect(intersectObjects).toHaveBeenLastCalledWith(regionMeshes, false)
+    expect(intersectObjects.mock.calls.at(-1)![0]).not.toContain(barMesh)
+
+    mounted.app.unmount()
+    expect(districtBarMocks.dispose).toHaveBeenCalledWith(layer)
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenLastCalledWith({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: false
+    })
+  })
+
   it('publishes pipeline status after setup, config, resize, render, and hover threshold crossings', async () => {
     const mounted = await mountInitializedMap()
     expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
@@ -398,10 +502,11 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 3,
+      version: 4,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
-      quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) })
+      quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) }),
+      bars: expect.objectContaining({ enabled: expect.any(Boolean) })
     }))
 
     pipelineMocks.instance.markCameraDirty.mockClear()

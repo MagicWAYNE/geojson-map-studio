@@ -53,6 +53,46 @@ describe('useMapDebug layout defaults', () => {
 })
 
 describe('useMapDebug effects', () => {
+  it('exposes district bar runtime defaults and skips equal updates without replacing the reactive status', async () => {
+    const {
+      DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS,
+      useMapDebug
+    } = await import('./useMapDebug')
+    const debug = useMapDebug()
+    const initial = debug.districtBarRuntimeStatus
+    const assignSpy = vi.spyOn(Object, 'assign')
+
+    expect(DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS).toEqual({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: false
+    })
+    expect(debug.updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })).toBe(false)
+    expect(assignSpy).not.toHaveBeenCalled()
+    expect(debug.districtBarRuntimeStatus).toBe(initial)
+
+    expect(debug.updateDistrictBarRuntimeStatus({
+      renderedCount: 2,
+      dataMin: 20,
+      dataMax: 70,
+      degraded: false
+    })).toBe(true)
+    expect(debug.districtBarRuntimeStatus).toBe(initial)
+    expect(debug.districtBarRuntimeStatus).toEqual({
+      renderedCount: 2,
+      dataMin: 20,
+      dataMax: 70,
+      degraded: false
+    })
+    expect(debug.updateDistrictBarRuntimeStatus({
+      renderedCount: 2,
+      dataMin: 20,
+      dataMax: 70,
+      degraded: false
+    })).toBe(false)
+  })
+
   it('resets v4 defaults while preserving every nested identity without changing the saved layout state', async () => {
     const values = new Map<string, string>()
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
