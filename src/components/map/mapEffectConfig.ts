@@ -139,20 +139,20 @@ const LEGACY_INITIAL_V1_DEFAULTS: LegacyMapEffectConfig = {
 
 const V2_BASE_DEFAULTS: MapEffectBaseConfigV2 = {
   innerColor: '#ffffff', innerWidth: 1.5, innerOpacity: 0.55,
-  outerColor: '#ffffff', outerCoreWidth: 2, outerGlowEnabled: true,
-  outerGlowColor: '#8ab7ff', outerGlowWidth: 72, outerGlowStrength: 0.48,
-  outerGlowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
-  outerGlowNearOpacityRatio: 1.25, outerGlowFarRadiusRatio: 0.7,
+  outerColor: '#cad6fc', outerCoreWidth: 2, outerGlowEnabled: true,
+  outerGlowColor: '#8ab7ff', outerGlowWidth: 100, outerGlowStrength: 0.35,
+  outerGlowNearRadiusRatio: 0.5,
+  outerGlowNearOpacityRatio: 1.2, outerGlowFarRadiusRatio: 0.6,
   outerGlowFarOpacityRatio: 0.75, outerGlowFalloff: 0.9,
-  outerGlowEdgeSoftness: B3_GLOW_PROFILE_DEFAULTS.edgeSoftness,
+  outerGlowEdgeSoftness: 0.9,
   outerGlowNearPasses: 4, outerGlowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
 }
 
 const V2_HOVER_DEFAULTS: MapEffectHoverConfigV2 = {
-  surfaceColor: '#7fcbff', emissiveColor: '#22b4d8', emissiveIntensity: 0.5,
-  outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: false,
-  glowColor: '#ffffff', glowWidth: 110, glowStrength: 0.15,
-  glowNearRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio,
+  surfaceColor: '#7fcbff', emissiveColor: '#4894db', emissiveIntensity: 0.5,
+  outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: true,
+  glowColor: '#ffffff', glowWidth: 64, glowStrength: 0.12,
+  glowNearRadiusRatio: 0.46,
   glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
   glowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
   glowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,

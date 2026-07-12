@@ -21,19 +21,19 @@ const V3_DEFAULTS = {
   version: 3,
   base: {
     innerColor: '#ffffff', innerWidth: 1.5, innerOpacity: 0.55,
-    outerColor: '#ffffff', outerCoreWidth: 2, outerGlowEnabled: true,
-    outerGlowColor: '#8ab7ff', outerGlowWidth: 72, outerGlowStrength: 0.48,
-    outerGlowNearRadiusRatio: 0.35, outerGlowNearOpacityRatio: 1.25,
-    outerGlowFarRadiusRatio: 0.7, outerGlowFarOpacityRatio: 0.75,
-    outerGlowFalloff: 0.9, outerGlowEdgeSoftness: 0.96,
+    outerColor: '#cad6fc', outerCoreWidth: 2, outerGlowEnabled: true,
+    outerGlowColor: '#8ab7ff', outerGlowWidth: 100, outerGlowStrength: 0.35,
+    outerGlowNearRadiusRatio: 0.5, outerGlowNearOpacityRatio: 1.2,
+    outerGlowFarRadiusRatio: 0.6, outerGlowFarOpacityRatio: 0.75,
+    outerGlowFalloff: 0.9, outerGlowEdgeSoftness: 0.9,
     outerGlowNearPasses: 4, outerGlowFarPasses: 4,
     inwardGlow: BASE_INWARD_GLOW_DEFAULTS
   },
   hover: {
-    surfaceColor: '#7fcbff', emissiveColor: '#22b4d8', emissiveIntensity: 0.5,
-    outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: false,
-    glowColor: '#ffffff', glowWidth: 110, glowStrength: 0.15,
-    glowNearRadiusRatio: 0.35, glowNearOpacityRatio: 0.83,
+    surfaceColor: '#7fcbff', emissiveColor: '#4894db', emissiveIntensity: 0.5,
+    outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: true,
+    glowColor: '#ffffff', glowWidth: 64, glowStrength: 0.12,
+    glowNearRadiusRatio: 0.46, glowNearOpacityRatio: 0.83,
     glowFarRadiusRatio: 1, glowFarOpacityRatio: 1, glowFalloff: 1,
     glowEdgeSoftness: 0.96, glowNearPasses: 2, glowFarPasses: 4,
     lift: 2, enterMs: 400, leaveMs: 300,
@@ -149,9 +149,12 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({ getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(APPROVED_V1_CUSTOM_0) : null }))
       .toEqual({
         ...V3_DEFAULTS,
-        base: { ...V3_DEFAULTS.base, innerWidth: 1.75, outerGlowWidth: 0, outerGlowStrength: 0 },
+        base: {
+          ...V3_DEFAULTS.base, outerColor: '#ffffff',
+          innerWidth: 1.75, outerGlowWidth: 0, outerGlowStrength: 0
+        },
         hover: {
-          ...V3_DEFAULTS.hover, glowColor: '#27a7ff', glowWidth: 0,
+          ...V3_DEFAULTS.hover, emissiveColor: '#22b4d8', glowColor: '#27a7ff', glowWidth: 0,
           glowStrength: 0, enterMs: 360
         }
       })
