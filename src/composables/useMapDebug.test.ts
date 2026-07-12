@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import {
   MAP_EFFECT_DEFAULTS,
   MAP_EFFECT_STORAGE_KEY,
+  MAP_EFFECT_STORAGE_KEY_V3,
   MAP_EFFECT_STORAGE_KEY_V1,
   MAP_EFFECT_STORAGE_KEY_V2
 } from '@/components/map/mapEffectConfig'
@@ -52,7 +53,7 @@ describe('useMapDebug layout defaults', () => {
 })
 
 describe('useMapDebug effects', () => {
-  it('resets v3 defaults while preserving every nested identity without changing the saved layout state', async () => {
+  it('resets v4 defaults while preserving every nested identity without changing the saved layout state', async () => {
     const values = new Map<string, string>()
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
       version: 1,
@@ -90,6 +91,7 @@ describe('useMapDebug effects', () => {
     const base = debug.effect.base
     const hover = debug.effect.hover
     const quality = debug.effect.quality
+    const bars = debug.effect.bars
     const baseInward = debug.effect.base.inwardGlow
     const hoverInward = debug.effect.hover.inwardGlow
     const baseWave = debug.effect.base.inwardGlow.wave
@@ -99,6 +101,7 @@ describe('useMapDebug effects', () => {
     debug.effect.base.outerGlowWidth = 22
     debug.effect.hover.lift = 2
     debug.effect.quality.maxAlpha = 0.25
+    debug.effect.bars.width = 6
     debug.resetEffect()
     await nextTick()
 
@@ -108,20 +111,22 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.base).toBe(base)
     expect(debug.effect.hover).toBe(hover)
     expect(debug.effect.quality).toBe(quality)
+    expect(debug.effect.bars).toBe(bars)
     expect(debug.effect.base.inwardGlow).toBe(baseInward)
     expect(debug.effect.hover.inwardGlow).toBe(hoverInward)
     expect(debug.effect.base.inwardGlow.wave).toBe(baseWave)
     expect(debug.effect.hover.inwardGlow.wave).toBe(hoverWave)
     expect(debug.effect.quality).toEqual(MAP_EFFECT_DEFAULTS.quality)
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 3,
-      quality: { maxAlpha: 1 }
+      version: 4,
+      quality: { maxAlpha: 1 },
+      bars: MAP_EFFECT_DEFAULTS.bars
     })
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V2)).toBe(false)
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(true)
   })
 
-  it('persists deep v3 inward-wave changes only to the v3 key and restores them after a module reload', async () => {
+  it('persists deep v4 changes only to the v4 key and restores them after a module reload', async () => {
     const values = new Map<string, string>()
     const writes: Array<[string, string]> = []
     vi.stubGlobal('localStorage', {
@@ -139,16 +144,19 @@ describe('useMapDebug effects', () => {
     debug.effect.base.inwardGlow.wave.periodMs = 4200
     debug.effect.hover.inwardGlow.wave.strength = 0.9
     debug.effect.quality.maxAlpha = 0.25
+    debug.effect.bars.hoverLift = 2.5
     await nextTick()
 
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(false)
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V2)).toBe(false)
+    expect(values.has(MAP_EFFECT_STORAGE_KEY_V3)).toBe(false)
     expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 3,
+      version: 4,
       base: { outerGlowNearRadiusRatio: 0.42, inwardGlow: { wave: { periodMs: 4200 } } },
       hover: { glowFarOpacityRatio: 0.63, inwardGlow: { wave: { strength: 0.9 } } },
-      quality: { maxAlpha: 0.25 }
+      quality: { maxAlpha: 0.25 },
+      bars: { hoverLift: 2.5 }
     })
     expect(writes.length).toBeGreaterThan(0)
 
@@ -160,6 +168,7 @@ describe('useMapDebug effects', () => {
     expect(reloaded.effect.base.inwardGlow.wave.periodMs).toBe(4200)
     expect(reloaded.effect.hover.inwardGlow.wave.strength).toBe(0.9)
     expect(reloaded.effect.quality.maxAlpha).toBe(0.25)
+    expect(reloaded.effect.bars.hoverLift).toBe(2.5)
   })
 
   it('converges watcher normalization and stops writing after the normalized state settles', async () => {
@@ -183,6 +192,7 @@ describe('useMapDebug effects', () => {
     debug.effect.quality.maxAlpha = 1.5
     debug.effect.base.inwardGlow.wave.periodMs = 99
     debug.effect.hover.inwardGlow.maxAlpha = 9
+    debug.effect.bars.opacity = 2
 
     await nextTick()
     await nextTick()
@@ -194,10 +204,11 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.quality.maxAlpha).toBe(1)
     expect(debug.effect.base.inwardGlow.wave.periodMs).toBe(250)
     expect(debug.effect.hover.inwardGlow.maxAlpha).toBe(1)
+    expect(debug.effect.bars.opacity).toBe(1)
 
     const persisted = JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)
     expect(persisted).toMatchObject({
-      version: 3,
+      version: 4,
       base: {
         outerGlowColor: '#abcdef',
         outerGlowFalloff: 4,
@@ -210,7 +221,8 @@ describe('useMapDebug effects', () => {
       },
       quality: {
         maxAlpha: 1
-      }
+      },
+      bars: { opacity: 1 }
     })
 
     const writesAfterSettle = writes.length
