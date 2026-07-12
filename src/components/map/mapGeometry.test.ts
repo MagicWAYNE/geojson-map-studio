@@ -2,8 +2,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifyBoundarySegments,
+  findRegionInteriorPoint,
   parsePathD,
   parseSvgRegions,
+  pointInRegion,
   projectRegions,
   type Region
 } from './mapGeometry'
@@ -65,5 +67,35 @@ describe('mapGeometry', () => {
     expect(result.scale).toBe(5)
     expect(result.center).toEqual([1, 0.5])
     expect(result.regions[0].outers[0].ring[0]).toEqual([-5, 2.5])
+  })
+
+  it('为凹多边形找到确定性的内部锚点', () => {
+    const region: Region = {
+      name: 'L',
+      outers: [{
+        ring: [[0, 0], [6, 0], [6, 2], [2, 2], [2, 6], [0, 6]],
+        holes: []
+      }]
+    }
+
+    const point = findRegionInteriorPoint(region)
+
+    expect(point).not.toBeNull()
+    expect(pointInRegion(point!, region)).toBe(true)
+  })
+
+  it('为包含孔洞的区块避开孔洞寻找内部锚点', () => {
+    const region: Region = {
+      name: '有孔',
+      outers: [{
+        ring: [[0, 0], [6, 0], [6, 6], [0, 6]],
+        holes: [[[2, 2], [4, 2], [4, 4], [2, 4]]]
+      }]
+    }
+
+    const point = findRegionInteriorPoint(region)
+
+    expect(point).not.toBeNull()
+    expect(pointInRegion(point!, region)).toBe(true)
   })
 })

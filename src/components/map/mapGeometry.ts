@@ -59,6 +59,65 @@ function pointInRing([x, y]: Point2, ring: Ring): boolean {
   return inside
 }
 
+/** Returns whether a point lies in an outer ring and outside all of its holes. */
+export function pointInRegion(point: Point2, region: Region): boolean {
+  return region.outers.some((outer) =>
+    pointInRing(point, outer.ring) && !outer.holes.some((hole) => pointInRing(point, hole))
+  )
+}
+
+function signedRingArea(ring: Ring): number {
+  return ring.reduce((area, [x1, y1], index) => {
+    const [x2, y2] = ring[(index + 1) % ring.length]
+    return area + x1 * y2 - x2 * y1
+  }, 0) / 2
+}
+
+function ringAreaWeightedMean(ring: Ring): Point2 | null {
+  const area = signedRingArea(ring)
+  if (Math.abs(area) < Number.EPSILON) return null
+
+  const [x, y] = ring.reduce<[number, number]>(([sumX, sumY], [x1, y1], index) => {
+    const [x2, y2] = ring[(index + 1) % ring.length]
+    const cross = x1 * y2 - x2 * y1
+    return [sumX + (x1 + x2) * cross, sumY + (y1 + y2) * cross]
+  }, [0, 0])
+  return [x / (6 * area), y / (6 * area)]
+}
+
+/**
+ * Finds a deterministic point usable for labels or map-local resources.  A
+ * concave polygon's centroid and bounds centre can both be outside the region,
+ * so both are followed by a stable grid fallback.
+ */
+export function findRegionInteriorPoint(region: Region): Point2 | null {
+  const outerRings = region.outers.map((outer) => outer.ring).filter((ring) => ring.length)
+  const candidates = outerRings
+    .map(ringAreaWeightedMean)
+    .filter((point): point is Point2 => point !== null)
+
+  const points = outerRings.flat()
+  if (!points.length) return null
+  const xs = points.map(([x]) => x)
+  const ys = points.map(([, y]) => y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  candidates.push([(minX + maxX) / 2, (minY + maxY) / 2])
+
+  for (let row = 0; row < 9; row++) {
+    for (let column = 0; column < 9; column++) {
+      candidates.push([
+        minX + ((column + 0.5) / 9) * (maxX - minX),
+        minY + ((row + 0.5) / 9) * (maxY - minY)
+      ])
+    }
+  }
+
+  return candidates.find((point) => pointInRegion(point, region)) ?? null
+}
+
 export function parseSvgRegions(svgText: string): Region[] {
   const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml')
   return Array.from(doc.querySelectorAll('path[data-name]')).map((path) => {
