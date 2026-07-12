@@ -245,7 +245,7 @@ describe('useMapDebug effects', () => {
     const inwardStatuses = [
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseInwardState: 'zero' as const },
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverInwardState: 'active' as const },
-      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: true },
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: false },
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverWaveActive: true }
     ]
     expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(true)
@@ -263,10 +263,10 @@ describe('useMapDebug effects', () => {
       targetHeight: 1,
       renderScale: 0.5,
       baseState: 'enabled',
-      hoverState: 'zero',
+      hoverState: 'disabled',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
-      baseWaveActive: false,
+      baseWaveActive: true,
       hoverWaveActive: false,
       degraded: false
     })

@@ -228,6 +228,23 @@ describe('mapOutwardGlowPipeline', () => {
     expect(new Set(shaderMocks.renderBlur.mock.calls.map((call) => call[4]))).toHaveLength(8)
   })
 
+  it('propagates an inward composite error while restoring the renderer target and autoClear', () => {
+    const previousTarget = new THREE.WebGLRenderTarget(4, 4)
+    const { pipeline, renderer, scene, camera } = fixture(previousTarget)
+    const config = configWith({ baseInwardEnabled: true })
+    pipeline.setConfig(config)
+    renderer.autoClear = false
+    inwardShaderMocks.renderComposite.mockImplementationOnce(() => {
+      throw new Error('inward composite failed')
+    })
+
+    expect(() => pipeline.render(scene, camera, 1000)).toThrow('inward composite failed')
+
+    expect(inwardShaderMocks.renderComposite).toHaveBeenCalledOnce()
+    expect(renderer.setRenderTarget).toHaveBeenLastCalledWith(previousTarget)
+    expect(renderer.autoClear).toBe(false)
+  })
+
   it('reports inward disabled, zero, ready, and active states independently', () => {
     const { pipeline, meshes } = fixture()
     const config = configWith({ baseInwardEnabled: true, hoverInwardEnabled: true })

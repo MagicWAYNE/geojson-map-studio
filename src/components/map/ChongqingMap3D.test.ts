@@ -17,10 +17,10 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   targetHeight: 1,
   renderScale: 0.5 as const,
   baseState: 'enabled' as const,
-  hoverState: 'zero' as const,
+  hoverState: 'disabled' as const,
   baseInwardState: 'active' as const,
   hoverInwardState: 'ready' as const,
-  baseWaveActive: false,
+  baseWaveActive: true,
   hoverWaveActive: false,
   degraded: false
 }))
@@ -488,6 +488,9 @@ describe('ChongqingMap3D effect wiring', () => {
     const mounted = await mountInitializedMap(2)
     const [, meshes] = pipelineMocks.create.mock.calls[0]
     const map = mounted.root.querySelector('.cq-map3d')!
+    const progressFor = (source: THREE.Mesh) => pipelineMocks.instance.setRegionProgress.mock.calls
+      .filter(([candidate]) => candidate === source)
+      .map(([, progress]) => progress as number)
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
       .mockReturnValueOnce([{ object: meshes[0] } as THREE.Intersection])
       .mockReturnValueOnce([{ object: meshes[1] } as THREE.Intersection])
@@ -496,29 +499,33 @@ describe('ChongqingMap3D effect wiring', () => {
     map.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
     mounted.runFrame(100)
     mounted.runFrame(200)
-    const firstProgress = pipelineMocks.instance.setRegionProgress.mock.calls
-      .filter(([source]) => source === meshes[0])
-      .map(([, progress]) => progress as number)
-      .at(-1)!
+    const establishedProgress = progressFor(meshes[0]).at(-1)!
 
     map.dispatchEvent(new PointerEvent('pointerleave'))
     mounted.runFrame(216)
-    const leavingProgress = pipelineMocks.instance.setRegionProgress.mock.calls
-      .filter(([source]) => source === meshes[0])
-      .map(([, progress]) => progress as number)
-      .at(-1)!
+    const leavingProgress = progressFor(meshes[0]).at(-1)!
+    const callsBeforeSwitch = pipelineMocks.instance.setRegionProgress.mock.calls.length
 
     map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
     mounted.runFrame(232)
     mounted.runFrame(248)
-    const switchedProgress = pipelineMocks.instance.setRegionProgress.mock.calls
+    const switchCalls = pipelineMocks.instance.setRegionProgress.mock.calls.slice(callsBeforeSwitch)
+    const outgoingAfterSwitch = switchCalls
+      .filter(([source]) => source === meshes[0])
+      .map(([, progress]) => progress as number)
+    const incomingAfterSwitch = switchCalls
       .filter(([source]) => source === meshes[1])
       .map(([, progress]) => progress as number)
-      .at(-1)!
+    const firstIncomingPositiveProgress = incomingAfterSwitch.find((progress) => progress > 0)
 
-    expect(firstProgress).toBeGreaterThan(0)
-    expect(leavingProgress).toBeLessThan(firstProgress)
-    expect(switchedProgress).toBeGreaterThan(0)
+    expect(establishedProgress).toBeGreaterThan(0)
+    expect(leavingProgress).toBeLessThan(establishedProgress)
+    expect(outgoingAfterSwitch).toHaveLength(2)
+    expect(outgoingAfterSwitch[0]).toBeLessThan(leavingProgress)
+    expect(outgoingAfterSwitch[1]).toBeLessThan(outgoingAfterSwitch[0])
+    expect(firstIncomingPositiveProgress).toBeGreaterThan(0)
+    expect(firstIncomingPositiveProgress).toBeLessThan(1)
+    expect(firstIncomingPositiveProgress).toBeLessThan(establishedProgress)
     mounted.app.unmount()
   })
 
@@ -707,31 +714,6 @@ describe('ChongqingMap3D effect wiring', () => {
 
     remounted.app.unmount()
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(2)
-  })
-
-  it('degrades once when the inward composite fails and directly renders the current and later frames', async () => {
-    const inwardComposite = vi.fn(() => { throw new Error('inward composite failed') })
-    pipelineMocks.instance.render.mockImplementation(() => inwardComposite())
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const mounted = await mountInitializedMap()
-    pipelineMocks.instance.dispose.mockClear()
-    mounted.renderer.render.mockClear()
-    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
-
-    expect(() => mounted.runFrame(16)).not.toThrow()
-
-    expect(inwardComposite).toHaveBeenCalledTimes(1)
-    expectDegradedGlowFallback(mounted, warn)
-    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
-
-    mounted.runFrame(32)
-
-    expect(inwardComposite).toHaveBeenCalledTimes(1)
-    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(mounted.renderer.render).toHaveBeenCalledTimes(2)
-    mounted.app.unmount()
-    expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
   })
 
   it('routes watcher callbacks to the effect runtime and stops the watcher on unmount', async () => {
