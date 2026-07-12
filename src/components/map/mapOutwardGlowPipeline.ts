@@ -443,7 +443,7 @@ export function createMapOutwardGlowPipeline(
         farOpacity: profile.farOpacity,
         falloff: channel.falloff,
         edgeSoftness: channel.edgeSoftness,
-        maxAlpha: channel.maxAlpha,
+        maxAlpha: Math.min(channel.maxAlpha, config.quality.maxAlpha),
         baseRatio: channel.baseRatio,
         waveActive: false,
         wavePhase: 0,
@@ -476,7 +476,7 @@ export function createMapOutwardGlowPipeline(
     composite.farOpacity = cache.profile.farOpacity
     composite.falloff = channel.falloff
     composite.edgeSoftness = channel.edgeSoftness
-    composite.maxAlpha = channel.maxAlpha
+    composite.maxAlpha = Math.min(channel.maxAlpha, config.quality.maxAlpha)
     composite.baseRatio = channel.baseRatio
     composite.waveWidthRatio = channel.wave.widthRatio
     composite.waveStrength = channel.wave.strength
@@ -563,6 +563,11 @@ export function createMapOutwardGlowPipeline(
   ): boolean {
     return isGlowEnabled(true, channel.width, channel.strength)
       && (cache.profile.nearOpacity > 0 || cache.profile.farOpacity > 0)
+      && (channel.baseRatio > 0 || inwardWaveIsEffective(channel))
+  }
+
+  function inwardWaveIsEffective(channel: MapInwardGlowConfig): boolean {
+    return channel.wave.enabled && channel.wave.strength > 0
   }
 
   function baseInwardState(): MapOutwardGlowBaseInwardState {
@@ -696,7 +701,11 @@ export function createMapOutwardGlowPipeline(
       const hoverEnabled = hoverState() === 'active'
       const staticInwardEnabled = baseInwardState() === 'active'
       const hoverInwardEnabled = hoverInwardState() === 'active'
-      updateWavePhases(nowMs, staticInwardEnabled, hoverInwardEnabled)
+      updateWavePhases(
+        nowMs,
+        staticInwardEnabled && inwardWaveIsEffective(staticInwardChannel),
+        hoverInwardEnabled && inwardWaveIsEffective(currentHoverInwardChannel)
+      )
       try {
         renderer.autoClear = false
         if (staticEnabled || staticInwardEnabled) {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createInwardGlowShaderResources,
   disposeInwardGlowShaderResources,
+  evaluateInwardWaveSample,
   renderInwardComposite,
   type InwardCompositeInputs
 } from './mapInwardGlowShaders'
@@ -92,8 +93,9 @@ describe('mapInwardGlowShaders', () => {
     expect(fragmentShader).toContain(
       'float wavePeak = 1.0 - smoothstep(0.0, halfWidth, abs(depth - center));'
     )
+    expect(fragmentShader).toContain('float center = uWavePhase * uWaveTravelRatio;')
     expect(fragmentShader).toContain(
-      'float waveDecay = pow(max(1.0 - center, 0.0), uWaveDecay);'
+      'float waveDecay = uWaveDecay <= 0.0 ? 1.0 : pow(max(1.0 - uWavePhase, 0.0), uWaveDecay);'
     )
     expect(fragmentShader).toContain('float baseAlpha = shaped * clamp(uBaseRatio, 0.0, 1.0) * insideGate;')
     expect(fragmentShader).toContain(
@@ -108,6 +110,39 @@ describe('mapInwardGlowShaders', () => {
     )
 
     disposeInwardGlowShaderResources(resources)
+  })
+
+  it('lets travel ratio set the full wave-center depth and naturally moves beyond the map', () => {
+    expect(evaluateInwardWaveSample({
+      depth: 1,
+      phase: 0.75,
+      widthRatio: 0.24,
+      travelRatio: 2,
+      decay: 0
+    })).toMatchObject({ center: 1.5, peak: 0 })
+
+    const edge = evaluateInwardWaveSample({
+      depth: 1,
+      phase: 0.5,
+      widthRatio: 0.24,
+      travelRatio: 2,
+      decay: 0
+    })
+    expect(edge.center).toBe(1)
+    expect(edge.peak).toBe(1)
+  })
+
+  it('keeps zero-decay amplitude finite at the end of travel', () => {
+    const sample = evaluateInwardWaveSample({
+      depth: 1,
+      phase: 1,
+      widthRatio: 0.24,
+      travelRatio: 1,
+      decay: 0
+    })
+
+    expect(sample).toEqual({ center: 1, peak: 1, amplitude: 1, value: 1 })
+    expect(Object.values(sample).every(Number.isFinite)).toBe(true)
   })
 
   it('finite-clamps every scalar composite uniform and disables the wave when inactive', () => {

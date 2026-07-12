@@ -270,6 +270,91 @@ describe('mapOutwardGlowPipeline', () => {
     })
   })
 
+  it('treats base and hover inward channels as zero when neither base nor wave contributes', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const config = configWith({
+      baseRadius: 0,
+      baseOpacity: 0,
+      hoverRadius: 0,
+      hoverOpacity: 0,
+      baseInwardEnabled: true,
+      hoverInwardEnabled: true
+    })
+    config.base.inwardGlow.baseRatio = 0
+    config.base.inwardGlow.wave.enabled = false
+    config.hover.inwardGlow.baseRatio = 0
+    config.hover.inwardGlow.wave.enabled = true
+    config.hover.inwardGlow.wave.strength = 0
+    pipeline.setConfig(config)
+    pipeline.setRegionProgress(meshes[0], 1)
+
+    pipeline.render(scene, camera, 1000)
+
+    expect(pipeline.getStatus()).toMatchObject({
+      baseInwardState: 'zero',
+      hoverInwardState: 'zero',
+      baseWaveActive: false,
+      hoverWaveActive: false
+    })
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(0)
+    expect(shaderMocks.renderBlur).not.toHaveBeenCalled()
+    expect(inwardShaderMocks.renderComposite).not.toHaveBeenCalled()
+  })
+
+  it('keeps a stable base glow and a wave-only hover channel effective independently', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const config = configWith({
+      baseRadius: 0,
+      baseOpacity: 0,
+      hoverRadius: 0,
+      hoverOpacity: 0,
+      baseInwardEnabled: true,
+      hoverInwardEnabled: true
+    })
+    config.base.inwardGlow.baseRatio = 0.5
+    config.base.inwardGlow.wave.strength = 0
+    config.hover.inwardGlow.baseRatio = 0
+    config.hover.inwardGlow.wave.enabled = true
+    config.hover.inwardGlow.wave.strength = 0.5
+    pipeline.setConfig(config)
+    pipeline.setRegionProgress(meshes[0], 1)
+
+    pipeline.render(scene, camera, 1000)
+
+    expect(pipeline.getStatus()).toMatchObject({
+      baseInwardState: 'active',
+      hoverInwardState: 'active',
+      baseWaveActive: false,
+      hoverWaveActive: true
+    })
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+    expect(inwardShaderMocks.renderComposite).toHaveBeenCalledTimes(2)
+  })
+
+  it('still renders shared base and hover masks for outward work when inward is zero', () => {
+    const { pipeline, meshes, renderer, scene, camera } = fixture()
+    const config = configWith({
+      hoverRadius: 54,
+      hoverOpacity: 0.23,
+      baseInwardEnabled: true,
+      hoverInwardEnabled: true
+    })
+    config.base.inwardGlow.baseRatio = 0
+    config.base.inwardGlow.wave.strength = 0
+    config.hover.inwardGlow.baseRatio = 0
+    config.hover.inwardGlow.wave.enabled = false
+    pipeline.setConfig(config)
+    pipeline.setRegionProgress(meshes[0], 1)
+
+    pipeline.render(scene, camera, 1000)
+
+    expect(renderedMaskScenes(renderer, scene)).toHaveLength(2)
+    expect(shaderMocks.renderBlur).toHaveBeenCalledTimes(4)
+    expect(shaderMocks.renderComposite).toHaveBeenCalledTimes(2)
+    expect(inwardShaderMocks.renderComposite).not.toHaveBeenCalled()
+  })
+
   it('updates only inward wave composite phase as deterministic time advances', () => {
     const { pipeline, renderer, scene, camera } = fixture()
     const config = configWith({
@@ -391,6 +476,29 @@ describe('mapOutwardGlowPipeline', () => {
         waveTravelRatio: 1.5,
         waveDecay: 1.2
       })
+    )
+  })
+
+  it('caps inward composite alpha by both the channel and global quality on create and refresh', () => {
+    const { pipeline, renderer, scene, camera } = fixture()
+
+    pipeline.render(scene, camera, 1000)
+    expect(inwardShaderMocks.renderComposite).toHaveBeenLastCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({ maxAlpha: 0.5 })
+    )
+
+    const limited = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
+    limited.base.inwardGlow.maxAlpha = 0.5
+    limited.quality.maxAlpha = 0.1
+    pipeline.setConfig(limited)
+    pipeline.render(scene, camera, 1100)
+
+    expect(inwardShaderMocks.renderComposite).toHaveBeenLastCalledWith(
+      renderer,
+      expect.any(Object),
+      expect.objectContaining({ maxAlpha: 0.1 })
     )
   })
 

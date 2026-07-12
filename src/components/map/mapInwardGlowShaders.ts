@@ -44,10 +44,10 @@ void main() {
   float shaped = pow(combined, clamp(uFalloff, 0.25, 4.0));
   float baseAlpha = shaped * clamp(uBaseRatio, 0.0, 1.0) * insideGate;
   float depth = clamp(1.0 - 2.0 * farBand / max(mask, 0.0001), 0.0, 1.0);
-  float center = clamp(uWavePhase * uWaveTravelRatio, 0.0, 1.0);
+  float center = uWavePhase * uWaveTravelRatio;
   float halfWidth = max(clamp(uWaveWidthRatio, 0.01, 1.0) * 0.5, 0.0001);
   float wavePeak = 1.0 - smoothstep(0.0, halfWidth, abs(depth - center));
-  float waveDecay = pow(max(1.0 - center, 0.0), uWaveDecay);
+  float waveDecay = uWaveDecay <= 0.0 ? 1.0 : pow(max(1.0 - uWavePhase, 0.0), uWaveDecay);
   float waveEnvelope = shaped * wavePeak * waveDecay * insideGate;
   float waveAlpha = uWaveActive > 0.5 ? waveEnvelope * clamp(uWaveStrength, 0.0, 2.0) : 0.0;
   float outsideGuard = step(0.0001, mask);
@@ -93,10 +93,41 @@ export interface InwardCompositeInputs {
   waveDecay: number
 }
 
+export interface InwardWaveSampleInputs {
+  depth: number
+  phase: number
+  widthRatio: number
+  travelRatio: number
+  decay: number
+}
+
+export interface InwardWaveSample {
+  center: number
+  peak: number
+  amplitude: number
+  value: number
+}
+
 function finiteClamped(value: number, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(max, Math.max(min, value))
     : fallback
+}
+
+export function evaluateInwardWaveSample(inputs: InwardWaveSampleInputs): InwardWaveSample {
+  const depth = finiteClamped(inputs.depth, 0, 0, 1)
+  const phase = finiteClamped(inputs.phase, DEFAULT_WAVE_PHASE, 0, 1)
+  const widthRatio = finiteClamped(inputs.widthRatio, DEFAULT_WAVE_WIDTH_RATIO, 0.01, 1)
+  const travelRatio = finiteClamped(inputs.travelRatio, DEFAULT_WAVE_TRAVEL_RATIO, 0.25, 2)
+  const decay = finiteClamped(inputs.decay, DEFAULT_WAVE_DECAY, 0, 4)
+  const center = phase * travelRatio
+  const halfWidth = Math.max(widthRatio * 0.5, 0.0001)
+  const distanceRatio = Math.min(1, Math.max(0, Math.abs(depth - center) / halfWidth))
+  const smoothDistance = distanceRatio * distanceRatio * (3 - 2 * distanceRatio)
+  const peak = 1 - smoothDistance
+  const amplitude = decay <= 0 ? 1 : Math.pow(Math.max(1 - phase, 0), decay)
+
+  return { center, peak, amplitude, value: peak * amplitude }
 }
 
 export function createInwardGlowShaderResources(): InwardGlowShaderResources {
