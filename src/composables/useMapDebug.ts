@@ -26,10 +26,10 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetHeight: 1,
   renderScale: 0.5,
   baseState: 'enabled',
-  hoverState: 'disabled',
+  hoverState: 'ready',
   baseInwardState: 'active',
   hoverInwardState: 'ready',
-  baseWaveActive: true,
+  baseWaveActive: false,
   hoverWaveActive: false,
   degraded: false
 }

@@ -267,7 +267,7 @@ describe('useMapDebug effects', () => {
     const inwardStatuses = [
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseInwardState: 'zero' as const },
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverInwardState: 'active' as const },
-      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: false },
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: true },
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverWaveActive: true }
     ]
     expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(true)
@@ -278,6 +278,26 @@ describe('useMapDebug effects', () => {
     }
   })
 
+  it('aligns the runtime status default with enabled effect defaults', async () => {
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapDebug')
+
+    expect(MAP_EFFECT_DEFAULTS.base.outerGlowEnabled).toBe(true)
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseState).toBe('enabled')
+
+    expect(MAP_EFFECT_DEFAULTS.hover.glowEnabled).toBe(true)
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverState).toBe('ready')
+
+    expect(MAP_EFFECT_DEFAULTS.base.inwardGlow.enabled).toBe(true)
+    expect(MAP_EFFECT_DEFAULTS.base.inwardGlow.wave.enabled).toBe(false)
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseInwardState).toBe('active')
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseWaveActive).toBe(false)
+
+    expect(MAP_EFFECT_DEFAULTS.hover.inwardGlow.enabled).toBe(true)
+    expect(MAP_EFFECT_DEFAULTS.hover.inwardGlow.wave.enabled).toBe(false)
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverInwardState).toBe('ready')
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverWaveActive).toBe(false)
+  })
+
   it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
     const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapDebug')
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS).toEqual({
@@ -285,10 +305,10 @@ describe('useMapDebug effects', () => {
       targetHeight: 1,
       renderScale: 0.5,
       baseState: 'enabled',
-      hoverState: 'disabled',
+      hoverState: 'ready',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
-      baseWaveActive: true,
+      baseWaveActive: false,
       hoverWaveActive: false,
       degraded: false
     })
