@@ -20,7 +20,7 @@ export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
 }
 
 /** 与 HomeView 原 .pos-map 样式一致的默认值 */
-export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 115, top: 230, width: 680, height: 680 }
+export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 40, top: 230, width: 1000, height: 680 }
 export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetWidth: 1,
   targetHeight: 1,

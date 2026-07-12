@@ -20,6 +20,36 @@ afterEach(() => {
   vi.resetModules()
 })
 
+describe('useMapDebug layout defaults', () => {
+  it('uses the tuned layout when storage is empty and resetLayout restores it', async () => {
+    const values = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value)
+    })
+    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
+    const expected = { left: 40, top: 230, width: 1000, height: 680 }
+    const debug = useMapDebug()
+
+    expect(MAP_LAYOUT_DEFAULT).toEqual(expected)
+    expect(debug.layout).toEqual(expected)
+    debug.layout.left = 480
+    debug.layout.width = 720
+    debug.resetLayout()
+    expect(debug.layout).toEqual(expected)
+  })
+
+  it('keeps a valid saved layout ahead of tuned source defaults', async () => {
+    const saved = { left: 88, top: 99, width: 777, height: 666 }
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => key === 'cq-map-debug-layout' ? JSON.stringify(saved) : null,
+      setItem: vi.fn()
+    })
+    const { useMapDebug } = await import('./useMapDebug')
+    expect(useMapDebug().layout).toEqual(saved)
+  })
+})
+
 describe('useMapDebug effects', () => {
   it('restores v2 defaults with stable root and nested identities without changing the saved layout state', async () => {
     const values = new Map<string, string>()
