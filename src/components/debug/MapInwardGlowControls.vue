@@ -161,7 +161,10 @@ function resetGroup(): void {
 
 watch(() => props.modelValue, () => {
   for (const field of [...ROOT_FIELDS, ...WAVE_FIELDS]) {
-    numberDrafts[fieldName(field)] = String(numberValue(field))
+    const name = fieldName(field)
+    const value = String(numberValue(field))
+    numberDrafts[name] = value
+    if (committedNumbers.get(name) !== value) committedNumbers.delete(name)
   }
 }, { deep: true, immediate: true })
 </script>

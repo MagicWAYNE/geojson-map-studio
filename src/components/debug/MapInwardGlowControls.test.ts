@@ -173,6 +173,50 @@ describe('MapInwardGlowControls', () => {
     app.unmount()
   })
 
+  it('re-emits a root slider value after an external model reset', async () => {
+    const { app, root, state, updates } = await mountControls()
+    const width = input(root, 'effect-base-inward-width-range')
+
+    width.value = '96'
+    width.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    await nextTick()
+    expect(updates).toHaveLength(1)
+    expect(state.value.width).toBe(96)
+
+    state.value = cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS)
+    await nextTick()
+    expect(state.value.width).toBe(BASE_INWARD_GLOW_DEFAULTS.width)
+
+    width.value = '96'
+    width.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    await nextTick()
+    expect(updates).toHaveLength(2)
+    expect(updates.at(-1)?.width).toBe(96)
+    app.unmount()
+  })
+
+  it('re-emits a wave slider value after an external model reset', async () => {
+    const { app, root, state, updates } = await mountControls()
+    const period = input(root, 'effect-base-inward-wave-periodMs-range')
+
+    period.value = '4200'
+    period.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    await nextTick()
+    expect(updates).toHaveLength(1)
+    expect(state.value.wave.periodMs).toBe(4200)
+
+    state.value = cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS)
+    await nextTick()
+    expect(state.value.wave.periodMs).toBe(BASE_INWARD_GLOW_DEFAULTS.wave.periodMs)
+
+    period.value = '4200'
+    period.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    await nextTick()
+    expect(updates).toHaveLength(2)
+    expect(updates.at(-1)?.wave.periodMs).toBe(4200)
+    app.unmount()
+  })
+
   it('emits fresh deep clones for B1 and group reset on each action', async () => {
     const { app, root, state, updates } = await mountControls('hover')
     state.value.width = 111
