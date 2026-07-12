@@ -239,6 +239,7 @@ git commit -m "feat(map): render district bar layer"
 
 - Modify: `src/components/map/ChongqingMap3D.vue`
 - Modify: `src/components/map/ChongqingMap3D.test.ts`
+- Modify: `src/components/map/mapEffectWatcher.test.ts`
 - Modify: `src/composables/useMapDebug.ts`
 - Modify: `src/composables/useMapDebug.test.ts`
 
@@ -265,6 +266,8 @@ expect(disposeDistrictBarLayer).toHaveBeenCalledWith(layer)
 ```
 
 Add a test confirming `raycaster.intersectObjects` still receives `regionMeshes` only, not bar meshes. Add composable tests for `DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS`, no-op equality updates, and reset to the default status on teardown.
+
+Update the existing `mapEffectWatcher.test.ts` fixtures from version `3` to version `4`, including a cloned `bars` object, so the watcher continues to prove that deep bar edits invoke the configured apply callback without reintroducing stale-schema assertions.
 
 - [ ] **Step 2: Run focused tests and verify they fail**
 
@@ -303,7 +306,7 @@ Expected: all selected tests PASS; the map test proves config watch, animation f
 - [ ] **Step 5: Commit the scene integration**
 
 ```bash
-git add src/components/map/ChongqingMap3D.vue src/components/map/ChongqingMap3D.test.ts \
+git add src/components/map/ChongqingMap3D.vue src/components/map/ChongqingMap3D.test.ts src/components/map/mapEffectWatcher.test.ts \
   src/composables/useMapDebug.ts src/composables/useMapDebug.test.ts
 git commit -m "feat(map): wire district bars into 3d scene"
 ```
