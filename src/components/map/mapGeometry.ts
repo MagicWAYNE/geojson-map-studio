@@ -85,6 +85,23 @@ function ringAreaWeightedMean(ring: Ring): Point2 | null {
   return [x / (6 * area), y / (6 * area)]
 }
 
+function regionAreaWeightedMean(rings: Ring[]): Point2 | null {
+  let totalArea = 0
+  let weightedX = 0
+  let weightedY = 0
+  for (const ring of rings) {
+    const area = signedRingArea(ring)
+    const mean = ringAreaWeightedMean(ring)
+    if (!mean) continue
+    totalArea += area
+    weightedX += mean[0] * area
+    weightedY += mean[1] * area
+  }
+  return Math.abs(totalArea) < Number.EPSILON
+    ? null
+    : [weightedX / totalArea, weightedY / totalArea]
+}
+
 /**
  * Finds a deterministic point usable for labels or map-local resources.  A
  * concave polygon's centroid and bounds centre can both be outside the region,
@@ -92,9 +109,8 @@ function ringAreaWeightedMean(ring: Ring): Point2 | null {
  */
 export function findRegionInteriorPoint(region: Region): Point2 | null {
   const outerRings = region.outers.map((outer) => outer.ring).filter((ring) => ring.length)
-  const candidates = outerRings
-    .map(ringAreaWeightedMean)
-    .filter((point): point is Point2 => point !== null)
+  const aggregate = regionAreaWeightedMean(outerRings)
+  const candidates = aggregate ? [aggregate] : []
 
   const points = outerRings.flat()
   if (!points.length) return null

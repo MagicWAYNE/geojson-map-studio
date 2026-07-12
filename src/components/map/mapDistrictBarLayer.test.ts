@@ -3,6 +3,7 @@ import type { DistrictMapItem } from '@/types'
 import type { Region } from './mapGeometry'
 import { MAP_DISTRICT_BAR_DEFAULTS } from './mapDistrictBarConfig'
 import {
+  applyDistrictBarConfig,
   createDistrictBarLayer,
   disposeDistrictBarLayer,
   mapDistrictBarHeight,
@@ -69,6 +70,32 @@ describe('mapDistrictBarLayer', () => {
     expect(a.column.material.emissiveIntensity).toBe(config.hoverEmissiveIntensity)
     expect(b.column.position.z).toBe(bZ)
     expect(b.column.material.emissiveIntensity).toBe(bIntensity)
+  })
+
+  it('应用高度映射配置时保留资源并重新计算可见柱体高度', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
+    const layer = createDistrictBarLayer(regions, items([['A', 25], ['B', 100]]), config, 4)
+    updateDistrictBarLayer(layer, config, 0)
+    const visual = layer.byName.get('A')!
+    const geometry = visual.column.geometry
+    const material = visual.column.material
+    const previousHeight = visual.column.scale.y
+    const previousZ = visual.column.position.z
+
+    applyDistrictBarConfig(layer, {
+      ...config,
+      minHeight: 2,
+      maxHeight: 42,
+      sqrtExponent: 1
+    })
+
+    expect(visual.baseHeight).toBe(12)
+    expect(visual.column.scale.y).toBe(12)
+    expect(visual.column.position.z).toBeCloseTo(10.08)
+    expect(visual.column.scale.y).not.toBe(previousHeight)
+    expect(visual.column.position.z).not.toBe(previousZ)
+    expect(visual.column.geometry).toBe(geometry)
+    expect(visual.column.material).toBe(material)
   })
 
   it('释放每个唯一几何体和材质一次，即使重复 teardown', () => {

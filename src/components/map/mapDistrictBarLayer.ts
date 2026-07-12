@@ -27,6 +27,7 @@ export interface DistrictBarLayer {
 interface LayerState {
   depth: number
   elapsedMs: number
+  values: Map<string, number>
 }
 
 const layerStates = new WeakMap<DistrictBarLayer, LayerState>()
@@ -99,7 +100,8 @@ export function createDistrictBarLayer(
 ): DistrictBarLayer {
   const group = new THREE.Group()
   const layer: DistrictBarLayer = { group, byName: new Map(), range: null }
-  layerStates.set(layer, { depth, elapsedMs: 0 })
+  const state: LayerState = { depth, elapsedMs: 0, values: new Map() }
+  layerStates.set(layer, state)
   if (!config.enabled) return layer
 
   const validItems = regions.flatMap((region) => {
@@ -157,6 +159,7 @@ export function createDistrictBarLayer(
       hoverProgress: 0
     }
     layer.byName.set(region.name, visual)
+    state.values.set(region.name, item.aj)
     group.add(column, ring)
   }
 
@@ -171,7 +174,19 @@ export function applyDistrictBarConfig(
   const state = layerStates.get(layer)
   if (!state) return
   layer.group.visible = config.enabled
-  for (const visual of layer.byName.values()) updateVisual(visual, config, state, true)
+  for (const visual of layer.byName.values()) {
+    const value = state.values.get(visual.name)
+    if (value !== undefined && layer.range) {
+      visual.baseHeight = mapDistrictBarHeight(
+        value,
+        config.minHeight,
+        config.maxHeight,
+        config.sqrtExponent,
+        layer.range.max
+      )
+    }
+    updateVisual(visual, config, state, true)
+  }
 }
 
 export function updateDistrictBarLayer(

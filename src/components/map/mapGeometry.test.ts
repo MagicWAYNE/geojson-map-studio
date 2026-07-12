@@ -98,4 +98,16 @@ describe('mapGeometry', () => {
     expect(point).not.toBeNull()
     expect(pointInRegion(point!, region)).toBe(true)
   })
+
+  it('优先使用所有外环按有符号面积聚合的中心', () => {
+    const region: Region = {
+      name: '多外环',
+      outers: [
+        { ring: [[0, 0], [2, 0], [2, 2], [0, 2]], holes: [] },
+        { ring: [[10, 0], [16, 0], [16, 6], [10, 6]], holes: [] }
+      ]
+    }
+
+    expect(findRegionInteriorPoint(region)).toEqual([11.8, 2.8])
+  })
 })
