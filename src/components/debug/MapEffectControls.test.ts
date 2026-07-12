@@ -202,7 +202,7 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(2)
+    expect(draftCopy.version).toBe(3)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
     expect(effect.base.outerGlowWidth).not.toBe(151)
 
