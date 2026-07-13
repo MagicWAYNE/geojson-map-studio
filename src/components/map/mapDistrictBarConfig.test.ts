@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAP_DISTRICT_BAR_DEFAULTS,
-  cloneDistrictBarConfig,
   normalizeDistrictBarConfig
 } from './mapDistrictBarConfig'
-import { MAP_DISTRICT_BAR_LABEL_DEFAULTS } from './mapDistrictBarLabelConfig'
 
 describe('mapDistrictBarConfig', () => {
   it('exports the exact defaults', () => {
@@ -18,8 +16,7 @@ describe('mapDistrictBarConfig', () => {
       pulseOuterOpacity: 0.08, pulseInnerOpacity: 0.7,
       pulseDurationMs: 1800, pulseStaggerMs: 120,
       enterMs: 760, staggerMs: 90,
-      hoverEmissiveIntensity: 0.8, hoverLift: 1.1,
-      label: MAP_DISTRICT_BAR_LABEL_DEFAULTS
+      hoverEmissiveIntensity: 0.8, hoverLift: 1.1
     })
   })
 
@@ -49,14 +46,5 @@ describe('mapDistrictBarConfig', () => {
       pulseOuterOpacity: 0, pulseInnerOpacity: 1, pulseDurationMs: 200, pulseStaggerMs: 1000,
       hoverEmissiveIntensity: 3, hoverLift: 0
     })
-  })
-
-  it('normalizes and clones the nested label config independently', () => {
-    const normalized = normalizeDistrictBarConfig({ label: { width: 999, tintColor: '#ABCDEF' } })
-    expect(normalized.label).toMatchObject({ width: 420, tintColor: '#abcdef' })
-
-    const cloned = cloneDistrictBarConfig(normalized)
-    expect(cloned.label).toEqual(normalized.label)
-    expect(cloned.label).not.toBe(normalized.label)
   })
 })

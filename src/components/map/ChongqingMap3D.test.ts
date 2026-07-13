@@ -39,11 +39,8 @@ const mapDebugMocks = vi.hoisted(() => ({
 }))
 const districtBarMocks = vi.hoisted(() => ({
   create: vi.fn(),
-  attachLabels: vi.fn(),
   applyConfig: vi.fn(),
   update: vi.fn(),
-  updateLabelLayouts: vi.fn(),
-  getLabelRect: vi.fn(),
   setHoverProgress: vi.fn(),
   dispose: vi.fn(),
   layer: null as {
@@ -51,10 +48,6 @@ const districtBarMocks = vi.hoisted(() => ({
     byName: Map<string, unknown>
     range: { min: number; max: number } | null
   } | null
-}))
-const labelAssetMocks = vi.hoisted(() => ({
-  load: vi.fn(),
-  assets: { background: {}, icon: {} }
 }))
 const pipelineMocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -102,16 +95,10 @@ vi.mock('./mapOutwardGlowPipeline', () => ({
 }))
 vi.mock('./mapDistrictBarLayer', () => ({
   createDistrictBarLayer: districtBarMocks.create,
-  attachDistrictBarLabels: districtBarMocks.attachLabels,
   applyDistrictBarConfig: districtBarMocks.applyConfig,
   updateDistrictBarLayer: districtBarMocks.update,
-  updateDistrictBarLabelLayouts: districtBarMocks.updateLabelLayouts,
-  getDistrictBarLabelScreenRect: districtBarMocks.getLabelRect,
   setDistrictBarHoverProgress: districtBarMocks.setHoverProgress,
   disposeDistrictBarLayer: districtBarMocks.dispose
-}))
-vi.mock('./mapDistrictBarLabelTexture', () => ({
-  loadDistrictBarLabelAssets: labelAssetMocks.load
 }))
 vi.mock('./mapMosaicParticles', () => ({
   createMapMosaicParticles: mosaicMocks.create
@@ -181,7 +168,6 @@ afterEach(() => {
     if (typeof value === 'function' && 'mockReset' in value) value.mockReset()
   })
   districtBarMocks.layer = null
-  labelAssetMocks.load.mockReset()
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
   mapDebugMocks.effectRuntimeStatus = null
@@ -216,8 +202,6 @@ beforeEach(() => {
     range: { min: 20, max: 70 }
   }
   districtBarMocks.create.mockReturnValue(districtBarMocks.layer)
-  labelAssetMocks.load.mockResolvedValue(labelAssetMocks.assets)
-  districtBarMocks.getLabelRect.mockReturnValue({ left: 100, top: 50, width: 236, height: 36 })
 })
 
 function deferred<T>() {
@@ -262,7 +246,6 @@ async function mountInitializedMap(regionCount = 1) {
     text: vi.fn().mockResolvedValue('<svg/>')
   } as unknown as Response)
   apiMocks.getDistrictMapData.mockResolvedValue([
-    { name: '测试区0', aj: 24, ztje: 12, zzs: 2 },
     { name: '江北区', aj: 20, ztje: 2, zzs: 3 },
     { name: '渝北区', aj: 50, ztje: 5, zzs: 7 }
   ])
@@ -319,13 +302,7 @@ describe('ChongqingMap3D effect wiring', () => {
       expect.any(Array),
       expect.any(Map),
       mapDebugMocks.effect!.bars,
-      4,
-      null
-    )
-    expect(districtBarMocks.attachLabels).toHaveBeenCalledWith(
-      layer,
-      mapDebugMocks.effect!.bars,
-      labelAssetMocks.assets
+      4
     )
     const [, dataByName] = districtBarMocks.create.mock.calls[0]
     expect(dataByName.get('两江新区')).toEqual({ name: '两江新区', aj: 70, ztje: 7, zzs: 10 })
@@ -356,21 +333,8 @@ describe('ChongqingMap3D effect wiring', () => {
       layer,
       '测试区0',
       expect.any(Number),
-      mapDebugMocks.effect!.hover.lift,
-      true
+      mapDebugMocks.effect!.hover.lift
     )
-    expect(districtBarMocks.updateLabelLayouts).toHaveBeenCalledWith(
-      layer,
-      mapDebugMocks.effect!.bars,
-      expect.any(THREE.PerspectiveCamera),
-      { width: 680, height: 680 }
-    )
-    expect(districtBarMocks.getLabelRect).toHaveBeenCalledWith(layer, '测试区0')
-    await nextTick()
-    const tip = mounted.root.querySelector<HTMLElement>('.tip')!
-    expect(tip.style.left).toBe('100px')
-    expect(tip.style.top).toBe('92px')
-    expect(tip.style.width).toBe('236px')
     expect(intersectObjects).toHaveBeenLastCalledWith(regionMeshes, false)
     expect(intersectObjects.mock.calls.at(-1)![0]).not.toContain(barMesh)
 
@@ -391,64 +355,6 @@ describe('ChongqingMap3D effect wiring', () => {
       dataMax: null,
       degraded: false
     })
-  })
-
-  it('keeps district bars when label assets fail to load', async () => {
-    labelAssetMocks.load.mockRejectedValueOnce(new Error('label assets failed'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const mounted = await mountInitializedMap()
-
-    expect(warn).toHaveBeenCalledWith(
-      '柱体标签素材加载失败，已跳过标签层',
-      expect.any(Error)
-    )
-    expect(districtBarMocks.create).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.any(Map),
-      mapDebugMocks.effect!.bars,
-      4,
-      null
-    )
-    expect(districtBarMocks.attachLabels).not.toHaveBeenCalled()
-    mounted.runFrame(16)
-    expect(districtBarMocks.update).toHaveBeenCalled()
-    mounted.app.unmount()
-  })
-
-  it('does not block map and bar initialization while optional label assets are pending', async () => {
-    labelAssetMocks.load.mockImplementationOnce(() => new Promise(() => {}))
-    const mounted = await mountInitializedMap()
-
-    expect(districtBarMocks.create).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.any(Map),
-      mapDebugMocks.effect!.bars,
-      4,
-      null
-    )
-    expect(districtBarMocks.attachLabels).not.toHaveBeenCalled()
-    mounted.runFrame(16)
-    expect(districtBarMocks.update).toHaveBeenCalled()
-    mounted.app.unmount()
-  })
-
-  it('flips the hover detail above a label when the panel would cross the map bottom', async () => {
-    districtBarMocks.getLabelRect.mockReturnValueOnce({ left: 100, top: 640, width: 236, height: 36 })
-    const mounted = await mountInitializedMap()
-    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
-    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
-      { object: regionMeshes[0] } as THREE.Intersection
-    ])
-
-    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
-      clientX: 10,
-      clientY: 10
-    }))
-    mounted.runFrame(16)
-    await nextTick()
-
-    expect(mounted.root.querySelector<HTMLElement>('.tip')!.style.top).toBe('516px')
-    mounted.app.unmount()
   })
 
   it('isolates a district bar creation failure and keeps direct base rendering available', async () => {
@@ -846,7 +752,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 6,
+      version: 5,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) }),

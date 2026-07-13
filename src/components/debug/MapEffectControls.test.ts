@@ -222,7 +222,7 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(6)
+    expect(draftCopy.version).toBe(5)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
     expect(draftCopy.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(draftCopy.hover.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.hover.inwardGlow)
@@ -745,7 +745,7 @@ describe('MapEffectControls', () => {
 
     button(root, '恢复全部默认值').click()
     await nextTick()
-    expect(effect.version).toBe(6)
+    expect(effect.version).toBe(5)
     expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })

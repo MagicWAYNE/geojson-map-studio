@@ -22,17 +22,13 @@ import {
   type ProjectionResult
 } from './mapGeometry'
 import {
-  attachDistrictBarLabels,
   applyDistrictBarConfig,
   createDistrictBarLayer,
   disposeDistrictBarLayer,
-  getDistrictBarLabelScreenRect,
   setDistrictBarHoverProgress,
-  updateDistrictBarLabelLayouts,
   updateDistrictBarLayer,
   type DistrictBarLayer
 } from './mapDistrictBarLayer'
-import { loadDistrictBarLabelAssets } from './mapDistrictBarLabelTexture'
 import {
   createMapOutwardGlowPipeline,
   type MapOutwardGlowPipeline
@@ -72,7 +68,6 @@ const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比
 const DEPTH = 4 // 挤出厚度
 
 const container = ref<HTMLElement | null>(null)
-const tipPanel = ref<HTMLElement | null>(null)
 const error = ref('')
 const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
@@ -123,7 +118,6 @@ const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
 let glowStatusPublicationPending = false
 let districtBarFailureWarned = false
-let districtBarLabelFailureWarned = false
 
 function currentMosaicState(): 'disabled' | 'ready' | 'active' | 'degraded' {
   if (!effect.hover.mosaicParticles.enabled) return 'disabled'
@@ -622,15 +616,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  if (districtBars) {
-    setDistrictBarHoverProgress(
-      districtBars,
-      visual.mesh.userData.name,
-      eased,
-      hover.lift,
-      visual.active
-    )
-  }
+  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.mesh.userData.name, eased, hover.lift)
   setMosaicRegionProgress(visual.mesh, eased)
   if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
@@ -668,8 +654,14 @@ function onPointerMove(e: PointerEvent) {
   const mesh = pick(e)
   setHover(mesh)
   if (mesh?.userData.item) {
+    const rect = el.getBoundingClientRect()
+    // tooltip 用布局坐标（除以 ScaleScreen 缩放），跟随鼠标且不越出右缘
+    const lx = ((e.clientX - rect.left) / rect.width) * el.clientWidth
+    const ly = ((e.clientY - rect.top) / rect.height) * el.clientHeight
     const item = mesh.userData.item as DistrictMapItem
     tip.show = true
+    tip.x = lx + 180 > el.clientWidth ? lx - 190 : lx + 16
+    tip.y = Math.max(ly - 40, 4)
     tip.name = item.name
     tip.aj = item.aj
     tip.ztje = item.ztje
@@ -677,25 +669,6 @@ function onPointerMove(e: PointerEvent) {
   } else {
     tip.show = false
   }
-}
-
-function updateTipPosition(): void {
-  const bars = districtBars
-  const el = container.value
-  if (!tip.show || !bars || !el || !hoveredVisual) return
-  const rect = getDistrictBarLabelScreenRect(bars, hoveredVisual.mesh.userData.name)
-  if (!rect) return
-  const panelWidth = effect.bars.label.width
-  tip.x = THREE.MathUtils.clamp(rect.left, 4, Math.max(4, el.clientWidth - panelWidth - 4))
-  const detailGap = effect.bars.label.detailGap
-  const panelHeight = tipPanel.value?.getBoundingClientRect().height
-    || tipPanel.value?.offsetHeight
-    || 118
-  const below = rect.top + rect.height + detailGap
-  const maxTop = Math.max(4, el.clientHeight - panelHeight - 4)
-  tip.y = below <= maxTop
-    ? Math.max(4, below)
-    : Math.max(4, Math.min(maxTop, rect.top - detailGap - panelHeight))
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -738,23 +711,6 @@ function loop(now: number) {
       updateDistrictBarLayer(bars, effect.bars, now - barAnimationStartedAt)
     } catch (cause) {
       handleDistrictBarFailure(cause, '更新')
-    }
-    const el = container.value
-    if (districtBars === bars && camera && el) {
-      try {
-        updateDistrictBarLabelLayouts(
-          bars,
-          effect.bars,
-          camera,
-          { width: el.clientWidth, height: el.clientHeight }
-        )
-        updateTipPosition()
-      } catch (cause) {
-        if (!districtBarLabelFailureWarned) {
-          districtBarLabelFailureWarned = true
-          console.warn('柱体标签布局失败，柱体层继续运行', cause)
-        }
-      }
     }
   }
   if (renderer && scene && camera) {
@@ -829,10 +785,6 @@ async function init(generation: number) {
       if (textureCleanupRequested) cleanupPendingTexture()
       return texture
     })
-  const labelAssetsPromise = loadDistrictBarLabelAssets().catch((cause) => {
-    console.warn('柱体标签素材加载失败，已跳过标签层', cause)
-    return null
-  })
   try {
     const [svgRes, data, loadedTerrainTex] = await Promise.all([
       fetch(`${import.meta.env.BASE_URL}maps/chongqing-selected-districts-tianditu-imagery-z12.svg`),
@@ -862,19 +814,10 @@ async function init(generation: number) {
     const projected = projectRegions(regions, PLANE_MAX)
     const mapGroup = buildRegions(projected, byName, terrainTex)
     try {
-      districtBars = createDistrictBarLayer(projected.regions, byName, effect.bars, DEPTH, null)
-      const bars = districtBars
+      districtBars = createDistrictBarLayer(projected.regions, byName, effect.bars, DEPTH)
       mapGroup.add(districtBars.group)
       barAnimationStartedAt = performance.now()
       publishDistrictBarRuntimeStatus(districtBars)
-      void labelAssetsPromise.then((labelAssets) => {
-        if (!labelAssets || !isCurrentInit(generation) || districtBars !== bars) return
-        try {
-          attachDistrictBarLabels(bars, effect.bars, labelAssets)
-        } catch (cause) {
-          console.warn('柱体标签初始化失败，柱体层继续运行', cause)
-        }
-      })
     } catch (cause) {
       handleDistrictBarFailure(cause, '初始化')
     }
@@ -910,7 +853,6 @@ async function init(generation: number) {
 onMounted(() => {
   mounted = true
   districtBarFailureWarned = false
-  districtBarLabelFailureWarned = false
   updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
   updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
   const generation = ++initGeneration
@@ -999,16 +941,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="container" class="cq-map3d">
-    <div
-      ref="tipPanel"
-      v-show="tip.show"
-      class="tip"
-      :style="{
-        left: tip.x + 'px',
-        top: tip.y + 'px',
-        width: effect.bars.label.width + 'px'
-      }"
-    >
+    <div v-show="tip.show" class="tip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
       <b class="tip-name">{{ tip.name }}</b>
       <div>案件量：<span class="v cyan">{{ tip.aj.toLocaleString() }}</span> 件</div>
       <div>在调金额：<span class="v gold">{{ tip.ztje.toLocaleString() }}</span> 万元</div>
@@ -1025,7 +958,6 @@ onBeforeUnmount(() => {
 
 .tip {
   position: absolute; z-index: 5; pointer-events: none; white-space: nowrap;
-  box-sizing: border-box;
   padding: 10px 14px; border: 1px solid #2483ff; border-radius: 4px;
   background: rgba(6, 18, 40, 0.92);
   color: #fff; font-size: 13px; font-family: 'OPPOSans-R'; line-height: 1.7;

@@ -13,7 +13,6 @@ import {
   MAP_EFFECT_STORAGE_KEY_V2,
   MAP_EFFECT_STORAGE_KEY_V3,
   MAP_EFFECT_STORAGE_KEY_V4,
-  MAP_EFFECT_STORAGE_KEY_V5,
   assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
@@ -48,9 +47,9 @@ const V4_DEFAULTS = {
   quality: { renderScale: 0.5, maxAlpha: 1 }
 } as const
 
-const V6_DEFAULTS = {
+const V5_DEFAULTS = {
   ...V4_DEFAULTS,
-  version: 6,
+  version: 5,
   bars: MAP_DISTRICT_BAR_DEFAULTS
 } as const
 
@@ -91,48 +90,45 @@ const APPROVED_V1_DEFAULTS = {
 } as const
 
 describe('mapEffectConfig', () => {
-  it('exports combined v6 defaults and storage constants', () => {
+  it('exports combined v5 defaults and storage constants', () => {
     expect(B3_GLOW_PROFILE_DEFAULTS).toEqual({
       nearRadiusRatio: 0.35, nearOpacityRatio: 0.83, farRadiusRatio: 1,
       farOpacityRatio: 1, falloff: 1, edgeSoftness: 0.96, nearPasses: 2, farPasses: 4
     })
-    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v6')
-    expect(MAP_EFFECT_STORAGE_KEY_V5).toBe('cq-map-effect-config-v5')
+    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v5')
     expect(MAP_EFFECT_STORAGE_KEY_V4).toBe('cq-map-effect-config-v4')
     expect(MAP_EFFECT_STORAGE_KEY_V3).toBe('cq-map-effect-config-v3')
     expect(MAP_EFFECT_STORAGE_KEY_V2).toBe('cq-map-effect-config-v2')
     expect(MAP_EFFECT_STORAGE_KEY_V1).toBe('cq-map-effect-config-v1')
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V6_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
   })
 
   it('returns deep clones and freezes all exported nested defaults', () => {
     const a = normalizeMapEffectConfig(undefined)
     const b = normalizeMapEffectConfig(undefined)
 
-    expect(a).toEqual(V6_DEFAULTS)
+    expect(a).toEqual(V5_DEFAULTS)
     expect(a).not.toBe(b)
     expect(a.base.inwardGlow).not.toBe(b.base.inwardGlow)
     expect(a.hover.inwardGlow).not.toBe(b.hover.inwardGlow)
     expect(a.hover.mosaicParticles).not.toBe(b.hover.mosaicParticles)
     expect(a.bars).not.toBe(b.bars)
-    expect(a.bars.label).not.toBe(b.bars.label)
     a.hover.mosaicParticles.seed = 42
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V6_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
 
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.base.inwardGlow)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.hover.inwardGlow)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.hover.mosaicParticles)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars)).toBe(true)
-    expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars.label)).toBe(true)
   })
 
-  it('migrates known v1 defaults and preserves custom v1 values in v6', () => {
+  it('migrates known v1 defaults and preserves custom v1 values in v5', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1
         ? JSON.stringify(APPROVED_V1_DEFAULTS)
         : null
-    })).toEqual(V6_DEFAULTS)
+    })).toEqual(V5_DEFAULTS)
 
     const custom = {
       ...APPROVED_V1_DEFAULTS,
@@ -142,7 +138,7 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(custom) : null
     })).toMatchObject({
-      version: 6,
+      version: 5,
       base: { innerWidth: 1.75, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
       hover: {
         enterMs: 360,
@@ -157,7 +153,7 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(V2_DEFAULTS) : null
     })).toEqual({
-      version: 6,
+      version: 5,
       base: { ...V2_DEFAULTS.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
       hover: {
         ...V2_DEFAULTS.hover,
@@ -186,7 +182,7 @@ describe('mapEffectConfig', () => {
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V3 ? JSON.stringify(customV3) : null
     })
     expect(migratedV3).toMatchObject({
-      version: 6,
+      version: 5,
       base: { outerGlowWidth: 91, inwardGlow: { width: 44 } },
       hover: {
         glowWidth: 77,
@@ -200,7 +196,7 @@ describe('mapEffectConfig', () => {
     expect(migratedV3.hover.inwardGlow).not.toHaveProperty('wave')
   })
 
-  it('migrates v4 mosaic values into v6 and adds bar defaults', () => {
+  it('migrates v4 mosaic values into v5 and adds bar defaults', () => {
     const customV4 = {
       ...V4_DEFAULTS,
       hover: {
@@ -212,14 +208,14 @@ describe('mapEffectConfig', () => {
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V4 ? JSON.stringify(customV4) : null
     })).toEqual({
       ...customV4,
-      version: 6,
+      version: 5,
       bars: MAP_DISTRICT_BAR_DEFAULTS
     })
   })
 
-  it('normalizes combined v6 fields and drops legacy wave fields', () => {
+  it('normalizes combined v5 fields and drops legacy wave fields', () => {
     const normalized = normalizeMapEffectConfig({
-      version: 6,
+      version: 5,
       base: {
         innerColor: '#ABCDEF', innerWidth: 9, outerGlowWidth: 300,
         inwardGlow: { color: '#FEDCBA', width: 300, wave: { enabled: true } }
@@ -234,7 +230,7 @@ describe('mapEffectConfig', () => {
     })
 
     expect(normalized).toMatchObject({
-      version: 6,
+      version: 5,
       base: {
         innerColor: '#abcdef', innerWidth: 4, outerGlowWidth: 200,
         inwardGlow: { color: '#fedcba', width: 200 }
@@ -253,10 +249,10 @@ describe('mapEffectConfig', () => {
 
   it('resets saved bar tuning on load while retaining effects and mosaic values', () => {
     const saved = {
-      ...V6_DEFAULTS,
-      base: { ...V6_DEFAULTS.base, outerGlowWidth: 91 },
+      ...V5_DEFAULTS,
+      base: { ...V5_DEFAULTS.base, outerGlowWidth: 91 },
       hover: {
-        ...V6_DEFAULTS.hover,
+        ...V5_DEFAULTS.hover,
         mosaicParticles: { ...HOVER_MOSAIC_PARTICLE_DEFAULTS, density: 0.42 }
       },
       bars: { ...MAP_DISTRICT_BAR_DEFAULTS, width: 6.4 }
@@ -283,8 +279,7 @@ describe('mapEffectConfig', () => {
       bars: target.bars,
       baseInward: target.base.inwardGlow,
       hoverInward: target.hover.inwardGlow,
-      mosaic: target.hover.mosaicParticles,
-      barLabel: target.bars.label
+      mosaic: target.hover.mosaicParticles
     }
 
     assignMapEffectConfig(target, source)
@@ -297,28 +292,27 @@ describe('mapEffectConfig', () => {
     expect(target.base.inwardGlow).toBe(identities.baseInward)
     expect(target.hover.inwardGlow).toBe(identities.hoverInward)
     expect(target.hover.mosaicParticles).toBe(identities.mosaic)
-    expect(target.bars.label).toBe(identities.barLabel)
   })
 
-  it('does not fall back after broken v6 storage and writes normalized v6 payloads', () => {
+  it('does not fall back after broken v5 storage and writes normalized v5 payloads', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY
-        ? '{broken-v6'
+        ? '{broken-v5'
         : key === MAP_EFFECT_STORAGE_KEY_V4
           ? JSON.stringify(V4_DEFAULTS)
           : null
-    })).toEqual(V6_DEFAULTS)
+    })).toEqual(V5_DEFAULTS)
 
     const writes: Array<[string, string]> = []
-    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, V6_DEFAULTS)
-    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(V6_DEFAULTS)]])
-    const text = formatMapEffectConfig(V6_DEFAULTS)
-    expect(text).toContain('"version": 6')
+    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, V5_DEFAULTS)
+    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(V5_DEFAULTS)]])
+    const text = formatMapEffectConfig(V5_DEFAULTS)
+    expect(text).toContain('"version": 5')
     expect(text).not.toContain('"wave"')
-    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(V6_DEFAULTS)
+    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(V5_DEFAULTS)
     expect(() => saveMapEffectConfig(
       { setItem: () => { throw new Error('denied') } },
-      V6_DEFAULTS
+      V5_DEFAULTS
     )).not.toThrow()
   })
 })
