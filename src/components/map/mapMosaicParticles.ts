@@ -143,7 +143,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     return field;
   }
 
-  vec4 sampleGrid(float cellWorld, out float gapActivity) {
+  vec4 sampleGrid(float cellWorld, out float gapCoverage) {
     vec2 cell = floor(vModelPosition / cellWorld);
     vec2 local = fract(vModelPosition / cellWorld);
     float inset = uGapRatio * 0.5;
@@ -176,7 +176,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     float accent = step(mosaicRandom(cell + 53.1, uActivationSeed), accentThreshold);
     vec3 color = mix(uPrimaryColor, uAccentColor, accent);
     float activity = selected * pulse;
-    gapActivity = (1.0 - square) * activity;
+    gapCoverage = 1.0 - square;
     return vec4(color, square * activity);
   }
 
@@ -188,13 +188,13 @@ const FRAGMENT_SHADER = /* glsl */ `
       length(dFdy(vModelPosition))
     );
     vec3 lod = selectCellWorlds(modelUnitsPerRenderPixel);
-    float lowerGapActivity;
-    float upperGapActivity;
-    vec4 lowerMosaic = sampleGrid(lod.x, lowerGapActivity);
-    vec4 upperMosaic = sampleGrid(lod.y, upperGapActivity);
+    float lowerGapCoverage;
+    float upperGapCoverage;
+    vec4 lowerMosaic = sampleGrid(lod.x, lowerGapCoverage);
+    vec4 upperMosaic = sampleGrid(lod.y, upperGapCoverage);
     vec4 mosaic = mix(lowerMosaic, upperMosaic, lod.z);
     float squareAlpha = mosaic.a * uOpacity;
-    float gapAlpha = mix(lowerGapActivity, upperGapActivity, lod.z) * uGapOpacity;
+    float gapAlpha = mix(lowerGapCoverage, upperGapCoverage, lod.z) * uGapOpacity;
     float alpha = (squareAlpha + gapAlpha) * uProgress;
     if (alpha <= 0.001) discard;
     float burstBrightness = mix(1.0, max(1.0, uBurstStrength), uBurstEnvelope);
