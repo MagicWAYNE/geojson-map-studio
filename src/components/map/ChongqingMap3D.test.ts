@@ -302,7 +302,8 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(districtBarMocks.setHoverProgress).toHaveBeenCalledWith(
       layer,
       '测试区0',
-      expect.any(Number)
+      expect.any(Number),
+      mapDebugMocks.effect!.hover.lift
     )
     expect(intersectObjects).toHaveBeenLastCalledWith(regionMeshes, false)
     expect(intersectObjects.mock.calls.at(-1)![0]).not.toContain(barMesh)
@@ -607,7 +608,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 4,
+      version: 5,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) }),

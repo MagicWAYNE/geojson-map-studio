@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 describe('MapDebugDrawer copy feedback', () => {
-  it('renders district bar controls from the effect tab', async () => {
+  it('renders district bar controls from the data debug tab', async () => {
     vi.stubGlobal('localStorage', {
       getItem: () => null,
       setItem: vi.fn()
@@ -25,12 +25,14 @@ describe('MapDebugDrawer copy feedback', () => {
     await nextTick()
 
     Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.textContent?.trim() === '效果')!
+      .find((button) => button.textContent?.trim() === '数据调试')!
       .click()
     await nextTick()
 
     expect(root.textContent).toContain('区级案件量柱状图')
+    expect(root.textContent).toContain('可复制柱状图参数')
     expect(root.querySelector('#effect-bars-width-number')).not.toBeNull()
+    expect(root.querySelector('#effect-bars-anchorOffsetX-number')).not.toBeNull()
     app.unmount()
   })
 

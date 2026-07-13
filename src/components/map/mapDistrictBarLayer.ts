@@ -13,9 +13,14 @@ export interface DistrictBarVisual {
   group: THREE.Group
   column: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>
   ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
+  pulseRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
+  anchor: readonly [number, number]
   baseHeight: number
   delayMs: number
+  order: number
+  pulseWidth: number
   hoverProgress: number
+  surfaceLift: number
 }
 
 export interface DistrictBarLayer {
@@ -51,12 +56,16 @@ function disposePartialVisual(
   columnGeometry: THREE.CylinderGeometry | null,
   columnMaterial: THREE.MeshStandardMaterial | null,
   ringGeometry: THREE.RingGeometry | null,
-  ringMaterial: THREE.MeshBasicMaterial | null
+  ringMaterial: THREE.MeshBasicMaterial | null,
+  pulseRingGeometry: THREE.RingGeometry | null,
+  pulseRingMaterial: THREE.MeshBasicMaterial | null
 ): void {
   columnGeometry?.dispose()
   columnMaterial?.dispose()
   ringGeometry?.dispose()
   ringMaterial?.dispose()
+  pulseRingGeometry?.dispose()
+  pulseRingMaterial?.dispose()
 }
 
 function clampProgress(value: number): number {
@@ -67,6 +76,15 @@ function entranceProgress(elapsedMs: number, delayMs: number, enterMs: number): 
   if (enterMs <= 0) return elapsedMs >= delayMs ? 1 : 0
   const progress = clampProgress((elapsedMs - delayMs) / enterMs)
   return progress * progress * (3 - 2 * progress)
+}
+
+function pulseProgress(elapsedMs: number, order: number, durationMs: number, staggerMs: number): number {
+  const phaseMs = elapsedMs + order * staggerMs
+  return (phaseMs % durationMs) / durationMs
+}
+
+function createPulseRingGeometry(width: number): THREE.RingGeometry {
+  return new THREE.RingGeometry(Math.max(0.001, 1 - width), 1, 32)
 }
 
 function visualVisible(config: Readonly<MapDistrictBarConfig>, progress: number): boolean {
@@ -82,12 +100,31 @@ function updateVisual(
   const progress = entranceProgress(state.elapsedMs, visual.delayMs, config.enterMs)
   const hover = clampProgress(visual.hoverProgress)
   const visibleHeight = visual.baseHeight * progress
+  const positionX = visual.anchor[0] + config.anchorOffsetX
+  const positionY = visual.anchor[1] + config.anchorOffsetY
+  const baseZ = state.depth + 0.08 + config.baseOffset
+  const pulse = pulseProgress(state.elapsedMs, visual.order, config.pulseDurationMs, config.pulseStaggerMs)
+  const pulseRadius = config.baseRingRadius * THREE.MathUtils.lerp(
+    config.pulseOuterRadiusRatio,
+    config.pulseInnerRadiusRatio,
+    pulse
+  )
+  const pulseOpacity = THREE.MathUtils.lerp(config.pulseOuterOpacity, config.pulseInnerOpacity, pulse) * progress
 
   if (applyAppearance) {
     visual.column.material.color.set(config.color)
     visual.column.material.emissive.set(config.color)
-    visual.column.material.opacity = config.opacity
+    visual.column.material.opacity = 1
+    visual.column.material.transparent = false
+    visual.column.material.depthWrite = true
     visual.ring.material.color.set(config.color)
+    visual.pulseRing.material.color.set(config.pulseColor)
+    if (visual.pulseWidth !== config.pulseWidth) {
+      const previousGeometry = visual.pulseRing.geometry
+      visual.pulseRing.geometry = createPulseRingGeometry(config.pulseWidth)
+      visual.pulseWidth = config.pulseWidth
+      previousGeometry.dispose()
+    }
     visual.column.scale.x = config.width / 2
     visual.column.scale.z = config.width / 2
     visual.ring.scale.x = config.baseRingRadius
@@ -95,16 +132,20 @@ function updateVisual(
   }
 
   visual.column.scale.y = visibleHeight
-  visual.column.position.z = state.depth + visibleHeight / 2 + 0.08 + config.hoverLift * hover
-  visual.ring.position.z = state.depth + 0.09 + config.hoverLift * hover
+  visual.column.position.set(positionX, positionY, baseZ + visibleHeight / 2 + config.hoverLift * hover)
+  visual.ring.position.set(positionX, positionY, state.depth + 0.09 + config.baseOffset + visual.surfaceLift * hover)
+  visual.pulseRing.position.set(positionX, positionY, state.depth + 0.095 + config.baseOffset + visual.surfaceLift * hover)
+  visual.pulseRing.scale.set(pulseRadius, pulseRadius, 1)
   visual.column.material.emissiveIntensity = THREE.MathUtils.lerp(
     config.glowStrength,
     config.hoverEmissiveIntensity,
     hover
   )
   visual.ring.material.opacity = config.baseRingOpacity * progress
+  visual.pulseRing.material.opacity = pulseOpacity
   visual.column.visible = visualVisible(config, progress)
   visual.ring.visible = config.enabled && config.baseRingRadius > 0 && visual.ring.material.opacity > 0
+  visual.pulseRing.visible = config.enabled && config.pulseEnabled && config.baseRingRadius > 0 && pulseOpacity > 0
 }
 
 export function mapDistrictBarHeight(
@@ -162,6 +203,8 @@ export function createDistrictBarLayer(
     let columnMaterial: THREE.MeshStandardMaterial | null = null
     let ringGeometry: THREE.RingGeometry | null = null
     let ringMaterial: THREE.MeshBasicMaterial | null = null
+    let pulseGeometry: THREE.RingGeometry | null = null
+    let pulseRingMaterial: THREE.MeshBasicMaterial | null = null
 
     try {
       columnGeometry = new THREE.CylinderGeometry(1, 1, 1, 20, 1, false)
@@ -169,9 +212,9 @@ export function createDistrictBarLayer(
         color: config.color,
         emissive: config.color,
         emissiveIntensity: config.glowStrength,
-        opacity: config.opacity,
-        transparent: true,
-        depthWrite: false
+        opacity: 1,
+        transparent: false,
+        depthWrite: true
       })
       const column = new THREE.Mesh(columnGeometry, columnMaterial)
       column.rotation.x = Math.PI / 2
@@ -186,20 +229,42 @@ export function createDistrictBarLayer(
       })
       const ring = new THREE.Mesh(ringGeometry, ringMaterial)
       ring.position.set(anchor[0], anchor[1], depth + 0.09)
+      pulseGeometry = createPulseRingGeometry(config.pulseWidth)
+      pulseRingMaterial = new THREE.MeshBasicMaterial({
+        color: config.pulseColor,
+        opacity: 0,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      })
+      const pulseRing = new THREE.Mesh(pulseGeometry, pulseRingMaterial)
+      pulseRing.position.set(anchor[0], anchor[1], depth + 0.095)
       const visual: DistrictBarVisual = {
         name: region.name,
         group,
         column,
         ring,
+        pulseRing,
+        anchor: [anchor[0], anchor[1]],
         baseHeight,
         delayMs: index * config.staggerMs,
-        hoverProgress: 0
+        order: index,
+        pulseWidth: config.pulseWidth,
+        hoverProgress: 0,
+        surfaceLift: 0
       }
       layer.byName.set(region.name, visual)
       state.values.set(region.name, item.aj)
-      group.add(column, ring)
+      group.add(column, ring, pulseRing)
     } catch (cause) {
-      disposePartialVisual(columnGeometry, columnMaterial, ringGeometry, ringMaterial)
+      disposePartialVisual(
+        columnGeometry,
+        columnMaterial,
+        ringGeometry,
+        ringMaterial,
+        pulseGeometry,
+        pulseRingMaterial
+      )
       warnDistrictBarIssue(region.name, `资源构造失败：${failureReason(cause)}`, cause)
     }
   }
@@ -241,9 +306,16 @@ export function updateDistrictBarLayer(
   for (const visual of layer.byName.values()) updateVisual(visual, config, state, false)
 }
 
-export function setDistrictBarHoverProgress(layer: DistrictBarLayer, name: string, progress: number): void {
+export function setDistrictBarHoverProgress(
+  layer: DistrictBarLayer,
+  name: string,
+  progress: number,
+  surfaceLift = 0
+): void {
   const visual = layer.byName.get(name)
-  if (visual) visual.hoverProgress = clampProgress(progress)
+  if (!visual) return
+  visual.hoverProgress = clampProgress(progress)
+  visual.surfaceLift = Number.isFinite(surfaceLift) ? Math.max(0, surfaceLift) : 0
 }
 
 export function disposeDistrictBarLayer(layer: DistrictBarLayer): void {

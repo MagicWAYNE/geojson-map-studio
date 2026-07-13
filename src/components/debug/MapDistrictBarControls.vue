@@ -7,7 +7,8 @@ import {
 } from '@/components/map/mapDistrictBarConfig'
 import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapDebug'
 
-type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'color'>
+type ColorKey = 'color' | 'pulseColor'
+type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'pulseEnabled' | ColorKey>
 
 interface NumberField {
   key: NumberKey
@@ -27,14 +28,23 @@ const emit = defineEmits<{
 }>()
 
 const NUMBER_FIELDS: readonly NumberField[] = [
-  { key: 'opacity', label: '柱体透明度', min: 0, max: 1, step: 0.01 },
   { key: 'width', label: '柱体宽度', min: 0.25, max: 8, step: 0.05 },
+  { key: 'anchorOffsetX', label: '锚点 X 偏移', min: -20, max: 20, step: 0.1 },
+  { key: 'anchorOffsetY', label: '锚点 Y 偏移', min: -20, max: 20, step: 0.1 },
+  { key: 'baseOffset', label: '离地高度偏移', min: -2, max: 6, step: 0.05 },
   { key: 'minHeight', label: '最小柱高', min: 0, max: 24, step: 0.5 },
   { key: 'maxHeight', label: '最大柱高', min: 0, max: 24, step: 0.5 },
   { key: 'sqrtExponent', label: '开方映射强度', min: 0.25, max: 1, step: 0.01 },
   { key: 'glowStrength', label: '柱体辉光强度', min: 0, max: 2, step: 0.01 },
   { key: 'baseRingRadius', label: '底部光环半径', min: 0, max: 4, step: 0.05 },
   { key: 'baseRingOpacity', label: '底部光环透明度', min: 0, max: 1, step: 0.01 },
+  { key: 'pulseWidth', label: '脉冲环宽度比例', min: 0.02, max: 0.5, step: 0.01 },
+  { key: 'pulseOuterRadiusRatio', label: '脉冲外侧半径倍率', min: 0.05, max: 5, step: 0.05 },
+  { key: 'pulseInnerRadiusRatio', label: '脉冲内侧半径倍率', min: 0.05, max: 5, step: 0.05 },
+  { key: 'pulseOuterOpacity', label: '脉冲外侧透明度', min: 0, max: 1, step: 0.01 },
+  { key: 'pulseInnerOpacity', label: '脉冲内侧透明度', min: 0, max: 1, step: 0.01 },
+  { key: 'pulseDurationMs', label: '脉冲周期 ms', min: 200, max: 6000, step: 10 },
+  { key: 'pulseStaggerMs', label: '脉冲错峰 ms', min: 0, max: 1000, step: 10 },
   { key: 'enterMs', label: '入场时长 ms', min: 0, max: 3000, step: 10 },
   { key: 'staggerMs', label: '错峰间隔 ms', min: 0, max: 1000, step: 10 },
   { key: 'hoverEmissiveIntensity', label: 'Hover 提亮强度', min: 0, max: 3, step: 0.05 },
@@ -50,7 +60,7 @@ const dataRange = computed(() => {
   return dataMin === null || dataMax === null ? '—' : `${dataMin}–${dataMax}`
 })
 
-function fieldId(key: 'enabled' | 'color' | NumberKey, control: 'checkbox' | 'color' | 'hex' | 'number' | 'range'): string {
+function fieldId(key: 'enabled' | 'pulseEnabled' | ColorKey | NumberKey, control: 'checkbox' | 'color' | 'hex' | 'number' | 'range'): string {
   return `effect-bars-${key}-${control}`
 }
 
@@ -64,17 +74,17 @@ function emitClone(update: (next: MapDistrictBarConfig) => void): void {
   emit('update:modelValue', normalizeDistrictBarConfig(next))
 }
 
-function updateEnabled(event: Event): void {
-  emitClone((next) => (next.enabled = (event.target as HTMLInputElement).checked))
+function updateEnabled(key: 'enabled' | 'pulseEnabled', event: Event): void {
+  emitClone((next) => (next[key] = (event.target as HTMLInputElement).checked))
 }
 
-function updateColor(event: Event): void {
+function updateColor(key: ColorKey, event: Event): void {
   const input = event.target as HTMLInputElement
   if (!HEX.test(input.value)) {
-    input.value = props.modelValue.color
+    input.value = props.modelValue[key]
     return
   }
-  emitClone((next) => (next.color = input.value.toLowerCase()))
+  emitClone((next) => (next[key] = input.value.toLowerCase()))
 }
 
 function numberDraft(field: NumberField): string {
@@ -93,7 +103,11 @@ function normalizedNumber(field: NumberField, raw: string): number {
   const clamped = Math.min(field.max, Math.max(field.min, finite))
   const constrained = field.key === 'maxHeight'
     ? Math.max(props.modelValue.minHeight, clamped)
-    : clamped
+    : field.key === 'pulseInnerRadiusRatio'
+      ? Math.min(props.modelValue.pulseOuterRadiusRatio, clamped)
+      : field.key === 'pulseOuterRadiusRatio'
+        ? Math.max(props.modelValue.pulseInnerRadiusRatio, clamped)
+        : clamped
   const precision = (String(field.step).split('.')[1] ?? '').length
   return Number((Math.round(constrained / field.step) * field.step).toFixed(precision))
 }
@@ -132,6 +146,8 @@ watch(() => props.modelValue, () => {
       <span>运行状态</span>
       <span>有效柱体：{{ runtimeStatus.renderedCount }}</span>
       <span>案件量范围：{{ dataRange }}</span>
+      <span>柱体主体：不透明</span>
+      <span>脉冲环：{{ modelValue.pulseEnabled ? '启用' : '已关闭' }}</span>
       <span>柱体层：{{ runtimeStatus.degraded ? '已降级关闭' : '正常' }}</span>
     </div>
     <div class="field">
@@ -142,7 +158,7 @@ watch(() => props.modelValue, () => {
           class="checkbox"
           type="checkbox"
           :checked="modelValue.enabled"
-          @change="updateEnabled"
+          @change="updateEnabled('enabled', $event)"
         />
       </div>
     </div>
@@ -154,7 +170,7 @@ watch(() => props.modelValue, () => {
           class="color"
           type="color"
           :value="modelValue.color"
-          @input="updateColor"
+          @input="updateColor('color', $event)"
         />
         <input
           :id="fieldId('color', 'hex')"
@@ -162,7 +178,39 @@ watch(() => props.modelValue, () => {
           type="text"
           :value="modelValue.color"
           aria-label="柱体颜色十六进制颜色"
-          @change="updateColor"
+          @change="updateColor('color', $event)"
+        />
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-head">
+        <label :for="fieldId('pulseEnabled', 'checkbox')">启用脉冲光环</label>
+        <input
+          :id="fieldId('pulseEnabled', 'checkbox')"
+          class="checkbox"
+          type="checkbox"
+          :checked="modelValue.pulseEnabled"
+          @change="updateEnabled('pulseEnabled', $event)"
+        />
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-head">
+        <label :for="fieldId('pulseColor', 'color')">脉冲环颜色</label>
+        <input
+          :id="fieldId('pulseColor', 'color')"
+          class="color"
+          type="color"
+          :value="modelValue.pulseColor"
+          @input="updateColor('pulseColor', $event)"
+        />
+        <input
+          :id="fieldId('pulseColor', 'hex')"
+          class="hex"
+          type="text"
+          :value="modelValue.pulseColor"
+          aria-label="脉冲环颜色十六进制颜色"
+          @change="updateColor('pulseColor', $event)"
         />
       </div>
     </div>

@@ -2,9 +2,10 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
+import MapDataControls from './MapDataControls.vue'
 import MapEffectControls from './MapEffectControls.vue'
 
-const activeTab = ref<'layout' | 'effect'>('layout')
+const activeTab = ref<'layout' | 'effect' | 'data'>('layout')
 const { drawerOpen, layout, resetLayout, cameraView } = useMapDebug()
 
 const FIELDS = [
@@ -48,6 +49,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
       <div class="tabs">
         <button :class="{ active: activeTab === 'layout' }" @click="activeTab = 'layout'">布局</button>
         <button :class="{ active: activeTab === 'effect' }" @click="activeTab = 'effect'">效果</button>
+        <button :class="{ active: activeTab === 'data' }" @click="activeTab = 'data'">数据调试</button>
       </div>
 
       <div v-if="activeTab === 'layout'" class="panel-scroll layout-panel">
@@ -85,8 +87,12 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         </div>
       </div>
 
-      <div v-else class="panel-scroll">
+      <div v-else-if="activeTab === 'effect'" class="panel-scroll">
         <MapEffectControls />
+      </div>
+
+      <div v-else class="panel-scroll">
+        <MapDataControls />
       </div>
     </aside>
   </transition>
@@ -94,7 +100,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 
 <style scoped>
 .drawer {
-  position: absolute; right: 0; top: 174px; bottom: 0; width: 320px; z-index: 30;
+  position: absolute; right: 0; top: 174px; bottom: 0; width: 640px; max-width: 100vw; z-index: 30;
   box-sizing: border-box; padding: 20px 22px;
   display: flex; flex-direction: column; gap: 16px; overflow: hidden;
   background: rgba(6, 18, 40, 0.94);
@@ -110,7 +116,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 .close { font-size: 16px; color: #7fa8d9; cursor: pointer; padding: 2px 6px; }
 .close:hover { color: #00deff; }
 
-.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .tabs button {
   padding: 7px 0; color: #7fa8d9; cursor: pointer;
   background: rgba(36, 131, 255, 0.08);

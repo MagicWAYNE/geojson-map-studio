@@ -83,7 +83,7 @@ describe('mapDistrictBarLayer', () => {
       ['B', { name: 'B', aj: Number.NaN, ztje: 0, zzs: 0 }]
     ]), MAP_DISTRICT_BAR_DEFAULTS, 4)
 
-    expect(layer.group.children).toHaveLength(2)
+    expect(layer.group.children).toHaveLength(3)
     expect(layer.byName.has('A')).toBe(true)
     expect(layer.byName.has('B')).toBe(false)
     expect(layer.range).toEqual({ min: 100, max: 100 })
@@ -99,7 +99,7 @@ describe('mapDistrictBarLayer', () => {
     }
     const layer = createDistrictBarLayer(regions, items([['A', 100]]), disabledConfig, 4)
 
-    expect(layer.group.children).toHaveLength(2)
+    expect(layer.group.children).toHaveLength(3)
     expect(layer.byName).toHaveLength(1)
     expect(layer.range).toEqual({ min: 100, max: 100 })
 
@@ -138,7 +138,7 @@ describe('mapDistrictBarLayer', () => {
     threeFaults.cylinderGeometries = []
     threeFaults.columnMaterials = []
     threeFaults.disposalCounts.clear()
-    threeFaults.failRingGeometryAt = 2
+    threeFaults.failRingGeometryAt = 3
     const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
     const laterRegions: Region[] = [
       ...regions,
@@ -156,7 +156,7 @@ describe('mapDistrictBarLayer', () => {
     expect(layer.byName.has('A')).toBe(true)
     expect(layer.byName.has('B')).toBe(false)
     expect(layer.byName.has('C')).toBe(true)
-    expect(layer.group.children).toHaveLength(4)
+    expect(layer.group.children).toHaveLength(6)
     expect(layer.byName.get('C')!.column.visible).toBe(true)
     expect(threeFaults.disposalCounts.get(threeFaults.cylinderGeometries[1])).toBe(1)
     expect(threeFaults.disposalCounts.get(threeFaults.columnMaterials[1])).toBe(1)
@@ -215,14 +215,76 @@ describe('mapDistrictBarLayer', () => {
     const bZ = b.column.position.z
     const bIntensity = b.column.material.emissiveIntensity
 
-    setDistrictBarHoverProgress(layer, 'A', 1)
+    setDistrictBarHoverProgress(layer, 'A', 1, 2)
     updateDistrictBarLayer(layer, config, 0)
 
     expect(a.column.position.z).toBeCloseTo(aZ + config.hoverLift)
-    expect(a.ring.position.z).toBeCloseTo(4.09 + config.hoverLift)
+    expect(a.ring.position.z).toBeCloseTo(4.09 + 2)
+    expect(a.pulseRing.position.z).toBeCloseTo(4.095 + 2)
     expect(a.column.material.emissiveIntensity).toBe(config.hoverEmissiveIntensity)
     expect(b.column.position.z).toBe(bZ)
     expect(b.column.material.emissiveIntensity).toBe(bIntensity)
+  })
+
+  it('保留稳定底环，并让窄脉冲环由外向内收缩且逐步增强', () => {
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      enterMs: 0,
+      pulseDurationMs: 1000,
+      pulseStaggerMs: 0
+    }
+    const layer = createDistrictBarLayer(regions, items([['A', 100]]), config, 4)
+    const visual = layer.byName.get('A')!
+
+    updateDistrictBarLayer(layer, config, 0)
+    expect(visual.ring.material.opacity).toBeCloseTo(config.baseRingOpacity)
+    expect(visual.pulseRing.scale.x).toBeCloseTo(config.baseRingRadius * config.pulseOuterRadiusRatio)
+    expect(visual.pulseRing.material.opacity).toBeCloseTo(config.pulseOuterOpacity)
+
+    updateDistrictBarLayer(layer, config, 500)
+    expect(visual.ring.material.opacity).toBeCloseTo(config.baseRingOpacity)
+    expect(visual.pulseRing.scale.x).toBeCloseTo(
+      config.baseRingRadius * (config.pulseOuterRadiusRatio + config.pulseInnerRadiusRatio) / 2
+    )
+    expect(visual.pulseRing.material.opacity).toBeCloseTo(
+      (config.pulseOuterOpacity + config.pulseInnerOpacity) / 2
+    )
+
+    updateDistrictBarLayer(layer, config, 1_000)
+    expect(visual.pulseRing.scale.x).toBeCloseTo(config.baseRingRadius * config.pulseOuterRadiusRatio)
+    expect(visual.pulseRing.material.opacity).toBeCloseTo(config.pulseOuterOpacity)
+  })
+
+  it('强制柱体主体不透明，并让统一宽度与吸附偏移同步作用于柱体和光环', () => {
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      opacity: 0.1,
+      width: 3.6,
+      anchorOffsetX: 1.2,
+      anchorOffsetY: -0.7,
+      baseOffset: 0.4,
+      enterMs: 0
+    }
+    const layer = createDistrictBarLayer(regions, items([['A', 100], ['B', 25]]), config, 4)
+    updateDistrictBarLayer(layer, config, 0)
+    const a = layer.byName.get('A')!
+    const b = layer.byName.get('B')!
+
+    for (const visual of [a, b]) {
+      expect(visual.column.material.opacity).toBe(1)
+      expect(visual.column.material.transparent).toBe(false)
+      expect(visual.column.material.depthWrite).toBe(true)
+      expect(visual.column.scale.x).toBeCloseTo(1.8)
+      expect(visual.column.scale.z).toBeCloseTo(1.8)
+      expect(visual.column.position.x).toBeCloseTo(visual.anchor[0] + 1.2)
+      expect(visual.column.position.y).toBeCloseTo(visual.anchor[1] - 0.7)
+      expect(visual.ring.position.x).toBeCloseTo(visual.anchor[0] + 1.2)
+      expect(visual.ring.position.y).toBeCloseTo(visual.anchor[1] - 0.7)
+      expect(visual.ring.position.z).toBeCloseTo(4.49)
+      expect(visual.pulseRing.position.x).toBeCloseTo(visual.anchor[0] + 1.2)
+      expect(visual.pulseRing.position.y).toBeCloseTo(visual.anchor[1] - 0.7)
+    }
+    expect(a.column.scale.y).not.toBe(b.column.scale.y)
   })
 
   it('应用高度映射配置时保留资源并重新计算可见柱体高度', () => {
@@ -258,7 +320,9 @@ describe('mapDistrictBarLayer', () => {
       visual.column.geometry,
       visual.column.material,
       visual.ring.geometry,
-      visual.ring.material
+      visual.ring.material,
+      visual.pulseRing.geometry,
+      visual.pulseRing.material
     ]
     const disposals = resources.map((resource) => vi.spyOn(resource, 'dispose'))
 

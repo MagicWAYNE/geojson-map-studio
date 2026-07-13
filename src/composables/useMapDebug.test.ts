@@ -93,7 +93,7 @@ describe('useMapDebug effects', () => {
     })).toBe(false)
   })
 
-  it('resets v4 defaults while preserving every nested identity without changing the saved layout state', async () => {
+  it('resets v5 defaults while preserving every nested identity without changing the saved layout state', async () => {
     const values = new Map<string, string>()
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({
       version: 1,
@@ -158,7 +158,7 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.hover.inwardGlow.wave).toBe(hoverWave)
     expect(debug.effect.quality).toEqual(MAP_EFFECT_DEFAULTS.quality)
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 4,
+      version: 5,
       quality: { maxAlpha: 1 },
       bars: MAP_EFFECT_DEFAULTS.bars
     })
@@ -166,7 +166,7 @@ describe('useMapDebug effects', () => {
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V1)).toBe(true)
   })
 
-  it('persists deep v4 changes only to the v4 key and restores them after a module reload', async () => {
+  it('persists deep v5 changes only to the v5 key, while a module reload resets bar values to the baseline', async () => {
     const values = new Map<string, string>()
     const writes: Array<[string, string]> = []
     vi.stubGlobal('localStorage', {
@@ -192,7 +192,7 @@ describe('useMapDebug effects', () => {
     expect(values.has(MAP_EFFECT_STORAGE_KEY_V3)).toBe(false)
     expect(writes.every(([key]) => key === MAP_EFFECT_STORAGE_KEY)).toBe(true)
     expect(JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)).toMatchObject({
-      version: 4,
+      version: 5,
       base: { outerGlowNearRadiusRatio: 0.42, inwardGlow: { wave: { periodMs: 4200 } } },
       hover: { glowFarOpacityRatio: 0.63, inwardGlow: { wave: { strength: 0.9 } } },
       quality: { maxAlpha: 0.25 },
@@ -208,7 +208,7 @@ describe('useMapDebug effects', () => {
     expect(reloaded.effect.base.inwardGlow.wave.periodMs).toBe(4200)
     expect(reloaded.effect.hover.inwardGlow.wave.strength).toBe(0.9)
     expect(reloaded.effect.quality.maxAlpha).toBe(0.25)
-    expect(reloaded.effect.bars.hoverLift).toBe(2.5)
+    expect(reloaded.effect.bars).toEqual(MAP_EFFECT_DEFAULTS.bars)
   })
 
   it('converges watcher normalization and stops writing after the normalized state settles', async () => {
@@ -248,7 +248,7 @@ describe('useMapDebug effects', () => {
 
     const persisted = JSON.parse(values.get(MAP_EFFECT_STORAGE_KEY)!)
     expect(persisted).toMatchObject({
-      version: 4,
+      version: 5,
       base: {
         outerGlowColor: '#abcdef',
         outerGlowFalloff: 4,

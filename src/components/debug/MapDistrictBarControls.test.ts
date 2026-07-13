@@ -54,19 +54,33 @@ describe('MapDistrictBarControls', () => {
     expect(input(root, 'effect-bars-enabled-checkbox').type).toBe('checkbox')
     expect(input(root, 'effect-bars-color-color').type).toBe('color')
     expect(input(root, 'effect-bars-color-hex').type).toBe('text')
+    expect(input(root, 'effect-bars-pulseEnabled-checkbox').type).toBe('checkbox')
+    expect(input(root, 'effect-bars-pulseColor-color').type).toBe('color')
+    expect(input(root, 'effect-bars-pulseColor-hex').type).toBe('text')
     expect(root.textContent).toContain('有效柱体：8')
     expect(root.textContent).toContain('案件量范围：10–80')
+    expect(root.textContent).toContain('柱体主体：不透明')
+    expect(root.textContent).toContain('脉冲环：启用')
     expect(root.textContent).toContain('柱体层：正常')
 
     const ranges: Array<[keyof Omit<MapDistrictBarConfig, 'enabled' | 'color'>, string, string]> = [
-      ['opacity', '0', '1'],
       ['width', '0.25', '8'],
+      ['anchorOffsetX', '-20', '20'],
+      ['anchorOffsetY', '-20', '20'],
+      ['baseOffset', '-2', '6'],
       ['minHeight', '0', '24'],
       ['maxHeight', '0', '24'],
       ['sqrtExponent', '0.25', '1'],
       ['glowStrength', '0', '2'],
       ['baseRingRadius', '0', '4'],
       ['baseRingOpacity', '0', '1'],
+      ['pulseWidth', '0.02', '0.5'],
+      ['pulseOuterRadiusRatio', '0.05', '5'],
+      ['pulseInnerRadiusRatio', '0.05', '5'],
+      ['pulseOuterOpacity', '0', '1'],
+      ['pulseInnerOpacity', '0', '1'],
+      ['pulseDurationMs', '200', '6000'],
+      ['pulseStaggerMs', '0', '1000'],
       ['enterMs', '0', '3000'],
       ['staggerMs', '0', '1000'],
       ['hoverEmissiveIntensity', '0', '3'],
@@ -78,6 +92,7 @@ describe('MapDistrictBarControls', () => {
       expect(input(root, `effect-bars-${key}-range`).type).toBe('range')
       expect(root.querySelector(`label[for="effect-bars-${key}-number"]`)?.textContent).not.toBe('')
     }
+    expect(root.querySelector('#effect-bars-opacity-number')).toBeNull()
     app.unmount()
   })
 

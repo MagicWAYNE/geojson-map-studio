@@ -503,7 +503,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.mesh.userData.name, eased)
+  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.mesh.userData.name, eased, hover.lift)
   if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
 

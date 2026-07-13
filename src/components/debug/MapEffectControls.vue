@@ -16,10 +16,8 @@ import {
   assignInwardGlowConfig,
   type MapInwardGlowConfig
 } from '@/components/map/mapInwardGlowConfig'
-import type { MapDistrictBarConfig } from '@/components/map/mapDistrictBarConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
-import MapDistrictBarControls from './MapDistrictBarControls.vue'
 import MapInwardGlowControls from './MapInwardGlowControls.vue'
 
 type GlowChannel = 'base' | 'hover'
@@ -139,7 +137,7 @@ const GROUPS: readonly Group[] = [
   }
 ]
 
-const { effect, effectRuntimeStatus, districtBarRuntimeStatus, resetEffect } = useMapDebug()
+const { effect, effectRuntimeStatus, resetEffect } = useMapDebug()
 const livePreview = ref(true)
 const draft = reactive<MapEffectConfig>(cloneMapEffectConfig(effect))
 const editTarget = computed<MapEffectConfig>(() => livePreview.value ? effect : draft)
@@ -176,9 +174,6 @@ const stopEffectDraftSync = watch(effect, () => {
 }, { deep: true, flush: 'sync' })
 
 const editableJson = computed(() => formatMapEffectConfig(editTarget.value))
-const highBarGlowAndOpacity = computed(
-  () => editTarget.value.bars.glowStrength > 1.5 && editTarget.value.bars.opacity > 0.8
-)
 const performanceWarning = computed(() => {
   const target = editTarget.value
   const baseOutwardHighPass = target.base.outerGlowEnabled
@@ -199,12 +194,8 @@ const performanceWarning = computed(() => {
     || baseInwardHighPass
     || hoverInwardHighPass
     || allGlowChannelsEnabled
-    || highBarGlowAndOpacity.value
 })
-const performanceWarningText = computed(() => highBarGlowAndOpacity.value
-  ? '性能提示：建议先降低柱体辉光或透明度，减少 GPU 负载。'
-  : '性能提示：建议先降低 renderScale 或已启用通道的 passes，减少 GPU 负载。'
-)
+const performanceWarningText = '性能提示：建议先降低 renderScale 或已启用通道的 passes，减少 GPU 负载。'
 
 function baseStatusLabel(): string {
   return {
@@ -242,10 +233,6 @@ function hoverInwardStatusLabel(): string {
 
 function replaceInwardGlow(channel: GlowChannel, value: MapInwardGlowConfig): void {
   assignInwardGlowConfig(editTarget.value[channel].inwardGlow, value)
-}
-
-function replaceBars(value: MapDistrictBarConfig): void {
-  Object.assign(editTarget.value.bars, value)
 }
 
 function isBaseColorField(field: Field): field is Extract<ColorField, { section: 'base' }> {
@@ -601,15 +588,6 @@ onBeforeUnmount(() => {
         />
       </section>
     </template>
-
-    <section class="effect-group">
-      <h3>区级案件量柱状图</h3>
-      <MapDistrictBarControls
-        :model-value="editTarget.bars"
-        :runtime-status="districtBarRuntimeStatus"
-        @update:model-value="replaceBars"
-      />
-    </section>
 
     <section class="effect-group">
       <h3>可复制参数</h3>

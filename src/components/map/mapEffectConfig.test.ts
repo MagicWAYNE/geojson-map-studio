@@ -8,6 +8,7 @@ import {
   B3_GLOW_PROFILE_DEFAULTS,
   MAP_EFFECT_DEFAULTS,
   MAP_EFFECT_STORAGE_KEY,
+  MAP_EFFECT_STORAGE_KEY_V4,
   MAP_EFFECT_STORAGE_KEY_V3,
   MAP_EFFECT_STORAGE_KEY_V1,
   MAP_EFFECT_STORAGE_KEY_V2,
@@ -44,10 +45,16 @@ const V3_DEFAULTS = {
   quality: { renderScale: 0.5, maxAlpha: 1 }
 } as const
 
+const V5_DEFAULTS = {
+  ...V3_DEFAULTS,
+  version: 5,
+  bars: MAP_DISTRICT_BAR_DEFAULTS
+} as const
+
 const V4_DEFAULTS = {
   ...V3_DEFAULTS,
   version: 4,
-  bars: MAP_DISTRICT_BAR_DEFAULTS
+  bars: { ...MAP_DISTRICT_BAR_DEFAULTS, opacity: 0.72 }
 } as const
 
 const V2_DEFAULTS = {
@@ -106,16 +113,17 @@ const APPROVED_V1_CUSTOM_0 = {
 } as const
 
 describe('mapEffectConfig', () => {
-  it('exports the exact v4 defaults and storage constants', () => {
+  it('exports the exact v5 defaults and storage constants', () => {
     expect(B3_GLOW_PROFILE_DEFAULTS).toEqual({
       nearRadiusRatio: 0.35, nearOpacityRatio: 0.83, farRadiusRatio: 1,
       farOpacityRatio: 1, falloff: 1, edgeSoftness: 0.96, nearPasses: 2, farPasses: 4
     })
-    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v4')
+    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v5')
+    expect(MAP_EFFECT_STORAGE_KEY_V4).toBe('cq-map-effect-config-v4')
     expect(MAP_EFFECT_STORAGE_KEY_V3).toBe('cq-map-effect-config-v3')
     expect(MAP_EFFECT_STORAGE_KEY_V2).toBe('cq-map-effect-config-v2')
     expect(MAP_EFFECT_STORAGE_KEY_V1).toBe('cq-map-effect-config-v1')
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V4_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
     expect(MAP_EFFECT_DEFAULTS.bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
   })
 
@@ -123,8 +131,8 @@ describe('mapEffectConfig', () => {
     const a = normalizeMapEffectConfig(undefined)
     const b = normalizeMapEffectConfig(undefined)
 
-    expect(a).toEqual(V4_DEFAULTS)
-    expect(b).toEqual(V4_DEFAULTS)
+    expect(a).toEqual(V5_DEFAULTS)
+    expect(b).toEqual(V5_DEFAULTS)
     expect(a).not.toBe(b)
     expect(a.base).not.toBe(b.base)
     expect(a.hover).not.toBe(b.hover)
@@ -137,7 +145,7 @@ describe('mapEffectConfig', () => {
 
     a.base.inwardGlow.wave.periodMs = 999
     a.hover.inwardGlow.width = 1
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V4_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
   })
 
   it('keeps exported defaults and inward nested objects frozen', () => {
@@ -150,20 +158,20 @@ describe('mapEffectConfig', () => {
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.hover.inwardGlow.wave)).toBe(true)
   })
 
-  it('migrates both known v1 defaults to v4 defaults', () => {
+  it('migrates both known v1 defaults to v5 defaults', () => {
     for (const value of [APPROVED_V1_DEFAULTS, INITIAL_V1_DEFAULTS]) {
       expect(loadMapEffectConfig({ getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(value) : null }))
-        .toEqual(V4_DEFAULTS)
+        .toEqual(V5_DEFAULTS)
     }
   })
 
-  it('preserves custom v1 values and explicit zeroes while filling v4 defaults', () => {
+  it('preserves custom v1 values and explicit zeroes while filling v5 defaults', () => {
     expect(loadMapEffectConfig({ getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(APPROVED_V1_CUSTOM_0) : null }))
       .toEqual({
-        ...V4_DEFAULTS,
-        base: { ...V4_DEFAULTS.base, innerWidth: 1.75, outerGlowWidth: 0, outerGlowStrength: 0 },
+        ...V5_DEFAULTS,
+        base: { ...V5_DEFAULTS.base, innerWidth: 1.75, outerGlowWidth: 0, outerGlowStrength: 0 },
         hover: {
-          ...V4_DEFAULTS.hover, glowColor: '#27a7ff', glowWidth: 0,
+          ...V5_DEFAULTS.hover, glowColor: '#27a7ff', glowWidth: 0,
           glowStrength: 0, enterMs: 360
         }
       })
@@ -178,15 +186,15 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(initialNearMatch) : null
     })).toEqual({
-      ...V4_DEFAULTS,
+      ...V5_DEFAULTS,
       base: {
-        ...V4_DEFAULTS.base,
+        ...V5_DEFAULTS.base,
         innerColor: '#4da3ff', innerWidth: 1, innerOpacity: 0.55,
         outerColor: '#7fcbff', outerCoreWidth: 1.8,
         outerGlowWidth: 10, outerGlowStrength: 0.31
       },
       hover: {
-        ...V4_DEFAULTS.hover,
+        ...V5_DEFAULTS.hover,
         surfaceColor: '#7fcbff', emissiveColor: '#168dff', emissiveIntensity: 0.8,
         outlineColor: '#d8f5ff', outlineWidth: 2.4, glowColor: '#27a7ff',
         glowWidth: 7, glowStrength: 0.35, lift: 1, enterMs: 180, leaveMs: 220
@@ -204,7 +212,7 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V3 ? JSON.stringify(customV3) : null
     })).toEqual({
-      version: 4,
+      version: 5,
       base: customV3.base,
       hover: customV3.hover,
       quality: customV3.quality,
@@ -212,12 +220,12 @@ describe('mapEffectConfig', () => {
     })
   })
 
-  it('migrates v2 parameters through the v3-to-v4 builder', () => {
+  it('migrates v2 parameters through the v3-to-v5 builder', () => {
     const customV2 = { ...V2_DEFAULTS, base: { ...V2_DEFAULTS.base, outerGlowWidth: 91 } }
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(customV2) : null
     })).toEqual({
-      version: 4,
+      version: 5,
       base: { ...customV2.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
       hover: { ...customV2.hover, inwardGlow: HOVER_INWARD_GLOW_DEFAULTS },
       quality: customV2.quality,
@@ -225,33 +233,41 @@ describe('mapEffectConfig', () => {
     })
   })
 
-  it('does not fall back to older storage when v4 exists but is broken', () => {
+  it('does not fall back to older storage when v5 exists but is broken', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY
-        ? '{broken-v4'
+        ? '{broken-v5'
         : key === MAP_EFFECT_STORAGE_KEY_V3
           ? JSON.stringify(V3_DEFAULTS)
         : key === MAP_EFFECT_STORAGE_KEY_V2
           ? JSON.stringify(V2_DEFAULTS)
           : JSON.stringify(APPROVED_V1_CUSTOM_0)
-    })).toEqual(V4_DEFAULTS)
+    })).toEqual(V5_DEFAULTS)
   })
 
-  it('does not fall back to older storage when a syntactically valid v4 payload has the wrong schema', () => {
+  it('does not fall back to older storage when a syntactically valid v5 payload has the wrong schema', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY
-        ? JSON.stringify({ version: 3 })
+        ? JSON.stringify({ version: 4 })
         : key === MAP_EFFECT_STORAGE_KEY_V3
           ? JSON.stringify(V3_DEFAULTS)
         : key === MAP_EFFECT_STORAGE_KEY_V2
           ? JSON.stringify(V2_DEFAULTS)
           : JSON.stringify(APPROVED_V1_CUSTOM_0)
-    })).toEqual(V4_DEFAULTS)
+    })).toEqual(V5_DEFAULTS)
   })
 
-  it('normalizes v4 outer, inward, and bar fields while keeping all tuned outer fallbacks', () => {
+  it('migrates v4 values and normalizes current v5 outer, inward, and bar fields', () => {
+    const migratedV4 = loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V4 ? JSON.stringify(V4_DEFAULTS) : null
+    })
+    expect(migratedV4).toMatchObject({
+      version: 5,
+      bars: { opacity: 1, anchorOffsetX: 0, anchorOffsetY: 0, baseOffset: 0 }
+    })
+
     const normalized = normalizeMapEffectConfig({
-      version: 4,
+      version: 5,
       base: {
         innerColor: '#ABCDEF', innerWidth: 9, outerGlowWidth: 300,
         outerGlowNearPasses: 2.6,
@@ -266,7 +282,7 @@ describe('mapEffectConfig', () => {
     })
 
     expect(normalized).toMatchObject({
-      version: 4,
+      version: 5,
       base: {
         innerColor: '#abcdef', innerWidth: 4, outerGlowWidth: 200, outerGlowNearPasses: 3,
         inwardGlow: { color: '#fedcba', width: 200, wave: { periodMs: 250, easing: 'ease-out' } }
@@ -280,7 +296,29 @@ describe('mapEffectConfig', () => {
     })
     expect(normalized.base.outerGlowColor).toBe(V3_DEFAULTS.base.outerGlowColor)
     expect(normalized.hover.glowWidth).toBe(V3_DEFAULTS.hover.glowWidth)
-    expect(normalizeMapEffectConfig({ version: 3, base: {}, hover: {}, quality: {} })).toEqual(V4_DEFAULTS)
+    expect(normalizeMapEffectConfig({ version: 4, base: {}, hover: {}, quality: {} })).toEqual(V5_DEFAULTS)
+  })
+
+  it('resets saved bar adjustments to the code baseline on every load while retaining other v5 settings', () => {
+    const saved = {
+      ...V5_DEFAULTS,
+      base: { ...V5_DEFAULTS.base, outerGlowWidth: 91 },
+      bars: {
+        ...MAP_DISTRICT_BAR_DEFAULTS,
+        color: '#ffffff',
+        width: 6.4,
+        anchorOffsetX: 8,
+        baseRingRadius: 3.5
+      }
+    }
+
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY ? JSON.stringify(saved) : null
+    })).toEqual({
+      ...V5_DEFAULTS,
+      base: { ...V5_DEFAULTS.base, outerGlowWidth: 91 },
+      bars: MAP_DISTRICT_BAR_DEFAULTS
+    })
   })
 
   it('clones and assigns deeply while preserving every target identity', () => {
@@ -310,18 +348,18 @@ describe('mapEffectConfig', () => {
     expect(target.hover.inwardGlow.wave).toBe(hoverWave)
   })
 
-  it('writes and formats normalized v4 storage payloads', () => {
+  it('writes and formats normalized v5 storage payloads', () => {
     const writes: Array<[string, string]> = []
-    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, V4_DEFAULTS)
+    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, V5_DEFAULTS)
 
-    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(V4_DEFAULTS)]])
-    const text = formatMapEffectConfig(V4_DEFAULTS)
-    expect(text).toContain('"version": 4')
+    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(V5_DEFAULTS)]])
+    const text = formatMapEffectConfig(V5_DEFAULTS)
+    expect(text).toContain('"version": 5')
     expect(JSON.parse(text).bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
-    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(V4_DEFAULTS)
+    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(V5_DEFAULTS)
   })
 
   it('swallows storage write failures', () => {
-    expect(() => saveMapEffectConfig({ setItem: () => { throw new Error('denied') } }, V4_DEFAULTS)).not.toThrow()
+    expect(() => saveMapEffectConfig({ setItem: () => { throw new Error('denied') } }, V5_DEFAULTS)).not.toThrow()
   })
 })

@@ -29,7 +29,7 @@ describe('watchMapEffectConfig', () => {
     expect(apply).toHaveBeenCalledTimes(2)
   })
 
-  it('tracks full v4 quality, advanced base and hover, bars, and nested inward wave fields', async () => {
+  it('tracks full v5 quality, advanced base and hover, bars, and nested inward wave fields', async () => {
     const effect = reactive(createEffectConfig())
     const snapshots: MapEffectConfig[] = []
     const apply = vi.fn(() => snapshots.push(JSON.parse(JSON.stringify(effect))))
@@ -50,7 +50,7 @@ describe('watchMapEffectConfig', () => {
 
     expect(apply).toHaveBeenCalledTimes(2)
     expect(snapshots.at(-1)).toMatchObject({
-      version: 4,
+      version: 5,
       quality: { renderScale: 0.75, maxAlpha: 0.65 },
       base: {
         outerGlowFarPasses: 7,
