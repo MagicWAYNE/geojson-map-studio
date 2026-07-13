@@ -6,6 +6,7 @@ import {
   MAP_EFFECT_STORAGE_KEY_V1,
   MAP_EFFECT_STORAGE_KEY_V2
 } from '@/components/map/mapEffectConfig'
+import { MAP_HUD_DEFAULTS } from '@/components/map/mapHudConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 import {
   applyHoverGlowConfig,
@@ -52,6 +53,30 @@ describe('useMapDebug layout defaults', () => {
 })
 
 describe('useMapDebug effects', () => {
+  it('keeps HUD tuning in the current session without using localStorage', async () => {
+    const writes = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: writes
+    })
+
+    const { useMapDebug } = await import('./useMapDebug')
+    const debug = useMapDebug()
+    debug.hud.anchor.x = 24
+    debug.hud.rotating.speedDegPerSecond = -8
+    await nextTick()
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(debug.hud).toMatchObject({
+      anchor: { x: 24 },
+      rotating: { speedDegPerSecond: -8 }
+    })
+
+    vi.resetModules()
+    const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
+    expect(reloadedUseMapDebug().hud).toEqual(MAP_HUD_DEFAULTS)
+  })
+
   it('resets v3 defaults while preserving every nested identity without changing the saved layout state', async () => {
     const values = new Map<string, string>()
     values.set(MAP_EFFECT_STORAGE_KEY_V1, JSON.stringify({

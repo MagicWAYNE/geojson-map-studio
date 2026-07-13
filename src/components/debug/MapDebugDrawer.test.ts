@@ -11,6 +11,29 @@ afterEach(() => {
 })
 
 describe('MapDebugDrawer copy feedback', () => {
+  it('adds a dedicated HUD tab without changing the existing layout tab', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: vi.fn()
+    })
+    const { useMapDebug } = await import('@/composables/useMapDebug')
+    useMapDebug().drawerOpen.value = true
+    const { default: MapDebugDrawer } = await import('./MapDebugDrawer.vue')
+    const root = document.createElement('div')
+    const app = createApp(MapDebugDrawer)
+    app.mount(root)
+    await nextTick()
+
+    const hudTab = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'HUD')!
+    hudTab.click()
+    await nextTick()
+
+    expect(root.textContent).toContain('静态方位底盘')
+    expect(root.textContent).not.toContain('3D 视角 / 缩放')
+    app.unmount()
+  })
+
   it('shows failure when the CSS clipboard fallback returns false', async () => {
     vi.stubGlobal('localStorage', {
       getItem: () => null,
