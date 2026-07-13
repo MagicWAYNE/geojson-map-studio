@@ -170,7 +170,11 @@ describe('createMapMosaicParticles', () => {
 
     particles.setRegionProgress(source, 0.2)
     const firstSeed = material.uniforms.uActivationSeed.value
-    expect(firstSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 0))
+    expect(firstSeed).toBe(deriveMosaicActivationSeed(
+      HOVER_MOSAIC_PARTICLE_DEFAULTS.seed,
+      '测试区',
+      0
+    ))
     expect(material.uniforms.uBurstEnvelope.value).toBe(1)
     particles.advanceTime(130)
     expect(material.uniforms.uBurstEnvelope.value).toBe(0.5)
@@ -183,7 +187,11 @@ describe('createMapMosaicParticles', () => {
     particles.setRegionProgress(source, 0)
     particles.setRegionProgress(source, 0.2)
     const secondSeed = material.uniforms.uActivationSeed.value
-    expect(secondSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 1))
+    expect(secondSeed).toBe(deriveMosaicActivationSeed(
+      HOVER_MOSAIC_PARTICLE_DEFAULTS.seed,
+      '测试区',
+      1
+    ))
     expect(secondSeed).not.toBe(firstSeed)
     expect(material.uniforms.uBurstEnvelope.value).toBe(1)
 
@@ -198,7 +206,11 @@ describe('createMapMosaicParticles', () => {
     particles.setRegionProgress(source, 0.2)
     expect(material.uniforms.uTime.value).toBe(0)
     expect(material.uniforms.uActivationSeed.value).toBe(fixedSeed)
-    expect(fixedSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 0))
+    expect(fixedSeed).toBe(deriveMosaicActivationSeed(
+      HOVER_MOSAIC_PARTICLE_DEFAULTS.seed,
+      '测试区',
+      0
+    ))
     particles.dispose()
   })
 

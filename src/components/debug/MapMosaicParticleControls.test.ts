@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, nextTick, reactive, type App } from 'vue'
 import {
+  BLUE_PURPLE_MOSAIC_PARTICLE_PRESET,
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
   assignMosaicParticleConfig,
   cloneMosaicParticleConfig,
@@ -102,7 +103,7 @@ describe('MapMosaicParticleControls', () => {
     radius.dispatchEvent(new InputEvent('input', { bubbles: true }))
     await nextTick()
     expect(radius.value).toBe('4.6')
-    expect(state.value.clusterRadius).toBe(2)
+    expect(state.value.clusterRadius).toBe(1)
     expect(updates).toHaveLength(0)
 
     radius.dispatchEvent(new Event('change', { bubbles: true }))
@@ -188,7 +189,7 @@ describe('MapMosaicParticleControls', () => {
     app.unmount()
   })
 
-  it('applies the blue-purple preset, generates a random seed, and resets with fresh values', async () => {
+  it('applies the blue-purple preset, generates a random seed, and resets to tuned defaults', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.4321)
     const { app, root, state, updates } = await mountControls()
     state.value.primaryColor = '#111111'
@@ -198,8 +199,8 @@ describe('MapMosaicParticleControls', () => {
     button(root, '应用蓝紫参考预设').click()
     await nextTick()
     const preset = updates.at(-1)!
-    expect(preset).toEqual(HOVER_MOSAIC_PARTICLE_DEFAULTS)
-    expect(preset).not.toBe(HOVER_MOSAIC_PARTICLE_DEFAULTS)
+    expect(preset).toEqual(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
+    expect(preset).not.toBe(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
 
     button(root, '随机种子').click()
     await nextTick()
@@ -209,7 +210,7 @@ describe('MapMosaicParticleControls', () => {
 
     state.value.accentColor = '#222222'
     await nextTick()
-    button(root, '重置本组').click()
+    button(root, '恢复固化默认').click()
     await nextTick()
     const reset = updates.at(-1)!
     expect(reset).toEqual(HOVER_MOSAIC_PARTICLE_DEFAULTS)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import {
+  BLUE_PURPLE_MOSAIC_PARTICLE_PRESET,
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
   cloneMosaicParticleConfig,
   normalizeMosaicParticleConfig,
@@ -130,7 +131,7 @@ function updateRange(field: NumberField, event: Event): void {
 }
 
 function applyBluePurplePreset(): void {
-  emit('update:modelValue', cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS))
+  emit('update:modelValue', cloneMosaicParticleConfig(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET))
 }
 
 function randomizeSeed(): void {
@@ -231,7 +232,7 @@ watch(() => props.modelValue, () => {
     <div class="effect-actions group-actions">
       <button class="btn" type="button" @click="applyBluePurplePreset">应用蓝紫参考预设</button>
       <button class="btn ghost" type="button" @click="randomizeSeed">随机种子</button>
-      <button class="btn ghost" type="button" @click="resetGroup">重置本组</button>
+      <button class="btn ghost" type="button" @click="resetGroup">恢复固化默认</button>
     </div>
   </section>
 </template>

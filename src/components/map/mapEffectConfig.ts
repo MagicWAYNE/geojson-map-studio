@@ -176,7 +176,7 @@ const V4_BASE_DEFAULTS: Readonly<MapEffectBaseConfigV2> = Object.freeze({
 })
 
 const V4_HOVER_DEFAULTS: Readonly<MapEffectHoverConfigV2> = Object.freeze({
-  surfaceColor: '#7fcbff', emissiveColor: '#4894db', emissiveIntensity: 0.5,
+  surfaceColor: '#000000', emissiveColor: '#5edaf3', emissiveIntensity: 0.25,
   outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: true,
   glowColor: '#ffffff', glowWidth: 64, glowStrength: 0.12,
   glowNearRadiusRatio: 0.46, glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,

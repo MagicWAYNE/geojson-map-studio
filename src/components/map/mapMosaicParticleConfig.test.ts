@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BLUE_PURPLE_MOSAIC_PARTICLE_PRESET,
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
   MOSAIC_MIN_LOD_RANGE_RATIO,
   assignMosaicParticleConfig,
@@ -8,24 +9,24 @@ import {
 } from './mapMosaicParticleConfig'
 
 describe('mapMosaicParticleConfig', () => {
-  it('exports the confirmed blue-purple hover defaults', () => {
+  it('exports the confirmed hover mosaic defaults', () => {
     expect(HOVER_MOSAIC_PARTICLE_DEFAULTS).toEqual({
       enabled: true,
       primaryColor: '#4fc3ff',
-      accentColor: '#a56dff',
+      accentColor: '#ffffff',
       accentRatio: 0.2,
-      density: 0.12,
-      clusterChance: 0.16,
-      clusterRadius: 2,
-      clusterStrength: 1.35,
+      density: 0.99,
+      clusterChance: 0.15,
+      clusterRadius: 1,
+      clusterStrength: 0.7,
       accentClusterBias: 0.65,
-      targetCellPx: 8,
+      targetCellPx: 4,
       minCellPx: 4,
-      maxCellPx: 14,
+      maxCellPx: 5,
       gapRatio: 0.2,
-      opacity: 0.5,
+      opacity: 0.24,
       brightness: 1.15,
-      flickerHz: 3.2,
+      flickerHz: 0.3,
       dutyCycle: 0.35,
       pulseSharpness: 1.4,
       clusterFlickerScale: 0.65,
@@ -33,10 +34,24 @@ describe('mapMosaicParticleConfig', () => {
       burstStrength: 1.6,
       burstDensityBoost: 0.18,
       surfaceOffset: 0.12,
-      seed: 17,
+      seed: 6768,
       reseedOnEnter: true
     })
     expect(Object.isFrozen(HOVER_MOSAIC_PARTICLE_DEFAULTS)).toBe(true)
+  })
+
+  it('keeps the blue-purple reference preset independent from tuned defaults', () => {
+    expect(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET).toMatchObject({
+      primaryColor: '#4fc3ff',
+      accentColor: '#a56dff',
+      density: 0.12,
+      targetCellPx: 8,
+      seed: 17
+    })
+    expect(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET).not.toEqual(
+      HOVER_MOSAIC_PARTICLE_DEFAULTS
+    )
+    expect(Object.isFrozen(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)).toBe(true)
   })
 
   it('clones values and assigns in place', () => {
@@ -49,7 +64,7 @@ describe('mapMosaicParticleConfig', () => {
 
     expect(target).toEqual(source)
     expect(target).not.toBe(source)
-    expect(HOVER_MOSAIC_PARTICLE_DEFAULTS.seed).toBe(17)
+    expect(HOVER_MOSAIC_PARTICLE_DEFAULTS.seed).toBe(6768)
   })
 
   it('normalizes colors, finite ranges, integers, booleans, and cell-size ordering', () => {
@@ -82,10 +97,10 @@ describe('mapMosaicParticleConfig', () => {
     })).toEqual({
       enabled: false,
       primaryColor: '#abcdef',
-      accentColor: '#a56dff',
+      accentColor: '#ffffff',
       accentRatio: 1,
       density: 0,
-      clusterChance: 0.16,
+      clusterChance: 0.15,
       clusterRadius: 5,
       clusterStrength: 3,
       accentClusterBias: 0,
