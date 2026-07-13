@@ -8,6 +8,13 @@ import {
   normalizeMapEffectConfig,
   saveMapEffectConfig
 } from '@/components/map/mapEffectConfig'
+import {
+  MAP_HUD_DEFAULTS,
+  assignMapHudConfig,
+  cloneMapHudConfig,
+  formatMapHudConfig,
+  normalizeMapHudConfig
+} from '@/components/map/mapHudConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 
 export interface MapLayout {
@@ -64,10 +71,13 @@ function loadLayout(): MapLayout {
 const drawerOpen = ref(false)
 const layout = reactive<MapLayout>(loadLayout())
 const effect = reactive(loadMapEffectConfig(storage()))
+// HUD 调试参数只在当前页面会话内有效，刷新后始终恢复源码默认值。
+const hud = reactive(cloneMapHudConfig(MAP_HUD_DEFAULTS))
 const effectRuntimeStatus = reactive<MapEffectRuntimeStatus>({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })
 // 3D 相机实时视角（由 ChongqingMap3D 在 OrbitControls change 时写入），仅运行时读数，不持久化
 const cameraView = ref('')
 const effectJson = computed(() => formatMapEffectConfig(effect))
+const hudJson = computed(() => formatMapHudConfig(hud))
 
 watch(layout, (value) => {
   try {
@@ -83,12 +93,20 @@ watch(effect, (value) => {
   saveMapEffectConfig(storage(), normalized)
 }, { deep: true })
 
+watch(hud, (value) => {
+  assignMapHudConfig(hud, normalizeMapHudConfig(value))
+}, { deep: true })
+
 function resetLayout(): void {
   Object.assign(layout, MAP_LAYOUT_DEFAULT)
 }
 
 function resetEffect(): void {
   assignMapEffectConfig(effect, cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
+}
+
+function resetHud(): void {
+  assignMapHudConfig(hud, cloneMapHudConfig(MAP_HUD_DEFAULTS))
 }
 
 function sameEffectRuntimeStatus(
@@ -119,10 +137,13 @@ export function useMapDebug() {
     layout,
     effect,
     effectJson,
+    hud,
+    hudJson,
     effectRuntimeStatus,
     updateEffectRuntimeStatus,
     resetLayout,
     resetEffect,
+    resetHud,
     cameraView
   }
 }

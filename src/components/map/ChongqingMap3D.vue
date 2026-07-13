@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
@@ -12,6 +12,8 @@ import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
+import hudStaticUrl from '@/assets/images/map-hud/hud-disc-c5k377sv75.png'
+import hudRotatingUrl from '@/assets/images/map-hud/hud-disc-v3809z30i-rotating.png'
 import { classifyBoundarySegments, parseSvgRegions, projectRegions, type Region } from './mapGeometry'
 import {
   createMapOutwardGlowPipeline,
@@ -26,6 +28,12 @@ import {
   type HoverGlowBundle,
   type StaticGlowBundle
 } from './mapGlow'
+import {
+  advanceMapHud,
+  applyMapHudConfig,
+  createMapHud,
+  type MapHudBundle
+} from './mapHud'
 
 /**
  * POC：Three.js 挤出版重庆主城区地图（渝中/两江新区/南岸/九龙坡/沙坪坝/大渡口/北碚/巴南）。
@@ -47,7 +55,7 @@ const fps = ref(0)
 const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
 
 const router = useRouter()
-const { cameraView, effect, updateEffectRuntimeStatus } = useMapDebug()
+const { cameraView, effect, hud: hudConfig, updateEffectRuntimeStatus } = useMapDebug()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -58,6 +66,7 @@ let raf = 0
 let ro: ResizeObserver | null = null
 let staticGlow: StaticGlowBundle | null = null
 let outwardGlow: MapOutwardGlowPipeline | null = null
+let mapHud: MapHudBundle | null = null
 let mounted = false
 let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
@@ -220,6 +229,12 @@ function applyEffectConfig(): void {
 }
 
 const stopEffectWatch = watchMapEffectConfig(effect, applyEffectConfig)
+
+function applyHudConfig(): void {
+  if (mapHud) applyMapHudConfig(mapHud, hudConfig)
+}
+
+const stopHudWatch = watch(hudConfig, applyHudConfig, { deep: true })
 
 function buildRegions(
   regions: Region[],
@@ -531,6 +546,7 @@ function loop(now: number) {
   const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
   lastFrameAt = now
   const glowStatusChanged = updateRegionVisuals(deltaMs)
+  if (mapHud) advanceMapHud(mapHud, hudConfig, deltaMs)
   if (glowStatusChanged) publishGlowStatus()
   controls?.update()
   if (renderer && scene && camera) {
@@ -548,6 +564,40 @@ function loop(now: number) {
 
 function isCurrentInit(generation: number): boolean {
   return mounted && generation === initGeneration && container.value !== null
+}
+
+function disposeHudTextures(textures: readonly THREE.Texture[]): void {
+  new Set(textures).forEach((texture) => texture.dispose())
+}
+
+function loadMapHud(generation: number): void {
+  void Promise.allSettled([
+    new THREE.TextureLoader().loadAsync(hudStaticUrl),
+    new THREE.TextureLoader().loadAsync(hudRotatingUrl)
+  ]).then((results) => {
+    if (results[0].status !== 'fulfilled' || results[1].status !== 'fulfilled') {
+      disposeHudTextures(results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []))
+      const cause = results.find((result) => result.status === 'rejected')
+      console.warn('地图 HUD 资源加载失败，已跳过 HUD 层', cause?.status === 'rejected' ? cause.reason : undefined)
+      return
+    }
+    const [staticTexture, rotatingTexture] = [results[0].value, results[1].value]
+    if (!isCurrentInit(generation) || !scene) {
+      disposeHudTextures([staticTexture, rotatingTexture])
+      return
+    }
+    staticTexture.colorSpace = THREE.SRGBColorSpace
+    rotatingTexture.colorSpace = THREE.SRGBColorSpace
+    try {
+      const pendingHud = createMapHud(staticTexture, rotatingTexture)
+      applyMapHudConfig(pendingHud, hudConfig)
+      scene.add(pendingHud.group)
+      mapHud = pendingHud
+    } catch (cause) {
+      disposeHudTextures([staticTexture, rotatingTexture])
+      console.warn('地图 HUD 初始化失败，已跳过 HUD 层', cause)
+    }
+  })
 }
 
 async function init(generation: number) {
@@ -616,6 +666,7 @@ async function init(generation: number) {
 
     lastFpsAt = performance.now()
     raf = requestAnimationFrame(loop)
+    loadMapHud(generation)
   } catch (e) {
     if (isCurrentInit(generation)) error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -677,6 +728,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   scene = null
   camera = null
   staticGlow = null
+  mapHud = null
   cameraView.value = ''
   regionMeshes.length = 0
   regionVisuals.length = 0
@@ -693,6 +745,7 @@ onBeforeUnmount(() => {
   pendingInitCleanup?.()
   pendingInitCleanup = null
   stopEffectWatch()
+  stopHudWatch()
   cleanupScene()
 })
 </script>

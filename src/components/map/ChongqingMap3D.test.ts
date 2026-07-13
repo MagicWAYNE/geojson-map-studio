@@ -3,6 +3,7 @@ import { createApp, nextTick, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
+import { MAP_HUD_DEFAULTS, type MapHudConfig } from './mapHudConfig'
 
 const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
 const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
@@ -26,6 +27,7 @@ const runtimeStatusDefault = vi.hoisted(() => ({
 }))
 const mapDebugMocks = vi.hoisted(() => ({
   effect: null as MapEffectConfig | null,
+  hud: null as MapHudConfig | null,
   updateEffectRuntimeStatus: vi.fn()
 }))
 const pipelineMocks = vi.hoisted(() => ({
@@ -88,9 +90,17 @@ vi.mock('@/composables/useMapDebug', () => ({
       hover: { ...MAP_EFFECT_DEFAULTS.hover }
     })
     mapDebugMocks.effect = effect
+    const hud = reactive<MapHudConfig>({
+      ...MAP_HUD_DEFAULTS,
+      anchor: { ...MAP_HUD_DEFAULTS.anchor },
+      static: { ...MAP_HUD_DEFAULTS.static },
+      rotating: { ...MAP_HUD_DEFAULTS.rotating }
+    })
+    mapDebugMocks.hud = hud
     return {
       cameraView: { value: '' },
       effect,
+      hud,
       updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus
     }
   }
@@ -108,6 +118,7 @@ afterEach(() => {
   Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
   mapDebugMocks.updateEffectRuntimeStatus.mockReset()
   mapDebugMocks.effect = null
+  mapDebugMocks.hud = null
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -448,6 +459,35 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(camera.position.toArray()).toEqual([-62.1, 94.9, 108.9])
     expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(17.2, -3.5, 22.5)
 
+    mounted.app.unmount()
+  })
+
+  it('adds independently configurable HUD planes without affecting map source meshes', async () => {
+    const mounted = await mountInitializedMap()
+    await vi.waitFor(() => expect(THREE.TextureLoader.prototype.loadAsync).toHaveBeenCalledTimes(3))
+    await Promise.resolve()
+    mounted.runFrame(16)
+    const scene = pipelineMocks.instance.render.mock.calls.at(-1)![0] as THREE.Scene
+    const hud = scene.getObjectByName('map-hud')!
+    const staticLayer = scene.getObjectByName('map-hud-static')!
+    const rotatingLayer = scene.getObjectByName('map-hud-rotating')!
+    const staticAngle = staticLayer.rotation.y
+
+    expect(hud).toBeTruthy()
+    expect(staticLayer.scale.x).toBe(145)
+    expect(rotatingLayer.scale.x).toBe(93)
+    expect(pipelineMocks.create.mock.calls[0][1]).toHaveLength(1)
+
+    mounted.runFrame(1016)
+    expect(staticLayer.rotation.y).toBe(staticAngle)
+    expect(rotatingLayer.rotation.y).not.toBe(0)
+
+    mapDebugMocks.hud!.rotating.opacity = 0.2
+    mapDebugMocks.hud!.rotating.enabled = false
+    await nextTick()
+    const material = (rotatingLayer.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial
+    expect(rotatingLayer.visible).toBe(false)
+    expect(material.opacity).toBe(0.2)
     mounted.app.unmount()
   })
 
