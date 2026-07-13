@@ -40,6 +40,15 @@ const pipelineMocks = vi.hoisted(() => ({
     dispose: vi.fn()
   }
 }))
+const mosaicMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  instance: {
+    setConfig: vi.fn(),
+    setRegionProgress: vi.fn(),
+    advanceTime: vi.fn(),
+    dispose: vi.fn()
+  }
+}))
 
 const stopEffectWatch = vi.fn()
 const watchMapEffectConfig = vi.fn<(effect: MapEffectConfig, apply: () => void) => () => void>(
@@ -62,6 +71,9 @@ vi.mock('./mapEffectWatcher', () => ({ watchMapEffectConfig }))
 vi.mock('./mapEffectRuntime', () => ({ applyMapEffectConfig }))
 vi.mock('./mapOutwardGlowPipeline', () => ({
   createMapOutwardGlowPipeline: pipelineMocks.create
+}))
+vi.mock('./mapMosaicParticles', () => ({
+  createMapMosaicParticles: mosaicMocks.create
 }))
 vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
@@ -110,6 +122,8 @@ afterEach(() => {
   threeMocks.createRenderer.mockClear()
   pipelineMocks.create.mockReset()
   Object.values(pipelineMocks.instance).forEach((mock) => mock.mockReset())
+  mosaicMocks.create.mockReset()
+  Object.values(mosaicMocks.instance).forEach((mock) => mock.mockReset())
   mapDebugMocks.updateEffectRuntimeStatus.mockReset()
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
@@ -122,6 +136,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
+  mosaicMocks.create.mockReturnValue(mosaicMocks.instance)
   pipelineMocks.instance.setRegionProgress.mockReturnValue(false)
   pipelineMocks.instance.getStatus.mockReturnValue({
     targetWidth: 680,
@@ -221,6 +236,64 @@ function expectDegradedGlowFallback(
 }
 
 describe('ChongqingMap3D effect wiring', () => {
+  it('wires mosaic config, shared hover progress, frame time, and disposal', async () => {
+    const mounted = await mountInitializedMap(2)
+    expect(mosaicMocks.create).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.any(THREE.Mesh),
+      expect.any(THREE.Mesh)
+    ]))
+    expect(mosaicMocks.instance.setConfig).toHaveBeenCalledWith(
+      mapDebugMocks.effect!.hover.mosaicParticles
+    )
+
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: meshes[0] } as THREE.Intersection
+    ])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+
+    const mosaicProgress = mosaicMocks.instance.setRegionProgress.mock.calls
+      .filter(([source]) => source === meshes[0])
+      .at(-1)?.[1]
+    const glowProgress = pipelineMocks.instance.setRegionProgress.mock.calls
+      .filter(([source]) => source === meshes[0])
+      .at(-1)?.[1]
+    expect(mosaicProgress).toBeGreaterThan(0)
+    expect(mosaicProgress).toBe(glowProgress)
+    expect(mosaicMocks.instance.advanceTime).toHaveBeenLastCalledWith(16)
+
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    mosaicMocks.instance.setConfig.mockClear()
+    apply()
+    expect(mosaicMocks.instance.setConfig).toHaveBeenCalledWith(
+      mapDebugMocks.effect!.hover.mosaicParticles
+    )
+
+    mounted.app.unmount()
+    expect(mosaicMocks.instance.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the map rendering when mosaic initialization fails', async () => {
+    mosaicMocks.create.mockImplementationOnce(() => {
+      throw new Error('mosaic unavailable')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    expect(() => mounted.runFrame(16)).not.toThrow()
+    expect(warn).toHaveBeenCalledWith(
+      '马赛克粒子初始化失败，已跳过粒子层',
+      expect.any(Error)
+    )
+    expect(pipelineMocks.instance.render).toHaveBeenCalled()
+    mounted.app.unmount()
+  })
+
   it('publishes pipeline status after setup, config, resize, render, and hover threshold crossings', async () => {
     const mounted = await mountInitializedMap()
     expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({

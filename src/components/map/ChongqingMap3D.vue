@@ -20,6 +20,10 @@ import {
   type MapOutwardGlowPipeline
 } from './mapOutwardGlowPipeline'
 import {
+  createMapMosaicParticles,
+  type MapMosaicParticles
+} from './mapMosaicParticles'
+import {
   createHoverGlowLayers,
   createStaticGlowLayers,
   setHoverGlowProgress,
@@ -66,6 +70,7 @@ let raf = 0
 let ro: ResizeObserver | null = null
 let staticGlow: StaticGlowBundle | null = null
 let outwardGlow: MapOutwardGlowPipeline | null = null
+let mosaicParticles: MapMosaicParticles | null = null
 let mapHud: MapHudBundle | null = null
 let mounted = false
 let initGeneration = 0
@@ -74,6 +79,7 @@ const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 const disposedGlowPipelines = new WeakSet<MapOutwardGlowPipeline>()
 let glowFailureWarned = false
+let mosaicFailureWarned = false
 
 interface RegionVisual {
   mesh: THREE.Mesh
@@ -207,6 +213,59 @@ function renderGlowFrame(
   }
 }
 
+type MosaicFailurePhase = 'initialization' | 'runtime'
+
+function handleMosaicFailure(
+  particles: MapMosaicParticles | null,
+  cause: unknown,
+  phase: MosaicFailurePhase
+): void {
+  if (particles && mosaicParticles === particles) mosaicParticles = null
+  try {
+    particles?.dispose()
+  } catch {
+    // Particle cleanup must not interrupt the map or glow pipeline.
+  }
+  if (mosaicFailureWarned) return
+  mosaicFailureWarned = true
+  console.warn(
+    phase === 'initialization'
+      ? '马赛克粒子初始化失败，已跳过粒子层'
+      : '马赛克粒子运行失败，已关闭粒子层',
+    cause
+  )
+}
+
+function setMosaicConfig(config: MapEffectConfig): void {
+  const particles = mosaicParticles
+  if (!particles) return
+  try {
+    particles.setConfig(config.hover.mosaicParticles)
+  } catch (cause) {
+    handleMosaicFailure(particles, cause, 'runtime')
+  }
+}
+
+function setMosaicRegionProgress(source: THREE.Mesh, progress: number): void {
+  const particles = mosaicParticles
+  if (!particles) return
+  try {
+    particles.setRegionProgress(source, progress)
+  } catch (cause) {
+    handleMosaicFailure(particles, cause, 'runtime')
+  }
+}
+
+function advanceMosaicParticles(deltaMs: number): void {
+  const particles = mosaicParticles
+  if (!particles) return
+  try {
+    particles.advanceTime(deltaMs)
+  } catch (cause) {
+    handleMosaicFailure(particles, cause, 'runtime')
+  }
+}
+
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
 const TOP_COLOR = 0xcfe0ff
 const TOP_EMISSIVE = 0x0a2a66
@@ -222,6 +281,7 @@ function applyEffectConfig(): void {
     staticGlow,
     hoverGlows: regionVisuals.map((visual) => visual.hoverGlow)
   })
+  setMosaicConfig(effect)
   const configUpdated = setCurrentGlowConfig(effect)
   updateRegionVisuals(0, true)
   if (configUpdated && outwardGlow) publishGlowStatus()
@@ -382,6 +442,14 @@ function setupScene(mapGroup: THREE.Group) {
     updatePixelRatio()
 
     mapGroup.updateMatrixWorld(true)
+    let pendingMosaicParticles: MapMosaicParticles | null = null
+    try {
+      pendingMosaicParticles = createMapMosaicParticles(regionMeshes)
+      pendingMosaicParticles.setConfig(effect.hover.mosaicParticles)
+      mosaicParticles = pendingMosaicParticles
+    } catch (cause) {
+      handleMosaicFailure(pendingMosaicParticles, cause, 'initialization')
+    }
     let pendingOutwardGlow: MapOutwardGlowPipeline | null = null
     try {
       pendingOutwardGlow = createMapOutwardGlowPipeline(renderer, regionMeshes)
@@ -464,6 +532,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
+  setMosaicRegionProgress(visual.mesh, eased)
   if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
 
@@ -545,6 +614,7 @@ function loop(now: number) {
   const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
   lastFrameAt = now
   const glowStatusChanged = updateRegionVisuals(deltaMs)
+  advanceMosaicParticles(deltaMs)
   if (mapHud) advanceMapHud(mapHud, hudConfig, deltaMs)
   if (glowStatusChanged) publishGlowStatus()
   controls?.update()
@@ -716,6 +786,13 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   window.removeEventListener('resize', handleWindowResize)
   controls?.dispose()
   controls = null
+  const particles = mosaicParticles
+  mosaicParticles = null
+  try {
+    particles?.dispose()
+  } catch {
+    // Scene teardown continues even if particle cleanup fails.
+  }
   const root = scene ?? fallbackRoot
   if (root) disposeSceneResources(root)
   const pipeline = outwardGlow
