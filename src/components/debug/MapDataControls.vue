@@ -6,34 +6,56 @@ import {
   normalizeDistrictBarConfig,
   type MapDistrictBarConfig
 } from '@/components/map/mapDistrictBarConfig'
+import {
+  MAP_DISTRICT_BAR_LABEL_DEFAULTS,
+  cloneDistrictBarLabelConfig,
+  normalizeDistrictBarLabelConfig,
+  type MapDistrictBarLabelConfig
+} from '@/components/map/mapDistrictBarLabelConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
 import MapDistrictBarControls from './MapDistrictBarControls.vue'
+import MapDistrictBarLabelControls from './MapDistrictBarLabelControls.vue'
 
 const { effect, districtBarRuntimeStatus } = useMapDebug()
-const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
+type CopyTag = 'bars' | 'label'
+const copyStatus = ref<{ tag: CopyTag; result: 'success' | 'error' } | null>(null)
 let copiedTimer = 0
 
 const barJson = computed(() => JSON.stringify(normalizeDistrictBarConfig(effect.bars), null, 2))
+const labelJson = computed(() => JSON.stringify(normalizeDistrictBarLabelConfig(effect.bars.label), null, 2))
 
 function replaceBars(value: MapDistrictBarConfig): void {
-  Object.assign(effect.bars, normalizeDistrictBarConfig(value))
+  const normalized = normalizeDistrictBarConfig(value)
+  const { label, ...bars } = normalized
+  Object.assign(effect.bars, bars)
+  Object.assign(effect.bars.label, label)
 }
 
-async function copyBars(): Promise<void> {
-  copyStatus.value = await copyTextToClipboard(barJson.value) ? 'success' : 'error'
+function replaceLabel(value: MapDistrictBarLabelConfig): void {
+  Object.assign(effect.bars.label, normalizeDistrictBarLabelConfig(value))
+}
+
+async function copyPayload(text: string, tag: CopyTag): Promise<void> {
+  copyStatus.value = {
+    tag,
+    result: await copyTextToClipboard(text) ? 'success' : 'error'
+  }
   clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1500)
+  copiedTimer = window.setTimeout(() => (copyStatus.value = null), 1500)
 }
 
 function resetBars(): void {
-  Object.assign(effect.bars, cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS))
+  replaceBars(cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS))
 }
 
-function copyLabel(): string {
-  if (copyStatus.value === 'success') return '已复制 ✓'
-  if (copyStatus.value === 'error') return '复制失败，请重试'
-  return '复制柱状图参数'
+function resetLabel(): void {
+  replaceLabel(cloneDistrictBarLabelConfig(MAP_DISTRICT_BAR_LABEL_DEFAULTS))
+}
+
+function copyButtonLabel(tag: CopyTag, idle: string): string {
+  if (copyStatus.value?.tag !== tag) return idle
+  return copyStatus.value.result === 'success' ? '已复制 ✓' : '复制失败，请重试'
 }
 
 onBeforeUnmount(() => clearTimeout(copiedTimer))
@@ -52,11 +74,33 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
     </section>
 
     <section class="data-group">
+      <h3>柱体标签</h3>
+      <p class="hint">8 个标签固定显示在柱体顶部右侧；Hover 标签增强并在下方展开详情窗。</p>
+      <MapDistrictBarLabelControls
+        :model-value="effect.bars.label"
+        @update:model-value="replaceLabel"
+      />
+    </section>
+
+    <section class="data-group">
       <h3>可复制柱状图参数</h3>
       <pre class="json-out">{{ barJson }}</pre>
       <div class="actions">
-        <button class="btn" @click="copyBars">{{ copyLabel() }}</button>
+        <button class="btn" @click="copyPayload(barJson, 'bars')">
+          {{ copyButtonLabel('bars', '复制柱状图参数') }}
+        </button>
         <button class="btn ghost" @click="resetBars">恢复柱状图默认值</button>
+      </div>
+    </section>
+
+    <section class="data-group">
+      <h3>可复制标签参数</h3>
+      <pre class="json-out">{{ labelJson }}</pre>
+      <div class="actions">
+        <button class="btn" @click="copyPayload(labelJson, 'label')">
+          {{ copyButtonLabel('label', '复制标签参数') }}
+        </button>
+        <button class="btn ghost" @click="resetLabel">恢复标签默认值</button>
       </div>
     </section>
   </div>

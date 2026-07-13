@@ -3,14 +3,26 @@ import * as THREE from 'three'
 import type { DistrictMapItem } from '@/types'
 import type { Region } from './mapGeometry'
 import { MAP_DISTRICT_BAR_DEFAULTS } from './mapDistrictBarConfig'
+import type { DistrictBarLabelAssets } from './mapDistrictBarLabelTexture'
 import {
+  attachDistrictBarLabels,
   applyDistrictBarConfig,
   createDistrictBarLayer,
   disposeDistrictBarLayer,
   mapDistrictBarHeight,
   setDistrictBarHoverProgress,
+  updateDistrictBarLabelLayouts,
   updateDistrictBarLayer
 } from './mapDistrictBarLayer'
+
+const labelTextureMocks = vi.hoisted(() => ({
+  create: vi.fn()
+}))
+
+vi.mock('./mapDistrictBarLabelTexture', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./mapDistrictBarLabelTexture')>(),
+  createDistrictBarLabelTexture: labelTextureMocks.create
+}))
 
 const threeFaults = vi.hoisted(() => ({
   failRingGeometryAt: null as number | null,
@@ -70,6 +82,159 @@ function items(entries: [string, number][]): ReadonlyMap<string, DistrictMapItem
 }
 
 describe('mapDistrictBarLayer', () => {
+  it('creates one pixel-constant right-side label per valid bar and animates hover independently', () => {
+    labelTextureMocks.create.mockReset()
+    labelTextureMocks.create.mockImplementation(() => new THREE.Texture())
+    const assets: DistrictBarLabelAssets = {
+      background: {} as CanvasImageSource,
+      icon: {} as CanvasImageSource
+    }
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      enterMs: 0,
+      label: {
+        ...MAP_DISTRICT_BAR_DEFAULTS.label,
+        enterMs: 0,
+        staggerMs: 0,
+        hoverEnterMs: 180
+      }
+    }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100]]), config, 4, assets)
+    const visual = layer.byName.get('A')!
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+    camera.position.set(2, 20, 20)
+    camera.lookAt(2, 2, 4)
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld(true)
+
+    updateDistrictBarLayer(layer, config, 0)
+    updateDistrictBarLabelLayouts(layer, config, camera, { width: 1000, height: 1000 })
+
+    expect(visual.label).toBeInstanceOf(THREE.Sprite)
+    expect(visual.label?.material.opacity).toBeCloseTo(0.9)
+    expect(visual.labelScreenRect).toMatchObject({ width: 236, height: 36 })
+    expect(visual.label?.center.x).toBeLessThan(0)
+
+    setDistrictBarHoverProgress(layer, 'A', 1, 2, true)
+    updateDistrictBarLayer(layer, config, 180)
+    updateDistrictBarLabelLayouts(layer, config, camera, { width: 1000, height: 1000 })
+
+    expect(visual.label?.material.opacity).toBe(1)
+    expect(visual.label?.material.color.r).toBeCloseTo(config.label.hoverBrightness)
+    expect(visual.labelScreenRect?.width).toBeCloseTo(254.88)
+    expect(visual.label?.position.z).toBeCloseTo(4.08 + visual.baseHeight + config.hoverLift)
+
+    const labelTexture = visual.label!.material.map!
+    const textureDispose = vi.spyOn(labelTexture, 'dispose')
+    const materialDispose = vi.spyOn(visual.label!.material, 'dispose')
+    disposeDistrictBarLayer(layer)
+    expect(textureDispose).toHaveBeenCalledTimes(1)
+    expect(materialDispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('attaches optional labels after the core bar layer already exists', () => {
+    labelTextureMocks.create.mockReset()
+    labelTextureMocks.create.mockImplementation(() => new THREE.Texture())
+    const layer = createDistrictBarLayer(
+      [regions[0]],
+      items([['A', 100]]),
+      MAP_DISTRICT_BAR_DEFAULTS,
+      4
+    )
+
+    expect(layer.byName.get('A')?.label).toBeNull()
+    expect(layer.group.children).toHaveLength(3)
+
+    attachDistrictBarLabels(layer, MAP_DISTRICT_BAR_DEFAULTS, {
+      background: {} as CanvasImageSource,
+      icon: {} as CanvasImageSource
+    })
+
+    expect(layer.byName.get('A')?.label).toBeInstanceOf(THREE.Sprite)
+    expect(layer.group.children).toHaveLength(4)
+    disposeDistrictBarLayer(layer)
+  })
+
+  it('keeps the right-side gap when the map rotates the local x radius toward the camera', () => {
+    labelTextureMocks.create.mockReset()
+    labelTextureMocks.create.mockImplementation(() => new THREE.Texture())
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      enterMs: 0,
+      label: { ...MAP_DISTRICT_BAR_DEFAULTS.label, enterMs: 0, staggerMs: 0 }
+    }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100]]), config, 4, {
+      background: {} as CanvasImageSource,
+      icon: {} as CanvasImageSource
+    })
+    const parent = new THREE.Group()
+    parent.rotation.x = -Math.PI / 2
+    parent.add(layer.group)
+    const visual = layer.byName.get('A')!
+    updateDistrictBarLayer(layer, config, 1)
+    parent.updateWorldMatrix(true, true)
+    const worldPosition = visual.labelPosition.clone()
+    layer.group.localToWorld(worldPosition)
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+    camera.position.copy(worldPosition).add(new THREE.Vector3(30, 10, 0))
+    camera.lookAt(worldPosition)
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld(true)
+
+    updateDistrictBarLabelLayouts(layer, config, camera, { width: 1000, height: 1000 })
+
+    const projected = worldPosition.clone().project(camera)
+    const anchorX = (projected.x * 0.5 + 0.5) * 1000
+    expect(visual.labelScreenRect!.left).toBeGreaterThan(anchorX + config.label.gapX + 5)
+    disposeDistrictBarLayer(layer)
+  })
+
+  it('rebuilds only paint-affecting label changes, releases the old texture, and isolates failures', () => {
+    labelTextureMocks.create.mockReset()
+    const firstTexture = new THREE.Texture()
+    const secondTexture = new THREE.Texture()
+    labelTextureMocks.create.mockReturnValueOnce(firstTexture).mockReturnValueOnce(secondTexture)
+    const assets: DistrictBarLabelAssets = {
+      background: {} as CanvasImageSource,
+      icon: {} as CanvasImageSource
+    }
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, label: { ...MAP_DISTRICT_BAR_DEFAULTS.label } }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100]]), config, 4, assets)
+    const visual = layer.byName.get('A')!
+    const firstDispose = vi.spyOn(firstTexture, 'dispose')
+
+    applyDistrictBarConfig(layer, {
+      ...config,
+      label: { ...config.label, offsetX: 12 }
+    })
+    expect(labelTextureMocks.create).toHaveBeenCalledTimes(1)
+
+    applyDistrictBarConfig(layer, {
+      ...config,
+      label: { ...config.label, valueColor: '#abcdef' }
+    })
+    expect(labelTextureMocks.create).toHaveBeenCalledTimes(2)
+    expect(visual.label?.material.map).toBe(secondTexture)
+    expect(firstDispose).toHaveBeenCalledTimes(1)
+
+    labelTextureMocks.create.mockImplementationOnce(() => {
+      throw new Error('injected label texture failure')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(() => applyDistrictBarConfig(layer, {
+      ...config,
+      label: { ...config.label, valueColor: '#fedcba' }
+    })).not.toThrow()
+    expect(visual.label?.material.map).toBe(secondTexture)
+    expect(visual.column).toBeInstanceOf(THREE.Mesh)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('标签纹理更新失败'),
+      expect.any(Error)
+    )
+    warn.mockRestore()
+    disposeDistrictBarLayer(layer)
+  })
+
   it('按平方根范围映射案件量高度', () => {
     expect(mapDistrictBarHeight(0, 3, 20, 0.5, 100)).toBe(3)
     expect(mapDistrictBarHeight(25, 3, 20, 0.5, 100)).toBeCloseTo(11.5)

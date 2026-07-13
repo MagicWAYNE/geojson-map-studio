@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
 import { MAP_DISTRICT_BAR_DEFAULTS } from '@/components/map/mapDistrictBarConfig'
+import { MAP_DISTRICT_BAR_LABEL_DEFAULTS } from '@/components/map/mapDistrictBarLabelConfig'
 
 interface MountedControls {
   app: App
@@ -51,6 +52,9 @@ describe('MapDataControls', () => {
     expect(root.querySelector('#effect-bars-pulseOuterRadiusRatio-number')).not.toBeNull()
     expect(root.querySelector('#effect-bars-pulseInnerOpacity-number')).not.toBeNull()
     expect(root.querySelector('#effect-bars-opacity-number')).toBeNull()
+    expect(root.textContent).toContain('柱体标签')
+    expect(root.querySelector('#effect-bars-label-width-number')).not.toBeNull()
+    expect(root.querySelector('#effect-bars-label-valueColor-hex')).not.toBeNull()
 
     const width = root.querySelector<HTMLInputElement>('#effect-bars-width-number')!
     width.value = '6.4'
@@ -65,10 +69,21 @@ describe('MapDataControls', () => {
     expect(effect.bars).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
     expect(effect.base.innerWidth).toBe(3.2)
     expect(JSON.parse(root.querySelector('.json-out')!.textContent!)).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
+
+    const labelWidth = root.querySelector<HTMLInputElement>('#effect-bars-label-width-number')!
+    labelWidth.value = '300'
+    labelWidth.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(effect.bars.label.width).toBe(300)
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === '恢复标签默认值')!
+      .click()
+    await nextTick()
+    expect(effect.bars.label).toEqual(MAP_DISTRICT_BAR_LABEL_DEFAULTS)
     app.unmount()
   })
 
-  it('copies the normalized standalone bar payload', async () => {
+  it('copies the normalized standalone bar and label payloads', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     const { app, root } = await mountControls()
@@ -78,6 +93,12 @@ describe('MapDataControls', () => {
       .click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     expect(JSON.parse(writeText.mock.calls[0][0])).toEqual(MAP_DISTRICT_BAR_DEFAULTS)
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === '复制标签参数')!
+      .click()
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(writeText.mock.calls[1][0])).toEqual(MAP_DISTRICT_BAR_LABEL_DEFAULTS)
     app.unmount()
   })
 })

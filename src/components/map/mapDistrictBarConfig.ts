@@ -1,3 +1,10 @@
+import {
+  MAP_DISTRICT_BAR_LABEL_DEFAULTS,
+  cloneDistrictBarLabelConfig,
+  normalizeDistrictBarLabelConfig,
+  type MapDistrictBarLabelConfig
+} from './mapDistrictBarLabelConfig'
+
 export interface MapDistrictBarConfig {
   enabled: boolean
   color: string
@@ -25,6 +32,7 @@ export interface MapDistrictBarConfig {
   staggerMs: number
   hoverEmissiveIntensity: number
   hoverLift: number
+  label: MapDistrictBarLabelConfig
 }
 
 export const MAP_DISTRICT_BAR_DEFAULTS: Readonly<MapDistrictBarConfig> = Object.freeze({
@@ -53,7 +61,8 @@ export const MAP_DISTRICT_BAR_DEFAULTS: Readonly<MapDistrictBarConfig> = Object.
   enterMs: 760,
   staggerMs: 90,
   hoverEmissiveIntensity: 0.8,
-  hoverLift: 1.1
+  hoverLift: 1.1,
+  label: cloneDistrictBarLabelConfig(MAP_DISTRICT_BAR_LABEL_DEFAULTS)
 })
 
 type UnknownRecord = Record<string, unknown>
@@ -75,7 +84,7 @@ function finiteNumber(value: unknown, fallback: number, min: number, max: number
 }
 
 export function cloneDistrictBarConfig(value: Readonly<MapDistrictBarConfig>): MapDistrictBarConfig {
-  return { ...value }
+  return { ...value, label: cloneDistrictBarLabelConfig(value.label) }
 }
 
 export function normalizeDistrictBarConfig(value: unknown): MapDistrictBarConfig {
@@ -129,6 +138,7 @@ export function normalizeDistrictBarConfig(value: unknown): MapDistrictBarConfig
       0,
       3
     ),
-    hoverLift: finiteNumber(bars.hoverLift, MAP_DISTRICT_BAR_DEFAULTS.hoverLift, 0, 4)
+    hoverLift: finiteNumber(bars.hoverLift, MAP_DISTRICT_BAR_DEFAULTS.hoverLift, 0, 4),
+    label: normalizeDistrictBarLabelConfig(bars.label)
   }
 }

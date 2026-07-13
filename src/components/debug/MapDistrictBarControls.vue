@@ -8,7 +8,7 @@ import {
 import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapDebug'
 
 type ColorKey = 'color' | 'pulseColor'
-type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'pulseEnabled' | ColorKey>
+type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'pulseEnabled' | 'label' | ColorKey>
 
 interface NumberField {
   key: NumberKey
