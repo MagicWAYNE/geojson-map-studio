@@ -5,6 +5,10 @@ import {
   cloneMosaicParticleConfig
 } from './mapMosaicParticleConfig'
 import {
+  deriveMosaicActivationSeed,
+  mosaicBurstEnvelope
+} from './mapMosaicDynamics'
+import {
   createMapMosaicParticles,
   type MosaicDisplayMetrics
 } from './mapMosaicParticles'
@@ -62,6 +66,12 @@ describe('createMapMosaicParticles', () => {
     expect(topMaterial.fragmentShader).toContain('exp2')
     expect(topMaterial.fragmentShader).toContain('8.0')
     expect(topMaterial.fragmentShader).toContain('smoothstep(0.35, 0.65')
+    expect(topMaterial.fragmentShader).toContain('uAccentColor')
+    expect(topMaterial.fragmentShader).toContain('uClusterChance')
+    expect(topMaterial.fragmentShader).toContain('clusterInfluence')
+    expect(topMaterial.fragmentShader).toContain('1.0 + clusterField * max(uClusterStrength, 0.0)')
+    expect(topMaterial.fragmentShader).toContain('max(1.0, uBurstStrength)')
+    expect(topMaterial.fragmentShader).not.toMatch(/wave|travel/i)
     expect(topMaterial.fragmentShader).toContain('discard')
     expect(sideMaterial.visible).toBe(false)
 
@@ -105,6 +115,19 @@ describe('createMapMosaicParticles', () => {
     config.targetCellPx = 10
     config.minCellPx = 6
     config.maxCellPx = 16
+    config.accentColor = '#654321'
+    config.accentRatio = 0.3
+    config.clusterChance = 0.24
+    config.clusterRadius = 3
+    config.clusterStrength = 1.8
+    config.accentClusterBias = 0.72
+    config.flickerHz = 4.2
+    config.dutyCycle = 0.4
+    config.pulseSharpness = 1.8
+    config.clusterFlickerScale = 0.5
+    config.burstDurationMs = 320
+    config.burstStrength = 1.9
+    config.burstDensityBoost = 0.22
 
     particles.setRegionProgress(source, 0.8)
     particles.setConfig(config)
@@ -119,10 +142,126 @@ describe('createMapMosaicParticles', () => {
     expect(uniforms.uMinCellPx.value).toBe(6)
     expect(uniforms.uMaxCellPx.value).toBe(16)
     expect(uniforms.uRenderPixelsPerScreenPixel.value).toBe(2)
+    expect(uniforms.uAccentColor.value.getHexString()).toBe('654321')
+    expect(uniforms.uAccentRatio.value).toBe(0.3)
+    expect(uniforms.uClusterChance.value).toBe(0.24)
+    expect(uniforms.uClusterRadius.value).toBe(3)
+    expect(uniforms.uClusterStrength.value).toBe(1.8)
+    expect(uniforms.uAccentClusterBias.value).toBe(0.72)
+    expect(uniforms.uFlickerHz.value).toBe(4.2)
+    expect(uniforms.uDutyCycle.value).toBe(0.4)
+    expect(uniforms.uPulseSharpness.value).toBe(1.8)
+    expect(uniforms.uClusterFlickerScale.value).toBe(0.5)
+    expect(uniforms.uBurstStrength.value).toBe(1.9)
+    expect(uniforms.uBurstDensityBoost.value).toBe(0.22)
     expect(source.material).toBe(sourceMaterials)
 
     particles.setConfig({ ...config, enabled: false })
     expect(overlayOf(source).visible).toBe(false)
+    particles.dispose()
+  })
+
+  it('restarts the entry burst and reseeds only when a region re-enters', () => {
+    const source = createRegion('测试区')
+    const { metrics } = createDisplayMetrics()
+    const particles = createMapMosaicParticles(metrics, [source])
+    const material = topMaterialOf(source)
+
+    particles.setRegionProgress(source, 0.2)
+    const firstSeed = material.uniforms.uActivationSeed.value
+    expect(firstSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 0))
+    expect(material.uniforms.uBurstEnvelope.value).toBe(1)
+    particles.advanceTime(130)
+    expect(material.uniforms.uBurstEnvelope.value).toBe(0.5)
+
+    particles.setRegionProgress(source, 0.1)
+    particles.advanceTime(65)
+    expect(material.uniforms.uActivationSeed.value).toBe(firstSeed)
+    expect(material.uniforms.uBurstEnvelope.value).toBeLessThan(0.5)
+
+    particles.setRegionProgress(source, 0)
+    particles.setRegionProgress(source, 0.2)
+    const secondSeed = material.uniforms.uActivationSeed.value
+    expect(secondSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 1))
+    expect(secondSeed).not.toBe(firstSeed)
+    expect(material.uniforms.uBurstEnvelope.value).toBe(1)
+
+    particles.setConfig({ ...HOVER_MOSAIC_PARTICLE_DEFAULTS, reseedOnEnter: false })
+    particles.setRegionProgress(source, 0)
+    particles.setRegionProgress(source, 0.2)
+    const fixedSeed = material.uniforms.uActivationSeed.value
+    expect(material.uniforms.uTime.value).toBe(0)
+    particles.advanceTime(100)
+    expect(material.uniforms.uTime.value).toBe(0.1)
+    particles.setRegionProgress(source, 0)
+    particles.setRegionProgress(source, 0.2)
+    expect(material.uniforms.uTime.value).toBe(0)
+    expect(material.uniforms.uActivationSeed.value).toBe(fixedSeed)
+    expect(fixedSeed).toBe(deriveMosaicActivationSeed(17, '测试区', 0))
+    particles.dispose()
+  })
+
+  it('keeps the hover lifecycle advancing while particle rendering is disabled', () => {
+    const source = createRegion('测试区')
+    const { metrics } = createDisplayMetrics()
+    const particles = createMapMosaicParticles(metrics, [source])
+    const material = topMaterialOf(source)
+
+    particles.setRegionProgress(source, 1)
+    particles.setConfig({ ...HOVER_MOSAIC_PARTICLE_DEFAULTS, enabled: false })
+    expect(overlayOf(source).visible).toBe(false)
+    particles.advanceTime(130)
+    expect(material.uniforms.uTime.value).toBe(0.13)
+    expect(material.uniforms.uBurstEnvelope.value).toBe(0.5)
+
+    particles.setConfig({ ...HOVER_MOSAIC_PARTICLE_DEFAULTS, enabled: true })
+    expect(overlayOf(source).visible).toBe(true)
+    expect(material.uniforms.uBurstEnvelope.value).toBe(0.5)
+    particles.dispose()
+  })
+
+  it('updates the configured base seed without replaying an active entry', () => {
+    const source = createRegion('测试区')
+    const { metrics } = createDisplayMetrics()
+    const particles = createMapMosaicParticles(metrics, [source])
+    const material = topMaterialOf(source)
+
+    particles.setRegionProgress(source, 1)
+    particles.advanceTime(130)
+    particles.setConfig({ ...HOVER_MOSAIC_PARTICLE_DEFAULTS, seed: 99 })
+
+    expect(material.uniforms.uActivationSeed.value)
+      .toBe(deriveMosaicActivationSeed(99, '测试区', 0))
+    expect(material.uniforms.uTime.value).toBe(0.13)
+    expect(material.uniforms.uBurstEnvelope.value).toBe(0.5)
+    particles.dispose()
+  })
+
+  it('keeps rapid region switches on independent burst ages and supports zero duration', () => {
+    const first = createRegion('甲区')
+    const second = createRegion('乙区')
+    const { metrics } = createDisplayMetrics()
+    const particles = createMapMosaicParticles(metrics, [first, second])
+    const firstMaterial = topMaterialOf(first)
+    const secondMaterial = topMaterialOf(second)
+
+    particles.setRegionProgress(first, 1)
+    particles.advanceTime(100)
+    particles.setRegionProgress(first, 0.8)
+    particles.setRegionProgress(second, 0.2)
+    particles.advanceTime(30)
+
+    expect(firstMaterial.uniforms.uBurstEnvelope.value)
+      .toBe(mosaicBurstEnvelope(130, 260))
+    expect(secondMaterial.uniforms.uBurstEnvelope.value)
+      .toBe(mosaicBurstEnvelope(30, 260))
+    expect(firstMaterial.uniforms.uActivationSeed.value)
+      .not.toBe(secondMaterial.uniforms.uActivationSeed.value)
+
+    particles.setConfig({ ...HOVER_MOSAIC_PARTICLE_DEFAULTS, burstDurationMs: 0 })
+    particles.setRegionProgress(second, 0)
+    particles.setRegionProgress(second, 1)
+    expect(secondMaterial.uniforms.uBurstEnvelope.value).toBe(0)
     particles.dispose()
   })
 
