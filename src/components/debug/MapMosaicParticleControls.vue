@@ -10,9 +10,9 @@ import {
 
 type NumberKey = Exclude<
   keyof MapMosaicParticleConfig,
-  'enabled' | 'primaryColor' | 'accentColor' | 'reseedOnEnter'
+  'enabled' | 'primaryColor' | 'accentColor' | 'gapColor' | 'reseedOnEnter'
 >
-type ColorKey = 'primaryColor' | 'accentColor'
+type ColorKey = 'primaryColor' | 'accentColor' | 'gapColor'
 type BooleanKey = 'enabled' | 'reseedOnEnter'
 
 interface NumberField {
@@ -41,7 +41,8 @@ const FIELDS: readonly NumberField[] = [
   { key: 'targetCellPx', label: '目标像素尺寸', min: 1, max: 32, step: 1 },
   { key: 'minCellPx', label: '最小像素尺寸', min: 1, max: 16, step: 1 },
   { key: 'maxCellPx', label: '最大像素尺寸', min: 4, max: 32, step: 1 },
-  { key: 'gapRatio', label: '方块间隙', min: 0, max: 0.8, step: 0.01 },
+  { key: 'gapRatio', label: '间隙宽度', min: 0, max: 0.8, step: 0.01 },
+  { key: 'gapOpacity', label: '间隙透明度', min: 0, max: 1, step: 0.01 },
   { key: 'opacity', label: '透明度', min: 0, max: 1, step: 0.01 },
   { key: 'brightness', label: '亮度', min: 0, max: 3, step: 0.05 },
   { key: 'flickerHz', label: '闪烁频率', min: 0.1, max: 12, step: 0.1 },
@@ -168,7 +169,8 @@ watch(() => props.modelValue, () => {
     </div>
     <div v-for="colorField in [
       { key: 'primaryColor' as const, label: '主色' },
-      { key: 'accentColor' as const, label: '强调色' }
+      { key: 'accentColor' as const, label: '强调色' },
+      { key: 'gapColor' as const, label: '间隙颜色' }
     ]" :key="colorField.key" class="field">
       <div class="field-head">
         <label :for="fieldId(colorField.key, 'color')">{{ colorField.label }}</label>

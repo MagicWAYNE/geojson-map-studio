@@ -56,7 +56,7 @@ describe('MapMosaicParticleControls', () => {
     const { app, root } = await mountControls()
 
     expect(input(root, 'effect-hover-mosaic-enabled-checkbox').type).toBe('checkbox')
-    for (const key of ['primaryColor', 'accentColor']) {
+    for (const key of ['primaryColor', 'accentColor', 'gapColor']) {
       expect(input(root, `effect-hover-mosaic-${key}-color`).type).toBe('color')
       expect(input(root, `effect-hover-mosaic-${key}-hex`).type).toBe('text')
     }
@@ -73,6 +73,7 @@ describe('MapMosaicParticleControls', () => {
       ['minCellPx', '1', '16', '1'],
       ['maxCellPx', '4', '32', '1'],
       ['gapRatio', '0', '0.8', '0.01'],
+      ['gapOpacity', '0', '1', '0.01'],
       ['opacity', '0', '1', '0.01'],
       ['brightness', '0', '3', '0.05'],
       ['flickerHz', '0.1', '12', '0.1'],
@@ -162,6 +163,12 @@ describe('MapMosaicParticleControls', () => {
     await nextTick()
     expect(state.value.accentColor).toBe('#7654fe')
     expect(input(root, 'effect-hover-mosaic-accentColor-hex').value).toBe('#7654fe')
+
+    const gapColor = input(root, 'effect-hover-mosaic-gapColor-hex')
+    gapColor.value = '#123456'
+    gapColor.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(state.value.gapColor).toBe('#123456')
 
     app.unmount()
   })

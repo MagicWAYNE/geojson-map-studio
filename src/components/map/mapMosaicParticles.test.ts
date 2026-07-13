@@ -67,6 +67,11 @@ describe('createMapMosaicParticles', () => {
     expect(topMaterial.fragmentShader).toContain('8.0')
     expect(topMaterial.fragmentShader).toContain('smoothstep(0.35, 0.65')
     expect(topMaterial.fragmentShader).toContain('uAccentColor')
+    expect(topMaterial.fragmentShader).toContain('uGapColor')
+    expect(topMaterial.fragmentShader).toContain('uGapOpacity')
+    expect(topMaterial.fragmentShader).toContain('sampleGrid(float cellWorld, out float gapActivity)')
+    expect(topMaterial.fragmentShader).toContain('float squareAlpha = mosaic.a * uOpacity')
+    expect(topMaterial.fragmentShader).toContain('if (gapAlpha > 0.0)')
     expect(topMaterial.fragmentShader).toContain('uClusterChance')
     expect(topMaterial.fragmentShader).toContain('clusterInfluence')
     expect(topMaterial.fragmentShader).not.toMatch(/\bactive\b/)
@@ -110,6 +115,8 @@ describe('createMapMosaicParticles', () => {
     config.primaryColor = '#123456'
     config.density = 0.42
     config.gapRatio = 0.3
+    config.gapColor = '#abcdef'
+    config.gapOpacity = 0.45
     config.opacity = 0.7
     config.brightness = 1.8
     config.surfaceOffset = 0.24
@@ -136,6 +143,8 @@ describe('createMapMosaicParticles', () => {
     expect(uniforms.uPrimaryColor.value.getHexString()).toBe('123456')
     expect(uniforms.uDensity.value).toBe(0.42)
     expect(uniforms.uGapRatio.value).toBe(0.3)
+    expect(uniforms.uGapColor.value.getHexString()).toBe('abcdef')
+    expect(uniforms.uGapOpacity.value).toBe(0.45)
     expect(uniforms.uOpacity.value).toBe(0.7)
     expect(uniforms.uBrightness.value).toBe(1.8)
     expect(uniforms.uSurfaceOffset.value).toBe(0.24)

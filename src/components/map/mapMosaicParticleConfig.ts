@@ -12,6 +12,8 @@ export interface MapMosaicParticleConfig {
   minCellPx: number
   maxCellPx: number
   gapRatio: number
+  gapColor: string
+  gapOpacity: number
   opacity: number
   brightness: number
   flickerHz: number
@@ -43,6 +45,8 @@ export const HOVER_MOSAIC_PARTICLE_DEFAULTS: Readonly<MapMosaicParticleConfig> =
   minCellPx: 4,
   maxCellPx: 5,
   gapRatio: 0.2,
+  gapColor: '#ffffff',
+  gapOpacity: 0,
   opacity: 0.24,
   brightness: 1.15,
   flickerHz: 0.3,
@@ -71,6 +75,8 @@ export const BLUE_PURPLE_MOSAIC_PARTICLE_PRESET: Readonly<MapMosaicParticleConfi
   minCellPx: 4,
   maxCellPx: 14,
   gapRatio: 0.2,
+  gapColor: '#ffffff',
+  gapOpacity: 0,
   opacity: 0.5,
   brightness: 1.15,
   flickerHz: 3.2,
@@ -149,6 +155,8 @@ export function normalizeMosaicParticleConfig(value: unknown): MapMosaicParticle
     minCellPx,
     maxCellPx,
     gapRatio: finiteNumber(input.gapRatio, defaults.gapRatio, 0, 0.8),
+    gapColor: color(input.gapColor, defaults.gapColor),
+    gapOpacity: finiteNumber(input.gapOpacity, defaults.gapOpacity, 0, 1),
     opacity: finiteNumber(input.opacity, defaults.opacity, 0, 1),
     brightness: finiteNumber(input.brightness, defaults.brightness, 0, 3),
     flickerHz: finiteNumber(input.flickerHz, defaults.flickerHz, 0.1, 12),

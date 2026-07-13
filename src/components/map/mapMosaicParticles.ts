@@ -58,6 +58,8 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uClusterStrength;
   uniform float uAccentClusterBias;
   uniform float uGapRatio;
+  uniform vec3 uGapColor;
+  uniform float uGapOpacity;
   uniform float uOpacity;
   uniform float uBrightness;
   uniform float uFlickerHz;
@@ -141,7 +143,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     return field;
   }
 
-  vec4 sampleGrid(float cellWorld) {
+  vec4 sampleGrid(float cellWorld, out float gapActivity) {
     vec2 cell = floor(vModelPosition / cellWorld);
     vec2 local = fract(vModelPosition / cellWorld);
     float inset = uGapRatio * 0.5;
@@ -173,7 +175,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     );
     float accent = step(mosaicRandom(cell + 53.1, uActivationSeed), accentThreshold);
     vec3 color = mix(uPrimaryColor, uAccentColor, accent);
-    return vec4(color, square * selected * pulse);
+    float activity = selected * pulse;
+    gapActivity = (1.0 - square) * activity;
+    return vec4(color, square * activity);
   }
 
   void main() {
@@ -184,11 +188,21 @@ const FRAGMENT_SHADER = /* glsl */ `
       length(dFdy(vModelPosition))
     );
     vec3 lod = selectCellWorlds(modelUnitsPerRenderPixel);
-    vec4 mosaic = mix(sampleGrid(lod.x), sampleGrid(lod.y), lod.z);
-    float alpha = mosaic.a * uOpacity * uProgress;
+    float lowerGapActivity;
+    float upperGapActivity;
+    vec4 lowerMosaic = sampleGrid(lod.x, lowerGapActivity);
+    vec4 upperMosaic = sampleGrid(lod.y, upperGapActivity);
+    vec4 mosaic = mix(lowerMosaic, upperMosaic, lod.z);
+    float squareAlpha = mosaic.a * uOpacity;
+    float gapAlpha = mix(lowerGapActivity, upperGapActivity, lod.z) * uGapOpacity;
+    float alpha = (squareAlpha + gapAlpha) * uProgress;
     if (alpha <= 0.001) discard;
     float burstBrightness = mix(1.0, max(1.0, uBurstStrength), uBurstEnvelope);
-    gl_FragColor = vec4(mosaic.rgb * uBrightness * burstBrightness, alpha);
+    vec3 color = mosaic.rgb;
+    if (gapAlpha > 0.0) {
+      color = mix(mosaic.rgb, uGapColor, gapAlpha / (squareAlpha + gapAlpha));
+    }
+    gl_FragColor = vec4(color * uBrightness * burstBrightness, alpha);
   }
 `
 
@@ -208,6 +222,8 @@ function createTopMaterial(
       uClusterStrength: { value: config.clusterStrength },
       uAccentClusterBias: { value: config.accentClusterBias },
       uGapRatio: { value: config.gapRatio },
+      uGapColor: { value: new THREE.Color(config.gapColor) },
+      uGapOpacity: { value: config.gapOpacity },
       uOpacity: { value: config.opacity },
       uBrightness: { value: config.brightness },
       uFlickerHz: { value: config.flickerHz },
@@ -311,6 +327,8 @@ export function createMapMosaicParticles(
       uniforms.uClusterStrength.value = config.clusterStrength
       uniforms.uAccentClusterBias.value = config.accentClusterBias
       uniforms.uGapRatio.value = config.gapRatio
+      uniforms.uGapColor.value.set(config.gapColor)
+      uniforms.uGapOpacity.value = config.gapOpacity
       uniforms.uOpacity.value = config.opacity
       uniforms.uBrightness.value = config.brightness
       uniforms.uFlickerHz.value = config.flickerHz
