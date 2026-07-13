@@ -444,7 +444,14 @@ function setupScene(mapGroup: THREE.Group) {
     mapGroup.updateMatrixWorld(true)
     let pendingMosaicParticles: MapMosaicParticles | null = null
     try {
-      pendingMosaicParticles = createMapMosaicParticles(regionMeshes)
+      pendingMosaicParticles = createMapMosaicParticles(
+        {
+          getRenderPixelsPerScreenPixel: () => (
+            renderer ? renderer.getPixelRatio() / screenScale() : 1
+          )
+        },
+        regionMeshes
+      )
       pendingMosaicParticles.setConfig(effect.hover.mosaicParticles)
       mosaicParticles = pendingMosaicParticles
     } catch (cause) {

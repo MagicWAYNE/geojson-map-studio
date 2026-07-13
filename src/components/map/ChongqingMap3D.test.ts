@@ -238,7 +238,9 @@ function expectDegradedGlowFallback(
 describe('ChongqingMap3D effect wiring', () => {
   it('wires mosaic config, shared hover progress, frame time, and disposal', async () => {
     const mounted = await mountInitializedMap(2)
-    expect(mosaicMocks.create).toHaveBeenCalledWith(expect.arrayContaining([
+    const [displayMetrics, mosaicSources] = mosaicMocks.create.mock.calls[0]
+    expect(displayMetrics.getRenderPixelsPerScreenPixel()).toBe(2)
+    expect(mosaicSources).toEqual(expect.arrayContaining([
       expect.any(THREE.Mesh),
       expect.any(THREE.Mesh)
     ]))
@@ -553,6 +555,27 @@ describe('ChongqingMap3D effect wiring', () => {
 
     mounted.app.unmount()
     expect(removeResizeListener).toHaveBeenCalledWith('resize', resizeHandler)
+  })
+
+  it('reports backing pixels per visible screen pixel when ScaleScreen hits the render cap', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 1020,
+      height: 1020,
+      top: 0,
+      right: 1020,
+      bottom: 1020,
+      left: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+    vi.stubGlobal('devicePixelRatio', 2)
+    const mounted = await mountInitializedMap()
+    const [displayMetrics] = mosaicMocks.create.mock.calls[0]
+
+    expect(mounted.renderer.getPixelRatio()).toBe(2)
+    expect(displayMetrics.getRenderPixelsPerScreenPixel()).toBeCloseTo(2 / 1.5)
+    mounted.app.unmount()
   })
 
   it('forwards each region eased progress to the outward glow pipeline', async () => {

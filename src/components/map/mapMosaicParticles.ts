@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
+  MOSAIC_LOD_STEPS_PER_OCTAVE,
   normalizeMosaicParticleConfig,
   type MapMosaicParticleConfig
 } from './mapMosaicParticleConfig'
@@ -10,6 +11,10 @@ export interface MapMosaicParticles {
   setRegionProgress(source: THREE.Mesh, progress: number): boolean
   advanceTime(deltaMs: number): void
   dispose(): void
+}
+
+export interface MosaicDisplayMetrics {
+  getRenderPixelsPerScreenPixel(): number
 }
 
 interface ParticleEntry {
@@ -40,6 +45,10 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uBrightness;
   uniform float uProgress;
   uniform float uTime;
+  uniform float uTargetCellPx;
+  uniform float uMinCellPx;
+  uniform float uMaxCellPx;
+  uniform float uRenderPixelsPerScreenPixel;
   varying vec2 vModelPosition;
   varying float vTopFacing;
 
@@ -49,10 +58,40 @@ const FRAGMENT_SHADER = /* glsl */ `
     return fract(value.x * value.y);
   }
 
-  void main() {
-    if (vTopFacing < 0.5) discard;
+  vec3 selectCellWorlds(float modelUnitsPerRenderPixel) {
+    const float lodStepsPerOctave = ${MOSAIC_LOD_STEPS_PER_OCTAVE.toFixed(1)};
+    float cssPixelWorld = max(
+      modelUnitsPerRenderPixel * max(uRenderPixelsPerScreenPixel, 0.0001),
+      0.000001
+    );
+    float desiredWorld = max(cssPixelWorld * uTargetCellPx, 0.000001);
+    float targetLevel = log2(desiredWorld) * lodStepsPerOctave;
+    float minLevel = ceil(
+      log2(cssPixelWorld * uMinCellPx) * lodStepsPerOctave - 0.000001
+    );
+    float maxLevel = floor(
+      log2(cssPixelWorld * uMaxCellPx) * lodStepsPerOctave + 0.000001
+    );
+    float lowerLevel = floor(targetLevel);
+    float upperLevel = lowerLevel + 1.0;
+    if (minLevel <= maxLevel) {
+      lowerLevel = clamp(lowerLevel, minLevel, maxLevel);
+      upperLevel = clamp(upperLevel, minLevel, maxLevel);
+    } else {
+      lowerLevel = floor(targetLevel + 0.5);
+      upperLevel = lowerLevel;
+    }
+    float blend = lowerLevel == upperLevel
+      ? 0.0
+      : smoothstep(0.35, 0.65, fract(targetLevel));
+    return vec3(
+      exp2(lowerLevel / lodStepsPerOctave),
+      exp2(upperLevel / lodStepsPerOctave),
+      blend
+    );
+  }
 
-    const float cellWorld = 1.6;
+  float sampleGrid(float cellWorld) {
     vec2 cell = floor(vModelPosition / cellWorld);
     vec2 local = fract(vModelPosition / cellWorld);
     float inset = uGapRatio * 0.5;
@@ -61,13 +100,28 @@ const FRAGMENT_SHADER = /* glsl */ `
     float phase = hash21(cell + 19.7);
     float selected = step(1.0 - uDensity, hash21(cell + floor(uTime * 1.8)));
     float flicker = 0.35 + 0.65 * (0.5 + 0.5 * sin((uTime + phase) * 6.2831853));
-    float alpha = square * selected * flicker * uOpacity * uProgress;
+    return square * selected * flicker;
+  }
+
+  void main() {
+    if (vTopFacing < 0.5) discard;
+
+    float modelUnitsPerRenderPixel = max(
+      length(dFdx(vModelPosition)),
+      length(dFdy(vModelPosition))
+    );
+    vec3 lod = selectCellWorlds(modelUnitsPerRenderPixel);
+    float mosaic = mix(sampleGrid(lod.x), sampleGrid(lod.y), lod.z);
+    float alpha = mosaic * uOpacity * uProgress;
     if (alpha <= 0.001) discard;
     gl_FragColor = vec4(uPrimaryColor * uBrightness, alpha);
   }
 `
 
-function createTopMaterial(config: Readonly<MapMosaicParticleConfig>): THREE.ShaderMaterial {
+function createTopMaterial(
+  config: Readonly<MapMosaicParticleConfig>,
+  renderPixelsPerScreenPixel: number
+): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uPrimaryColor: { value: new THREE.Color(config.primaryColor) },
@@ -77,6 +131,10 @@ function createTopMaterial(config: Readonly<MapMosaicParticleConfig>): THREE.Sha
       uBrightness: { value: config.brightness },
       uProgress: { value: 0 },
       uTime: { value: 0 },
+      uTargetCellPx: { value: config.targetCellPx },
+      uMinCellPx: { value: config.minCellPx },
+      uMaxCellPx: { value: config.maxCellPx },
+      uRenderPixelsPerScreenPixel: { value: renderPixelsPerScreenPixel },
       uSurfaceOffset: { value: config.surfaceOffset }
     },
     vertexShader: VERTEX_SHADER,
@@ -90,6 +148,7 @@ function createTopMaterial(config: Readonly<MapMosaicParticleConfig>): THREE.Sha
 }
 
 export function createMapMosaicParticles(
+  displayMetrics: MosaicDisplayMetrics,
   sources: readonly THREE.Mesh[]
 ): MapMosaicParticles {
   let config = normalizeMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS)
@@ -98,10 +157,15 @@ export function createMapMosaicParticles(
   const hiddenSideMaterial = new THREE.MeshBasicMaterial({ visible: false })
   let disposed = false
 
+  function currentRenderPixelsPerScreenPixel(): number {
+    const value = displayMetrics.getRenderPixelsPerScreenPixel()
+    return Number.isFinite(value) && value > 0 ? value : 1
+  }
+
   for (const source of sources) {
     let material: THREE.ShaderMaterial | null = null
     try {
-      material = createTopMaterial(config)
+      material = createTopMaterial(config, currentRenderPixelsPerScreenPixel())
       const overlay = new THREE.Mesh(source.geometry, [material, hiddenSideMaterial])
       overlay.name = `${source.name || source.userData.name || 'region'}-mosaic-particles`
       overlay.visible = false
@@ -126,6 +190,10 @@ export function createMapMosaicParticles(
       uniforms.uGapRatio.value = config.gapRatio
       uniforms.uOpacity.value = config.opacity
       uniforms.uBrightness.value = config.brightness
+      uniforms.uTargetCellPx.value = config.targetCellPx
+      uniforms.uMinCellPx.value = config.minCellPx
+      uniforms.uMaxCellPx.value = config.maxCellPx
+      uniforms.uRenderPixelsPerScreenPixel.value = currentRenderPixelsPerScreenPixel()
       uniforms.uSurfaceOffset.value = config.surfaceOffset
       entry.overlay.visible = config.enabled && entry.progress > 0
     }
@@ -146,7 +214,12 @@ export function createMapMosaicParticles(
   }
 
   function advanceTime(deltaMs: number): void {
-    if (disposed || !Number.isFinite(deltaMs) || deltaMs <= 0) return
+    if (disposed) return
+    const renderPixelsPerScreenPixel = currentRenderPixelsPerScreenPixel()
+    for (const entry of entries) {
+      entry.material.uniforms.uRenderPixelsPerScreenPixel.value = renderPixelsPerScreenPixel
+    }
+    if (!Number.isFinite(deltaMs) || deltaMs <= 0) return
     const deltaSeconds = deltaMs / 1000
     for (const entry of entries) {
       if (entry.overlay.visible) entry.material.uniforms.uTime.value += deltaSeconds

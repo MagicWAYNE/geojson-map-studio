@@ -26,6 +26,9 @@ export interface MapMosaicParticleConfig {
   reseedOnEnter: boolean
 }
 
+export const MOSAIC_LOD_STEPS_PER_OCTAVE = 8
+export const MOSAIC_MIN_LOD_RANGE_RATIO = 2 ** (1 / MOSAIC_LOD_STEPS_PER_OCTAVE)
+
 export const HOVER_MOSAIC_PARTICLE_DEFAULTS: Readonly<MapMosaicParticleConfig> = Object.freeze({
   enabled: true,
   primaryColor: '#4fc3ff',
@@ -99,7 +102,10 @@ export function normalizeMosaicParticleConfig(value: unknown): MapMosaicParticle
   const firstCellPx = finiteNumber(input.minCellPx, defaults.minCellPx, 1, 16)
   const secondCellPx = finiteNumber(input.maxCellPx, defaults.maxCellPx, 4, 32)
   const minCellPx = Math.min(firstCellPx, secondCellPx)
-  const maxCellPx = Math.max(firstCellPx, secondCellPx)
+  const maxCellPx = Math.max(
+    Math.max(firstCellPx, secondCellPx),
+    minCellPx * MOSAIC_MIN_LOD_RANGE_RATIO
+  )
 
   return {
     enabled: finiteBoolean(input.enabled, defaults.enabled),

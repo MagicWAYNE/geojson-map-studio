@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
+  MOSAIC_MIN_LOD_RANGE_RATIO,
   assignMosaicParticleConfig,
   cloneMosaicParticleConfig,
   normalizeMosaicParticleConfig
@@ -105,5 +106,17 @@ describe('mapMosaicParticleConfig', () => {
       seed: 9999,
       reseedOnEnter: false
     })
+  })
+
+  it('widens an equal pixel range enough to contain a fixed LOD level', () => {
+    const normalized = normalizeMosaicParticleConfig({
+      targetCellPx: 8,
+      minCellPx: 8,
+      maxCellPx: 8
+    })
+
+    expect(normalized.minCellPx).toBe(8)
+    expect(normalized.maxCellPx).toBeCloseTo(8 * MOSAIC_MIN_LOD_RANGE_RATIO, 10)
+    expect(normalized.targetCellPx).toBe(8)
   })
 })
