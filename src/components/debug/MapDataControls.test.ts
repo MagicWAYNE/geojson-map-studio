@@ -57,7 +57,7 @@ describe('MapDataControls', () => {
     width.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(effect.bars.width).toBe(6.4)
-    expect(setItem).toHaveBeenCalled()
+    expect(setItem).not.toHaveBeenCalled()
 
     effect.base.innerWidth = 3.2
     root.querySelector<HTMLButtonElement>('button.ghost')!.click()

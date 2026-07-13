@@ -8,23 +8,30 @@ import {
 } from './mapInwardGlowConfig'
 
 describe('mapInwardGlowConfig', () => {
-  it('exports the exact B1 base and hover defaults', () => {
+  it('exports the exact v3 base and hover inward glow defaults', () => {
     expect(BASE_INWARD_GLOW_DEFAULTS).toEqual({
-      enabled: true, color: '#ffffff', width: 48, strength: 0.18, maxAlpha: 0.5,
-      nearRadiusRatio: 0.35, nearOpacityRatio: 0.83,
-      farRadiusRatio: 1, farOpacityRatio: 1,
-      falloff: 1, edgeSoftness: 0.96, nearPasses: 2, farPasses: 4,
+      enabled: true, color: '#3c69eb', width: 36, strength: 0.75, maxAlpha: 0.5,
+      nearRadiusRatio: 0.4, nearOpacityRatio: 0.8,
+      farRadiusRatio: 0.6, farOpacityRatio: 1,
+      falloff: 1.2, edgeSoftness: 1, nearPasses: 1, farPasses: 4,
       baseRatio: 0.7,
       wave: {
-        enabled: true, widthRatio: 0.24, strength: 0.45,
+        enabled: false, widthRatio: 0.24, strength: 0.45,
         periodMs: 3600, delayMs: 0, travelRatio: 1,
         decay: 0.65, easing: 'ease-out'
       }
     })
-    expect(HOVER_INWARD_GLOW_DEFAULTS).toMatchObject({
-      enabled: true, color: '#d8f5ff', width: 64, strength: 0.22,
-      maxAlpha: 0.6, baseRatio: 0.6,
-      wave: { widthRatio: 0.22, strength: 0.65, periodMs: 1400, decay: 0.55 }
+    expect(HOVER_INWARD_GLOW_DEFAULTS).toEqual({
+      enabled: true, color: '#d8f5ff', width: 64, strength: 0.22, maxAlpha: 0.6,
+      nearRadiusRatio: 0.35, nearOpacityRatio: 0.83,
+      farRadiusRatio: 1, farOpacityRatio: 1,
+      falloff: 1, edgeSoftness: 0.96, nearPasses: 2, farPasses: 4,
+      baseRatio: 0.6,
+      wave: {
+        enabled: false, widthRatio: 0.22, strength: 0.65,
+        periodMs: 1400, delayMs: 0, travelRatio: 1,
+        decay: 0.55, easing: 'ease-out'
+      }
     })
   })
 

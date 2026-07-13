@@ -4,10 +4,15 @@ import {
   assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
-  loadMapEffectConfig,
-  normalizeMapEffectConfig,
-  saveMapEffectConfig
+  normalizeMapEffectConfig
 } from '@/components/map/mapEffectConfig'
+import {
+  MAP_HUD_DEFAULTS,
+  assignMapHudConfig,
+  cloneMapHudConfig,
+  formatMapHudConfig,
+  normalizeMapHudConfig
+} from '@/components/map/mapHudConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 
 export interface MapLayout {
@@ -35,10 +40,10 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetHeight: 1,
   renderScale: 0.5,
   baseState: 'enabled',
-  hoverState: 'disabled',
+  hoverState: 'ready',
   baseInwardState: 'active',
   hoverInwardState: 'ready',
-  baseWaveActive: true,
+  baseWaveActive: false,
   hoverWaveActive: false,
   degraded: false
 }
@@ -76,7 +81,9 @@ function loadLayout(): MapLayout {
 // 模块级单例：HeaderBar（开关）、抽屉、HomeView（应用样式）、3D 地图（视角上报）共享同一份状态
 const drawerOpen = ref(false)
 const layout = reactive<MapLayout>(loadLayout())
-const effect = reactive(loadMapEffectConfig(storage()))
+const effect = reactive(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
+// HUD 调试参数只在当前页面会话内有效，刷新后始终恢复源码默认值。
+const hud = reactive(cloneMapHudConfig(MAP_HUD_DEFAULTS))
 const effectRuntimeStatus = reactive<MapEffectRuntimeStatus>({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })
 const districtBarRuntimeStatus = reactive<MapDistrictBarRuntimeStatus>({
   ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS
@@ -84,6 +91,7 @@ const districtBarRuntimeStatus = reactive<MapDistrictBarRuntimeStatus>({
 // 3D 相机实时视角（由 ChongqingMap3D 在 OrbitControls change 时写入），仅运行时读数，不持久化
 const cameraView = ref('')
 const effectJson = computed(() => formatMapEffectConfig(effect))
+const hudJson = computed(() => formatMapHudConfig(hud))
 
 watch(layout, (value) => {
   try {
@@ -96,7 +104,10 @@ watch(layout, (value) => {
 watch(effect, (value) => {
   const normalized = normalizeMapEffectConfig(value)
   assignMapEffectConfig(effect, normalized)
-  saveMapEffectConfig(storage(), normalized)
+}, { deep: true })
+
+watch(hud, (value) => {
+  assignMapHudConfig(hud, normalizeMapHudConfig(value))
 }, { deep: true })
 
 function resetLayout(): void {
@@ -105,6 +116,10 @@ function resetLayout(): void {
 
 function resetEffect(): void {
   assignMapEffectConfig(effect, cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
+}
+
+function resetHud(): void {
+  assignMapHudConfig(hud, cloneMapHudConfig(MAP_HUD_DEFAULTS))
 }
 
 function sameEffectRuntimeStatus(
@@ -151,12 +166,15 @@ export function useMapDebug() {
     layout,
     effect,
     effectJson,
+    hud,
+    hudJson,
     effectRuntimeStatus,
     updateEffectRuntimeStatus,
     districtBarRuntimeStatus,
     updateDistrictBarRuntimeStatus,
     resetLayout,
     resetEffect,
+    resetHud,
     cameraView
   }
 }

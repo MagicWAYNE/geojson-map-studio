@@ -362,6 +362,7 @@ describe('mapOutwardGlowPipeline', () => {
       baseOpacity: 0,
       baseInwardEnabled: true
     })
+    config.base.inwardGlow.wave.enabled = true
     config.base.inwardGlow.wave.easing = 'linear'
     config.base.inwardGlow.wave.periodMs = 1000
     pipeline.setConfig(config)
@@ -569,6 +570,7 @@ describe('mapOutwardGlowPipeline', () => {
       hoverOpacity: 0,
       hoverInwardEnabled: true
     })
+    config.hover.inwardGlow.wave.enabled = true
     config.hover.inwardGlow.wave.easing = 'linear'
     config.hover.inwardGlow.wave.periodMs = 1000
     pipeline.setConfig(config)
@@ -596,6 +598,7 @@ describe('mapOutwardGlowPipeline', () => {
       hoverOpacity: 0,
       hoverInwardEnabled: true
     })
+    config.hover.inwardGlow.wave.enabled = true
     config.hover.inwardGlow.wave.easing = 'linear'
     config.hover.inwardGlow.wave.periodMs = 1000
     pipeline.setConfig(config)
@@ -619,6 +622,7 @@ describe('mapOutwardGlowPipeline', () => {
       baseOpacity: 0,
       baseInwardEnabled: true
     })
+    config.base.inwardGlow.wave.enabled = true
     config.base.inwardGlow.wave.easing = 'linear'
     config.base.inwardGlow.wave.periodMs = 1000
     pipeline.setSize(680, 680, 2)
@@ -627,7 +631,7 @@ describe('mapOutwardGlowPipeline', () => {
     config.base.inwardGlow.wave.periodMs = 4000
 
     pipeline.render(scene, camera, 1000)
-    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[5])).toEqual([16.8, 48])
+    expect(shaderMocks.renderBlur.mock.calls.map((call) => call[5])).toEqual([14.4, 21.6])
     pipeline.render(scene, camera, 1500)
     expect(inwardShaderMocks.renderComposite).toHaveBeenLastCalledWith(
       renderer,

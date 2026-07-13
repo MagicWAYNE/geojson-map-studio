@@ -4,8 +4,9 @@ import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
 import MapDataControls from './MapDataControls.vue'
 import MapEffectControls from './MapEffectControls.vue'
+import MapHudControls from './MapHudControls.vue'
 
-const activeTab = ref<'layout' | 'effect' | 'data'>('layout')
+const activeTab = ref<'layout' | 'effect' | 'data' | 'hud'>('layout')
 const { drawerOpen, layout, resetLayout, cameraView } = useMapDebug()
 
 const FIELDS = [
@@ -50,6 +51,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         <button :class="{ active: activeTab === 'layout' }" @click="activeTab = 'layout'">布局</button>
         <button :class="{ active: activeTab === 'effect' }" @click="activeTab = 'effect'">效果</button>
         <button :class="{ active: activeTab === 'data' }" @click="activeTab = 'data'">数据调试</button>
+        <button :class="{ active: activeTab === 'hud' }" @click="activeTab = 'hud'">HUD</button>
       </div>
 
       <div v-if="activeTab === 'layout'" class="panel-scroll layout-panel">
@@ -91,8 +93,12 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         <MapEffectControls />
       </div>
 
-      <div v-else class="panel-scroll">
+      <div v-else-if="activeTab === 'data'" class="panel-scroll">
         <MapDataControls />
+      </div>
+
+      <div v-else class="panel-scroll">
+        <MapHudControls />
       </div>
     </aside>
   </transition>
@@ -116,7 +122,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 .close { font-size: 16px; color: #7fa8d9; cursor: pointer; padding: 2px 6px; }
 .close:hover { color: #00deff; }
 
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .tabs button {
   padding: 7px 0; color: #7fa8d9; cursor: pointer;
   background: rgba(36, 131, 255, 0.08);

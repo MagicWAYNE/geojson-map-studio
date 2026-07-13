@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 describe('MapDebugDrawer copy feedback', () => {
-  it('renders district bar controls from the data debug tab', async () => {
+  it('adds a dedicated HUD tab without changing the existing layout tab', async () => {
     vi.stubGlobal('localStorage', {
       getItem: () => null,
       setItem: vi.fn()
@@ -24,15 +24,13 @@ describe('MapDebugDrawer copy feedback', () => {
     app.mount(root)
     await nextTick()
 
-    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
-      .find((button) => button.textContent?.trim() === '数据调试')!
-      .click()
+    const hudTab = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'HUD')!
+    hudTab.click()
     await nextTick()
 
-    expect(root.textContent).toContain('区级案件量柱状图')
-    expect(root.textContent).toContain('可复制柱状图参数')
-    expect(root.querySelector('#effect-bars-width-number')).not.toBeNull()
-    expect(root.querySelector('#effect-bars-anchorOffsetX-number')).not.toBeNull()
+    expect(root.textContent).toContain('静态方位底盘')
+    expect(root.textContent).not.toContain('3D 视角 / 缩放')
     app.unmount()
   })
 
