@@ -69,6 +69,7 @@ describe('createMapMosaicParticles', () => {
     expect(topMaterial.fragmentShader).toContain('uAccentColor')
     expect(topMaterial.fragmentShader).toContain('uClusterChance')
     expect(topMaterial.fragmentShader).toContain('clusterInfluence')
+    expect(topMaterial.fragmentShader).not.toMatch(/\bactive\b/)
     expect(topMaterial.fragmentShader).toContain('1.0 + clusterField * max(uClusterStrength, 0.0)')
     expect(topMaterial.fragmentShader).toContain('max(1.0, uBurstStrength)')
     expect(topMaterial.fragmentShader).not.toMatch(/wave|travel/i)

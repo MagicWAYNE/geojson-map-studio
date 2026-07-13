@@ -118,8 +118,8 @@ const FRAGMENT_SHADER = /* glsl */ `
     );
   }
 
-  float clusterInfluence(float distanceInCells, float radius, float active) {
-    return active * clamp(1.0 - distanceInCells / (radius + 0.5), 0.0, 1.0);
+  float clusterInfluence(float distanceInCells, float radius, float activation) {
+    return activation * clamp(1.0 - distanceInCells / (radius + 0.5), 0.0, 1.0);
   }
 
   float sampleClusterField(vec2 cell) {
@@ -130,12 +130,12 @@ const FRAGMENT_SHADER = /* glsl */ `
     for (int offsetX = -1; offsetX <= 1; offsetX++) {
       for (int offsetY = -1; offsetY <= 1; offsetY++) {
         vec2 candidate = coarseCell + vec2(float(offsetX), float(offsetY));
-        float active = step(
+        float activation = step(
           1.0 - uClusterChance,
           mosaicRandom(candidate + 31.7, uActivationSeed)
         );
         vec2 center = (candidate + 0.5) * spacing;
-        field = max(field, clusterInfluence(length(cell - center), radius, active));
+        field = max(field, clusterInfluence(length(cell - center), radius, activation));
       }
     }
     return field;
