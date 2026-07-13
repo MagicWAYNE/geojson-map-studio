@@ -5,7 +5,6 @@ import {
   type MapEffectConfig
 } from './mapEffectConfig'
 import type { MapInwardGlowConfig } from './mapInwardGlowConfig'
-import { computeInwardWavePhase } from './mapInwardGlowMotion'
 import {
   createInwardGlowShaderResources,
   disposeInwardGlowShaderResources,
@@ -44,8 +43,6 @@ export interface MapOutwardGlowPipelineStatus {
   hoverState: MapOutwardGlowHoverState
   baseInwardState: MapOutwardGlowBaseInwardState
   hoverInwardState: MapOutwardGlowHoverInwardState
-  baseWaveActive: boolean
-  hoverWaveActive: boolean
 }
 
 export interface MapOutwardGlowPipeline {
@@ -54,7 +51,7 @@ export interface MapOutwardGlowPipeline {
   setRegionProgress(source: THREE.Mesh, easedProgress: number): boolean
   markCameraDirty(): void
   getStatus(): MapOutwardGlowPipelineStatus
-  render(mainScene: THREE.Scene, camera: THREE.Camera, nowMs: number): void
+  render(mainScene: THREE.Scene, camera: THREE.Camera): void
   dispose(): void
 }
 
@@ -306,11 +303,6 @@ export function createMapOutwardGlowPipeline(
   let hoverCache!: CachedGlowChannel
   let staticInwardCache!: CachedInwardChannel
   let hoverInwardCache!: CachedInwardChannel
-  let baseWaveStartMs: number | null = null
-  let hoverWaveStartMs: number | null = null
-  let hoverWaveResetPending = false
-  let baseWaveActive = false
-  let hoverWaveActive = false
 
   function setAllDirty(): void {
     staticMaskDirty = true
@@ -444,13 +436,7 @@ export function createMapOutwardGlowPipeline(
         falloff: channel.falloff,
         edgeSoftness: channel.edgeSoftness,
         maxAlpha: Math.min(channel.maxAlpha, config.quality.maxAlpha),
-        baseRatio: channel.baseRatio,
-        waveActive: false,
-        wavePhase: 0,
-        waveWidthRatio: channel.wave.widthRatio,
-        waveStrength: channel.wave.strength,
-        waveTravelRatio: channel.wave.travelRatio,
-        waveDecay: channel.wave.decay
+        baseRatio: channel.baseRatio
       }
     }
   }
@@ -478,10 +464,6 @@ export function createMapOutwardGlowPipeline(
     composite.edgeSoftness = channel.edgeSoftness
     composite.maxAlpha = Math.min(channel.maxAlpha, config.quality.maxAlpha)
     composite.baseRatio = channel.baseRatio
-    composite.waveWidthRatio = channel.wave.widthRatio
-    composite.waveStrength = channel.wave.strength
-    composite.waveTravelRatio = channel.wave.travelRatio
-    composite.waveDecay = channel.wave.decay
   }
 
   staticCache = createChannelCache(staticTargets, staticChannel)
@@ -563,11 +545,7 @@ export function createMapOutwardGlowPipeline(
   ): boolean {
     return isGlowEnabled(true, channel.width, channel.strength)
       && (cache.profile.nearOpacity > 0 || cache.profile.farOpacity > 0)
-      && (channel.baseRatio > 0 || inwardWaveIsEffective(channel))
-  }
-
-  function inwardWaveIsEffective(channel: MapInwardGlowConfig): boolean {
-    return channel.wave.enabled && channel.wave.strength > 0
+      && channel.baseRatio > 0
   }
 
   function baseInwardState(): MapOutwardGlowBaseInwardState {
@@ -579,27 +557,6 @@ export function createMapOutwardGlowPipeline(
     if (!currentHoverInwardChannel.enabled) return 'disabled'
     if (!inwardChannelIsEffective(currentHoverInwardChannel, hoverInwardCache)) return 'zero'
     return hasVisibleHover() ? 'active' : 'ready'
-  }
-
-  function updateWavePhases(nowMs: number, baseEnabled: boolean, hoverEnabled: boolean): void {
-    if (baseEnabled && baseWaveStartMs === null) baseWaveStartMs = nowMs
-    if (hoverEnabled && (hoverWaveResetPending || hoverWaveStartMs === null)) {
-      hoverWaveStartMs = nowMs
-      hoverWaveResetPending = false
-    }
-
-    const basePhase = baseEnabled && baseWaveStartMs !== null
-      ? computeInwardWavePhase(nowMs, baseWaveStartMs, staticInwardChannel.wave)
-      : { active: false, phase: 0 }
-    const hoverPhase = hoverEnabled && hoverWaveStartMs !== null
-      ? computeInwardWavePhase(nowMs, hoverWaveStartMs, currentHoverInwardChannel.wave)
-      : { active: false, phase: 0 }
-    baseWaveActive = basePhase.active
-    hoverWaveActive = hoverPhase.active
-    staticInwardCache.composite.waveActive = basePhase.active
-    staticInwardCache.composite.wavePhase = basePhase.phase
-    hoverInwardCache.composite.waveActive = hoverPhase.active
-    hoverInwardCache.composite.wavePhase = hoverPhase.phase
   }
 
   return {
@@ -664,7 +621,6 @@ export function createMapOutwardGlowPipeline(
       const wasVisible = state.progress > HOVER_VISIBILITY_THRESHOLD
       const nextVisible = nextProgress > HOVER_VISIBILITY_THRESHOLD
       if (wasVisible !== nextVisible) visibleHoverCount += nextVisible ? 1 : -1
-      if (!wasVisible && nextVisible) hoverWaveResetPending = true
       state.progress = nextProgress
       state.material.color.setRGB(nextProgress, nextProgress, nextProgress)
       state.clone.visible = nextProgress > HOVER_VISIBILITY_THRESHOLD
@@ -687,13 +643,11 @@ export function createMapOutwardGlowPipeline(
         baseState: baseState(),
         hoverState: hoverState(),
         baseInwardState: baseInwardState(),
-        hoverInwardState: hoverInwardState(),
-        baseWaveActive,
-        hoverWaveActive
+        hoverInwardState: hoverInwardState()
       }
     },
 
-    render(mainScene, camera, nowMs) {
+    render(mainScene, camera) {
       if (disposed) return
       const previousTarget = renderer.getRenderTarget()
       const previousAutoClear = renderer.autoClear
@@ -701,11 +655,6 @@ export function createMapOutwardGlowPipeline(
       const hoverEnabled = hoverState() === 'active'
       const staticInwardEnabled = baseInwardState() === 'active'
       const hoverInwardEnabled = hoverInwardState() === 'active'
-      updateWavePhases(
-        nowMs,
-        staticInwardEnabled && inwardWaveIsEffective(staticInwardChannel),
-        hoverInwardEnabled && inwardWaveIsEffective(currentHoverInwardChannel)
-      )
       try {
         renderer.autoClear = false
         if (staticEnabled || staticInwardEnabled) {

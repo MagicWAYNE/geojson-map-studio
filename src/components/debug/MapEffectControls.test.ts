@@ -19,7 +19,8 @@ type MountedControls = {
 const EFFECT_STORAGE_KEYS = new Set([
   'cq-map-effect-config-v1',
   'cq-map-effect-config-v2',
-  'cq-map-effect-config-v3'
+  'cq-map-effect-config-v3',
+  'cq-map-effect-config-v4'
 ])
 
 function expectNoEffectStorageWrites(setItem: ReturnType<typeof vi.fn>): void {
@@ -148,6 +149,7 @@ describe('MapEffectControls', () => {
     const baseIdentity = effect.base
     const hoverIdentity = effect.hover
     const qualityIdentity = effect.quality
+    const mosaicIdentity = effect.hover.mosaicParticles
     await setLivePreview(root, false)
     setItem.mockClear()
 
@@ -157,17 +159,25 @@ describe('MapEffectControls', () => {
     const passes = root.querySelector<HTMLInputElement>('#effect-hover-glowNearPasses-number')!
     passes.value = '7.6'
     passes.dispatchEvent(new Event('change', { bubbles: true }))
+    const mosaicBrightness = root.querySelector<HTMLInputElement>(
+      '#effect-hover-mosaic-brightness-number'
+    )!
+    mosaicBrightness.value = '2.35'
+    mosaicBrightness.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(effect.base.outerGlowWidth).not.toBe(137)
+    expect(effect.hover.mosaicParticles.brightness).not.toBe(2.35)
     expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
     expect(effect.base.outerGlowWidth).toBe(137)
     expect(effect.hover.glowNearPasses).toBe(8)
+    expect(effect.hover.mosaicParticles.brightness).toBe(2.35)
     expect(effect.base).toBe(baseIdentity)
     expect(effect.hover).toBe(hoverIdentity)
     expect(effect.quality).toBe(qualityIdentity)
+    expect(effect.hover.mosaicParticles).toBe(mosaicIdentity)
     expectNoEffectStorageWrites(setItem)
 
     width.value = '99'
@@ -235,8 +245,7 @@ describe('MapEffectControls', () => {
       hoverState: 'active',
       baseInwardState: 'active',
       hoverInwardState: 'active',
-      baseWaveActive: true,
-      hoverWaveActive: false,
+      mosaicState: 'active',
       degraded: false
     })
     await nextTick()
@@ -248,8 +257,8 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 生效中')
     expect(status.textContent).toContain('常态内扩: 生效中')
     expect(status.textContent).toContain('Hover 内扩: 生效中')
-    expect(status.textContent).toContain('常态传播波: 生效中')
-    expect(status.textContent).toContain('Hover 传播波: 未生效')
+    expect(status.textContent).toContain('马赛克粒子: 生效中')
+    expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 正常')
     expect(root.textContent).toContain('性能提示')
 
@@ -270,8 +279,7 @@ describe('MapEffectControls', () => {
       hoverState: 'zero',
       baseInwardState: 'disabled',
       hoverInwardState: 'zero',
-      baseWaveActive: false,
-      hoverWaveActive: true,
+      mosaicState: 'degraded',
       degraded: true
     })
     await nextTick()
@@ -279,9 +287,24 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 参数为零')
     expect(status.textContent).toContain('常态内扩: 已关闭')
     expect(status.textContent).toContain('Hover 内扩: 参数为零')
-    expect(status.textContent).toContain('常态传播波: 未生效')
-    expect(status.textContent).toContain('Hover 传播波: 生效中')
+    expect(status.textContent).toContain('马赛克粒子: 已降级')
+    expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
+
+    updateEffectRuntimeStatus({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      mosaicState: 'degraded',
+      degraded: false
+    })
+    await nextTick()
+    expect(status.textContent).toContain('马赛克粒子: 已降级')
+    expect(status.textContent).toContain('运行状态: 马赛克粒子已降级关闭（其他效果正常）')
     app.unmount()
   })
 
@@ -303,7 +326,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('renders the advanced groups with stable accessible controls and design ranges', async () => {
+  it('renders the advanced groups with standalone mosaic controls and stable design ranges', async () => {
     const { app, root } = await mountControls()
     const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
     const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
@@ -315,12 +338,17 @@ describe('MapEffectControls', () => {
       'Hover 表面',
       'Hover 外扩柔光',
       'Hover 内扩柔光',
+      'Hover 马赛克粒子',
       '渲染质量与性能',
       '可复制参数'
     ])
 
     const baseGlow = group('常态外扩柔光')
     const hoverGlow = group('Hover 外扩柔光')
+    const mosaic = group('Hover 马赛克粒子')
+    expect(mosaic.querySelector('#effect-hover-mosaic-enabled-checkbox')).not.toBeNull()
+    expect(mosaic.querySelector('#effect-hover-mosaic-primaryColor-color')).not.toBeNull()
+    expect(mosaic.querySelector('#effect-hover-mosaic-seed-number')).not.toBeNull()
     const glowKeys = [
       'Enabled', 'Color', 'Width', 'Strength', 'NearRadiusRatio', 'NearOpacityRatio',
       'FarRadiusRatio', 'FarOpacityRatio', 'Falloff', 'EdgeSoftness', 'NearPasses', 'FarPasses'
@@ -650,41 +678,39 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('isolates nested inward drafts and applies them in place with stable nested identities', async () => {
+  it('isolates stable inward drafts and applies them in place with stable nested identities', async () => {
     const { app, root, effect, setItem } = await mountControls()
     const base = effect.base
     const inward = effect.base.inwardGlow
-    const wave = inward.wave
-    const originalPeriod = wave.periodMs
+    const originalWidth = inward.width
     await setLivePreview(root, false)
     setItem.mockClear()
 
-    const period = root.querySelector<HTMLInputElement>('#effect-base-inward-wave-periodMs-number')!
-    period.value = '4321'
-    period.dispatchEvent(new Event('change', { bubbles: true }))
+    const width = root.querySelector<HTMLInputElement>('#effect-base-inward-width-number')!
+    width.value = '143'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(period.value).toBe('4300')
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(originalPeriod)
+    expect(width.value).toBe('143')
+    expect(effect.base.inwardGlow.width).toBe(originalWidth)
     expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+    expect(effect.base.inwardGlow.width).toBe(143)
     expect(effect.base).toBe(base)
     expect(effect.base.inwardGlow).toBe(inward)
-    expect(effect.base.inwardGlow.wave).toBe(wave)
     expectNoEffectStorageWrites(setItem)
 
-    period.value = '5100'
-    period.dispatchEvent(new Event('change', { bubbles: true }))
+    width.value = '151'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
     button(root, '放弃草稿').click()
     await nextTick()
-    expect(period.value).toBe('4300')
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+    expect(width.value).toBe('143')
+    expect(effect.base.inwardGlow.width).toBe(143)
 
-    effect.base.inwardGlow.wave.periodMs = 4700
+    effect.base.inwardGlow.width = 147
     await nextTick()
-    expect(period.value).toBe('4700')
+    expect(width.value).toBe('147')
     app.unmount()
   })
 
@@ -695,15 +721,15 @@ describe('MapEffectControls', () => {
     const groupButton = (title: string, label: string) => Array.from(group(title).querySelectorAll<HTMLButtonElement>('button'))
       .find((candidate) => candidate.textContent === label)!
 
-    expect(group('常态内扩柔光').querySelector('#effect-base-inward-wave-easing-select')).not.toBeNull()
-    expect(group('Hover 内扩柔光').querySelector('#effect-hover-inward-wave-easing-select')).not.toBeNull()
+    expect(group('常态内扩柔光').querySelector('#effect-base-inward-width-number')).not.toBeNull()
+    expect(group('Hover 内扩柔光').querySelector('#effect-hover-inward-width-number')).not.toBeNull()
+    expect(group('常态内扩柔光').querySelector('[id*="wave"]')).toBeNull()
+    expect(group('Hover 内扩柔光').querySelector('[id*="wave"]')).toBeNull()
 
     effect.base.outerGlowWidth = 123
     effect.hover.inwardGlow.width = 101
     effect.base.inwardGlow.width = 99
-    effect.base.inwardGlow.wave.periodMs = 7777
     const inwardIdentity = effect.base.inwardGlow
-    const waveIdentity = effect.base.inwardGlow.wave
     groupButton('常态内扩柔光', '重置本组').click()
     await nextTick()
 
@@ -711,7 +737,6 @@ describe('MapEffectControls', () => {
     expect(effect.hover.inwardGlow.width).toBe(101)
     expect(effect.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(effect.base.inwardGlow).toBe(inwardIdentity)
-    expect(effect.base.inwardGlow.wave).toBe(waveIdentity)
 
     effect.base.inwardGlow.width = 88
     groupButton('常态内扩柔光', '应用 B1 预设').click()

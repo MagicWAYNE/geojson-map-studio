@@ -29,7 +29,7 @@ describe('watchMapEffectConfig', () => {
     expect(apply).toHaveBeenCalledTimes(2)
   })
 
-  it('tracks full v5 quality, advanced base and hover, bars, and nested inward wave fields', async () => {
+  it('tracks full v5 quality, advanced glow, stable inward, mosaic, and bar fields', async () => {
     const effect = reactive(createEffectConfig())
     const snapshots: MapEffectConfig[] = []
     const apply = vi.fn(() => snapshots.push(JSON.parse(JSON.stringify(effect))))
@@ -40,12 +40,12 @@ describe('watchMapEffectConfig', () => {
     effect.base.outerGlowFarPasses = 7
     effect.base.outerGlowEdgeSoftness = 0.42
     effect.base.inwardGlow.strength = 0.36
-    effect.base.inwardGlow.wave.periodMs = 4800
     effect.hover.glowNearPasses = 6
     effect.hover.glowFalloff = 2.25
     effect.hover.inwardGlow.width = 96
-    effect.hover.inwardGlow.wave.easing = 'linear'
     effect.bars.hoverLift = 2.5
+    effect.hover.mosaicParticles.density = 0.28
+    effect.hover.mosaicParticles.flickerHz = 4.8
     await nextTick()
 
     expect(apply).toHaveBeenCalledTimes(2)
@@ -55,12 +55,13 @@ describe('watchMapEffectConfig', () => {
       base: {
         outerGlowFarPasses: 7,
         outerGlowEdgeSoftness: 0.42,
-        inwardGlow: { strength: 0.36, wave: { periodMs: 4800 } }
+        inwardGlow: { strength: 0.36 }
       },
       hover: {
         glowNearPasses: 6,
         glowFalloff: 2.25,
-        inwardGlow: { width: 96, wave: { easing: 'linear' } }
+        inwardGlow: { width: 96 },
+        mosaicParticles: { density: 0.28, flickerHz: 4.8 }
       },
       bars: { hoverLift: 2.5 }
     })

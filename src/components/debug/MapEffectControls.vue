@@ -16,9 +16,14 @@ import {
   assignInwardGlowConfig,
   type MapInwardGlowConfig
 } from '@/components/map/mapInwardGlowConfig'
+import {
+  assignMosaicParticleConfig,
+  type MapMosaicParticleConfig
+} from '@/components/map/mapMosaicParticleConfig'
 import { useMapDebug } from '@/composables/useMapDebug'
 import { copyTextToClipboard } from '@/utils/copyText'
 import MapInwardGlowControls from './MapInwardGlowControls.vue'
+import MapMosaicParticleControls from './MapMosaicParticleControls.vue'
 
 type GlowChannel = 'base' | 'hover'
 type BaseColorKey = 'innerColor' | 'outerColor' | 'outerGlowColor'
@@ -231,8 +236,29 @@ function hoverInwardStatusLabel(): string {
   }[effectRuntimeStatus.hoverInwardState]
 }
 
+function mosaicStatusLabel(): string {
+  return {
+    disabled: '已关闭',
+    ready: '等待 Hover',
+    active: '生效中',
+    degraded: '已降级'
+  }[effectRuntimeStatus.mosaicState]
+}
+
+function runtimeStatusLabel(): string {
+  if (effectRuntimeStatus.degraded) return '外扩柔光已降级关闭（屏幕空间柔光）'
+  if (effectRuntimeStatus.mosaicState === 'degraded') {
+    return '马赛克粒子已降级关闭（其他效果正常）'
+  }
+  return '正常'
+}
+
 function replaceInwardGlow(channel: GlowChannel, value: MapInwardGlowConfig): void {
   assignInwardGlowConfig(editTarget.value[channel].inwardGlow, value)
+}
+
+function replaceMosaicParticles(value: MapMosaicParticleConfig): void {
+  assignMosaicParticleConfig(editTarget.value.hover.mosaicParticles, value)
 }
 
 function isBaseColorField(field: Field): field is Extract<ColorField, { section: 'base' }> {
@@ -559,9 +585,8 @@ onBeforeUnmount(() => {
           <span>Hover: {{ hoverStatusLabel() }}</span>
           <span>常态内扩: {{ baseInwardStatusLabel() }}</span>
           <span>Hover 内扩: {{ hoverInwardStatusLabel() }}</span>
-          <span>常态传播波: {{ effectRuntimeStatus.baseWaveActive ? '生效中' : '未生效' }}</span>
-          <span>Hover 传播波: {{ effectRuntimeStatus.hoverWaveActive ? '生效中' : '未生效' }}</span>
-          <span>运行状态: {{ effectRuntimeStatus.degraded ? '外扩柔光已降级关闭（屏幕空间柔光）' : '正常' }}</span>
+          <span>马赛克粒子: {{ mosaicStatusLabel() }}</span>
+          <span>运行状态: {{ runtimeStatusLabel() }}</span>
         </div>
         <p v-if="group.title === '渲染质量与性能' && performanceWarning" class="performance-warning">
           {{ performanceWarningText }}
@@ -585,6 +610,14 @@ onBeforeUnmount(() => {
           :model-value="editTarget.hover.inwardGlow"
           :state-label="hoverInwardStatusLabel()"
           @update:model-value="replaceInwardGlow('hover', $event)"
+        />
+      </section>
+
+      <section v-if="group.title === 'Hover 外扩柔光'" class="effect-group">
+        <h3>Hover 马赛克粒子</h3>
+        <MapMosaicParticleControls
+          :model-value="editTarget.hover.mosaicParticles"
+          @update:model-value="replaceMosaicParticles"
         />
       </section>
     </template>

@@ -11,6 +11,12 @@ import {
   normalizeDistrictBarConfig,
   type MapDistrictBarConfig
 } from './mapDistrictBarConfig'
+import {
+  HOVER_MOSAIC_PARTICLE_DEFAULTS,
+  cloneMosaicParticleConfig,
+  normalizeMosaicParticleConfig,
+  type MapMosaicParticleConfig
+} from './mapMosaicParticleConfig'
 
 export interface MapEffectBaseConfig {
   innerColor: string
@@ -35,7 +41,7 @@ export interface MapEffectBaseConfigV2 extends MapEffectBaseConfig {
   outerGlowFarPasses: number
 }
 
-export interface MapEffectBaseConfigV3 extends MapEffectBaseConfigV2 {
+export interface MapEffectBaseConfigV4 extends MapEffectBaseConfigV2 {
   inwardGlow: MapInwardGlowConfig
 }
 
@@ -65,8 +71,9 @@ export interface MapEffectHoverConfigV2 extends MapEffectHoverConfig {
   glowFarPasses: number
 }
 
-export interface MapEffectHoverConfigV3 extends MapEffectHoverConfigV2 {
+export interface MapEffectHoverConfigV4 extends MapEffectHoverConfigV2 {
   inwardGlow: MapInwardGlowConfig
+  mosaicParticles: MapMosaicParticleConfig
 }
 
 export interface MapEffectQualityConfig {
@@ -81,25 +88,17 @@ interface MapEffectConfigV2 {
   quality: MapEffectQualityConfig
 }
 
-export interface MapEffectConfigV3 {
-  version: 3
-  base: MapEffectBaseConfigV3
-  hover: MapEffectHoverConfigV3
-  quality: MapEffectQualityConfig
-}
-
 export interface MapEffectConfigV4 {
   version: 4
-  base: MapEffectBaseConfigV3
-  hover: MapEffectHoverConfigV3
+  base: MapEffectBaseConfigV4
+  hover: MapEffectHoverConfigV4
   quality: MapEffectQualityConfig
-  bars: MapDistrictBarConfig
 }
 
 export interface MapEffectConfig {
   version: 5
-  base: MapEffectBaseConfigV3
-  hover: MapEffectHoverConfigV3
+  base: MapEffectBaseConfigV4
+  hover: MapEffectHoverConfigV4
   quality: MapEffectQualityConfig
   bars: MapDistrictBarConfig
 }
@@ -161,23 +160,41 @@ const LEGACY_INITIAL_V1_DEFAULTS: LegacyMapEffectConfig = {
   }
 }
 
-const V2_BASE_DEFAULTS: MapEffectBaseConfigV2 = {
+const LEGACY_V2_BASE_DEFAULTS: Readonly<MapEffectBaseConfigV2> = Object.freeze({
+  innerColor: '#ffffff', innerWidth: 1.5, innerOpacity: 0.55,
+  outerColor: '#ffffff', outerCoreWidth: 2, outerGlowEnabled: true,
+  outerGlowColor: '#8ab7ff', outerGlowWidth: 72, outerGlowStrength: 0.48,
+  outerGlowNearRadiusRatio: 0.35, outerGlowNearOpacityRatio: 1.25,
+  outerGlowFarRadiusRatio: 0.7, outerGlowFarOpacityRatio: 0.75,
+  outerGlowFalloff: 0.9, outerGlowEdgeSoftness: 0.96,
+  outerGlowNearPasses: 4, outerGlowFarPasses: 4
+})
+
+const LEGACY_V2_HOVER_DEFAULTS: Readonly<MapEffectHoverConfigV2> = Object.freeze({
+  surfaceColor: '#7fcbff', emissiveColor: '#22b4d8', emissiveIntensity: 0.5,
+  outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: false,
+  glowColor: '#ffffff', glowWidth: 110, glowStrength: 0.15,
+  glowNearRadiusRatio: 0.35, glowNearOpacityRatio: 0.83,
+  glowFarRadiusRatio: 1, glowFarOpacityRatio: 1, glowFalloff: 1,
+  glowEdgeSoftness: 0.96, glowNearPasses: 2, glowFarPasses: 4,
+  lift: 2, enterMs: 400, leaveMs: 300
+})
+
+const V4_BASE_DEFAULTS: Readonly<MapEffectBaseConfigV2> = Object.freeze({
   innerColor: '#ffffff', innerWidth: 1.5, innerOpacity: 0.55,
   outerColor: '#cad6fc', outerCoreWidth: 2, outerGlowEnabled: true,
   outerGlowColor: '#8ab7ff', outerGlowWidth: 100, outerGlowStrength: 0.35,
-  outerGlowNearRadiusRatio: 0.5,
-  outerGlowNearOpacityRatio: 1.2, outerGlowFarRadiusRatio: 0.6,
-  outerGlowFarOpacityRatio: 0.75, outerGlowFalloff: 0.9,
-  outerGlowEdgeSoftness: 0.9,
+  outerGlowNearRadiusRatio: 0.5, outerGlowNearOpacityRatio: 1.2,
+  outerGlowFarRadiusRatio: 0.6, outerGlowFarOpacityRatio: 0.75,
+  outerGlowFalloff: 0.9, outerGlowEdgeSoftness: 0.9,
   outerGlowNearPasses: 4, outerGlowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses
-}
+})
 
-const V2_HOVER_DEFAULTS: MapEffectHoverConfigV2 = {
-  surfaceColor: '#7fcbff', emissiveColor: '#4894db', emissiveIntensity: 0.5,
+const V4_HOVER_DEFAULTS: Readonly<MapEffectHoverConfigV2> = Object.freeze({
+  surfaceColor: '#000000', emissiveColor: '#5edaf3', emissiveIntensity: 0.25,
   outlineColor: '#d8f5ff', outlineWidth: 2.4, glowEnabled: true,
   glowColor: '#ffffff', glowWidth: 64, glowStrength: 0.12,
-  glowNearRadiusRatio: 0.46,
-  glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
+  glowNearRadiusRatio: 0.46, glowNearOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio,
   glowFarRadiusRatio: B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio,
   glowFarOpacityRatio: B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio,
   glowFalloff: B3_GLOW_PROFILE_DEFAULTS.falloff,
@@ -185,15 +202,17 @@ const V2_HOVER_DEFAULTS: MapEffectHoverConfigV2 = {
   glowNearPasses: B3_GLOW_PROFILE_DEFAULTS.nearPasses,
   glowFarPasses: B3_GLOW_PROFILE_DEFAULTS.farPasses,
   lift: 2, enterMs: 400, leaveMs: 300
-}
+})
 
-const V2_QUALITY_DEFAULTS: MapEffectQualityConfig = { renderScale: 0.5, maxAlpha: 1 }
+const QUALITY_DEFAULTS: Readonly<MapEffectQualityConfig> = Object.freeze({
+  renderScale: 0.5,
+  maxAlpha: 1
+})
 
 function freezeMapEffectDefaults<T extends MapEffectConfig>(value: T): Readonly<T> {
-  Object.freeze(value.base.inwardGlow.wave)
   Object.freeze(value.base.inwardGlow)
-  Object.freeze(value.hover.inwardGlow.wave)
   Object.freeze(value.hover.inwardGlow)
+  Object.freeze(value.hover.mosaicParticles)
   Object.freeze(value.base)
   Object.freeze(value.hover)
   Object.freeze(value.quality)
@@ -203,9 +222,13 @@ function freezeMapEffectDefaults<T extends MapEffectConfig>(value: T): Readonly<
 
 const CANONICAL_MAP_EFFECT_DEFAULTS = freezeMapEffectDefaults({
   version: 5 as const,
-  base: { ...V2_BASE_DEFAULTS, inwardGlow: cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS) },
-  hover: { ...V2_HOVER_DEFAULTS, inwardGlow: cloneInwardGlowConfig(HOVER_INWARD_GLOW_DEFAULTS) },
-  quality: { ...V2_QUALITY_DEFAULTS },
+  base: { ...V4_BASE_DEFAULTS, inwardGlow: cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS) },
+  hover: {
+    ...V4_HOVER_DEFAULTS,
+    inwardGlow: cloneInwardGlowConfig(HOVER_INWARD_GLOW_DEFAULTS),
+    mosaicParticles: cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS)
+  },
+  quality: { ...QUALITY_DEFAULTS },
   bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
 })
 
@@ -234,7 +257,11 @@ export function cloneMapEffectConfig(config: Readonly<MapEffectConfig>): MapEffe
   return {
     version: 5,
     base: { ...config.base, inwardGlow: cloneInwardGlowConfig(config.base.inwardGlow) },
-    hover: { ...config.hover, inwardGlow: cloneInwardGlowConfig(config.hover.inwardGlow) },
+    hover: {
+      ...config.hover,
+      inwardGlow: cloneInwardGlowConfig(config.hover.inwardGlow),
+      mosaicParticles: cloneMosaicParticleConfig(config.hover.mosaicParticles)
+    },
     quality: { ...config.quality },
     bars: cloneDistrictBarConfig(config.bars)
   }
@@ -248,22 +275,23 @@ export function assignMapEffectConfig(
   target: MapEffectConfig,
   source: Readonly<MapEffectConfig>
 ): void {
-  const { inwardGlow: sourceBaseInwardGlow, ...sourceBase } = source.base
-  const { inwardGlow: sourceHoverInwardGlow, ...sourceHover } = source.hover
-  const { wave: sourceBaseWave, ...sourceBaseInward } = sourceBaseInwardGlow
-  const { wave: sourceHoverWave, ...sourceHoverInward } = sourceHoverInwardGlow
+  const { inwardGlow: sourceBaseInward, ...sourceBase } = source.base
+  const {
+    inwardGlow: sourceHoverInward,
+    mosaicParticles: sourceMosaicParticles,
+    ...sourceHover
+  } = source.hover
   const bars = target.bars
 
   Object.assign(target.base, sourceBase)
   Object.assign(target.hover, sourceHover)
   Object.assign(target.quality, source.quality)
-  target.version = 5
   Object.assign(target.base.inwardGlow, sourceBaseInward)
   Object.assign(target.hover.inwardGlow, sourceHoverInward)
-  Object.assign(target.base.inwardGlow.wave, sourceBaseWave)
-  Object.assign(target.hover.inwardGlow.wave, sourceHoverWave)
+  Object.assign(target.hover.mosaicParticles, sourceMosaicParticles)
   Object.assign(bars, source.bars)
   target.bars = bars
+  target.version = 5
 }
 
 function color(value: unknown, fallback: string): string {
@@ -284,66 +312,72 @@ function passCount(value: unknown, fallback: number): number {
   return Math.round(finiteNumber(value, fallback, 1, 8))
 }
 
-function renderScale(value: unknown): 0.25 | 0.5 | 0.75 | 1 {
-  return ALLOWED_RENDER_SCALES.includes(value as 0.25 | 0.5 | 0.75 | 1)
-    ? value as 0.25 | 0.5 | 0.75 | 1
-    : 0.5
+function renderScale(value: unknown): MapEffectQualityConfig['renderScale'] {
+  return ALLOWED_RENDER_SCALES.includes(value as MapEffectQualityConfig['renderScale'])
+    ? value as MapEffectQualityConfig['renderScale']
+    : QUALITY_DEFAULTS.renderScale
 }
 
-function normalizeV2Base(value: unknown): MapEffectBaseConfigV2 {
+function normalizeBase(
+  value: unknown,
+  defaults: Readonly<MapEffectBaseConfigV2>
+): MapEffectBaseConfigV2 {
   const base = isRecord(value) ? value : {}
   return {
-    innerColor: color(base.innerColor, V2_BASE_DEFAULTS.innerColor),
-    innerWidth: finiteNumber(base.innerWidth, V2_BASE_DEFAULTS.innerWidth, 0, 4),
-    innerOpacity: finiteNumber(base.innerOpacity, V2_BASE_DEFAULTS.innerOpacity, 0, 1),
-    outerColor: color(base.outerColor, V2_BASE_DEFAULTS.outerColor),
-    outerCoreWidth: finiteNumber(base.outerCoreWidth, V2_BASE_DEFAULTS.outerCoreWidth, 0, 6),
-    outerGlowEnabled: finiteBoolean(base.outerGlowEnabled, V2_BASE_DEFAULTS.outerGlowEnabled),
-    outerGlowColor: color(base.outerGlowColor, V2_BASE_DEFAULTS.outerGlowColor),
-    outerGlowWidth: finiteNumber(base.outerGlowWidth, V2_BASE_DEFAULTS.outerGlowWidth, 0, 200),
-    outerGlowStrength: finiteNumber(base.outerGlowStrength, V2_BASE_DEFAULTS.outerGlowStrength, 0, 1),
-    outerGlowNearRadiusRatio: finiteNumber(base.outerGlowNearRadiusRatio, V2_BASE_DEFAULTS.outerGlowNearRadiusRatio, 0, 1.5),
-    outerGlowNearOpacityRatio: finiteNumber(base.outerGlowNearOpacityRatio, V2_BASE_DEFAULTS.outerGlowNearOpacityRatio, 0, 2),
-    outerGlowFarRadiusRatio: finiteNumber(base.outerGlowFarRadiusRatio, V2_BASE_DEFAULTS.outerGlowFarRadiusRatio, 0.25, 2),
-    outerGlowFarOpacityRatio: finiteNumber(base.outerGlowFarOpacityRatio, V2_BASE_DEFAULTS.outerGlowFarOpacityRatio, 0, 2),
-    outerGlowFalloff: finiteNumber(base.outerGlowFalloff, V2_BASE_DEFAULTS.outerGlowFalloff, 0.25, 4),
-    outerGlowEdgeSoftness: finiteNumber(base.outerGlowEdgeSoftness, V2_BASE_DEFAULTS.outerGlowEdgeSoftness, 0, 1),
-    outerGlowNearPasses: passCount(base.outerGlowNearPasses, V2_BASE_DEFAULTS.outerGlowNearPasses),
-    outerGlowFarPasses: passCount(base.outerGlowFarPasses, V2_BASE_DEFAULTS.outerGlowFarPasses)
+    innerColor: color(base.innerColor, defaults.innerColor),
+    innerWidth: finiteNumber(base.innerWidth, defaults.innerWidth, 0, 4),
+    innerOpacity: finiteNumber(base.innerOpacity, defaults.innerOpacity, 0, 1),
+    outerColor: color(base.outerColor, defaults.outerColor),
+    outerCoreWidth: finiteNumber(base.outerCoreWidth, defaults.outerCoreWidth, 0, 6),
+    outerGlowEnabled: finiteBoolean(base.outerGlowEnabled, defaults.outerGlowEnabled),
+    outerGlowColor: color(base.outerGlowColor, defaults.outerGlowColor),
+    outerGlowWidth: finiteNumber(base.outerGlowWidth, defaults.outerGlowWidth, 0, 200),
+    outerGlowStrength: finiteNumber(base.outerGlowStrength, defaults.outerGlowStrength, 0, 1),
+    outerGlowNearRadiusRatio: finiteNumber(base.outerGlowNearRadiusRatio, defaults.outerGlowNearRadiusRatio, 0, 1.5),
+    outerGlowNearOpacityRatio: finiteNumber(base.outerGlowNearOpacityRatio, defaults.outerGlowNearOpacityRatio, 0, 2),
+    outerGlowFarRadiusRatio: finiteNumber(base.outerGlowFarRadiusRatio, defaults.outerGlowFarRadiusRatio, 0.25, 2),
+    outerGlowFarOpacityRatio: finiteNumber(base.outerGlowFarOpacityRatio, defaults.outerGlowFarOpacityRatio, 0, 2),
+    outerGlowFalloff: finiteNumber(base.outerGlowFalloff, defaults.outerGlowFalloff, 0.25, 4),
+    outerGlowEdgeSoftness: finiteNumber(base.outerGlowEdgeSoftness, defaults.outerGlowEdgeSoftness, 0, 1),
+    outerGlowNearPasses: passCount(base.outerGlowNearPasses, defaults.outerGlowNearPasses),
+    outerGlowFarPasses: passCount(base.outerGlowFarPasses, defaults.outerGlowFarPasses)
   }
 }
 
-function normalizeV2Hover(value: unknown): MapEffectHoverConfigV2 {
+function normalizeHover(
+  value: unknown,
+  defaults: Readonly<MapEffectHoverConfigV2>
+): MapEffectHoverConfigV2 {
   const hover = isRecord(value) ? value : {}
   return {
-    surfaceColor: color(hover.surfaceColor, V2_HOVER_DEFAULTS.surfaceColor),
-    emissiveColor: color(hover.emissiveColor, V2_HOVER_DEFAULTS.emissiveColor),
-    emissiveIntensity: finiteNumber(hover.emissiveIntensity, V2_HOVER_DEFAULTS.emissiveIntensity, 0, 2),
-    outlineColor: color(hover.outlineColor, V2_HOVER_DEFAULTS.outlineColor),
-    outlineWidth: finiteNumber(hover.outlineWidth, V2_HOVER_DEFAULTS.outlineWidth, 0, 8),
-    glowEnabled: finiteBoolean(hover.glowEnabled, V2_HOVER_DEFAULTS.glowEnabled),
-    glowColor: color(hover.glowColor, V2_HOVER_DEFAULTS.glowColor),
-    glowWidth: finiteNumber(hover.glowWidth, V2_HOVER_DEFAULTS.glowWidth, 0, 200),
-    glowStrength: finiteNumber(hover.glowStrength, V2_HOVER_DEFAULTS.glowStrength, 0, 1),
-    glowNearRadiusRatio: finiteNumber(hover.glowNearRadiusRatio, V2_HOVER_DEFAULTS.glowNearRadiusRatio, 0, 1.5),
-    glowNearOpacityRatio: finiteNumber(hover.glowNearOpacityRatio, V2_HOVER_DEFAULTS.glowNearOpacityRatio, 0, 2),
-    glowFarRadiusRatio: finiteNumber(hover.glowFarRadiusRatio, V2_HOVER_DEFAULTS.glowFarRadiusRatio, 0.25, 2),
-    glowFarOpacityRatio: finiteNumber(hover.glowFarOpacityRatio, V2_HOVER_DEFAULTS.glowFarOpacityRatio, 0, 2),
-    glowFalloff: finiteNumber(hover.glowFalloff, V2_HOVER_DEFAULTS.glowFalloff, 0.25, 4),
-    glowEdgeSoftness: finiteNumber(hover.glowEdgeSoftness, V2_HOVER_DEFAULTS.glowEdgeSoftness, 0, 1),
-    glowNearPasses: passCount(hover.glowNearPasses, V2_HOVER_DEFAULTS.glowNearPasses),
-    glowFarPasses: passCount(hover.glowFarPasses, V2_HOVER_DEFAULTS.glowFarPasses),
-    lift: finiteNumber(hover.lift, V2_HOVER_DEFAULTS.lift, 0, 3),
-    enterMs: finiteNumber(hover.enterMs, V2_HOVER_DEFAULTS.enterMs, 0, 1000),
-    leaveMs: finiteNumber(hover.leaveMs, V2_HOVER_DEFAULTS.leaveMs, 0, 1000)
+    surfaceColor: color(hover.surfaceColor, defaults.surfaceColor),
+    emissiveColor: color(hover.emissiveColor, defaults.emissiveColor),
+    emissiveIntensity: finiteNumber(hover.emissiveIntensity, defaults.emissiveIntensity, 0, 2),
+    outlineColor: color(hover.outlineColor, defaults.outlineColor),
+    outlineWidth: finiteNumber(hover.outlineWidth, defaults.outlineWidth, 0, 8),
+    glowEnabled: finiteBoolean(hover.glowEnabled, defaults.glowEnabled),
+    glowColor: color(hover.glowColor, defaults.glowColor),
+    glowWidth: finiteNumber(hover.glowWidth, defaults.glowWidth, 0, 200),
+    glowStrength: finiteNumber(hover.glowStrength, defaults.glowStrength, 0, 1),
+    glowNearRadiusRatio: finiteNumber(hover.glowNearRadiusRatio, defaults.glowNearRadiusRatio, 0, 1.5),
+    glowNearOpacityRatio: finiteNumber(hover.glowNearOpacityRatio, defaults.glowNearOpacityRatio, 0, 2),
+    glowFarRadiusRatio: finiteNumber(hover.glowFarRadiusRatio, defaults.glowFarRadiusRatio, 0.25, 2),
+    glowFarOpacityRatio: finiteNumber(hover.glowFarOpacityRatio, defaults.glowFarOpacityRatio, 0, 2),
+    glowFalloff: finiteNumber(hover.glowFalloff, defaults.glowFalloff, 0.25, 4),
+    glowEdgeSoftness: finiteNumber(hover.glowEdgeSoftness, defaults.glowEdgeSoftness, 0, 1),
+    glowNearPasses: passCount(hover.glowNearPasses, defaults.glowNearPasses),
+    glowFarPasses: passCount(hover.glowFarPasses, defaults.glowFarPasses),
+    lift: finiteNumber(hover.lift, defaults.lift, 0, 3),
+    enterMs: finiteNumber(hover.enterMs, defaults.enterMs, 0, 1000),
+    leaveMs: finiteNumber(hover.leaveMs, defaults.leaveMs, 0, 1000)
   }
 }
 
-function normalizeV2Quality(value: unknown): MapEffectQualityConfig {
+function normalizeQuality(value: unknown): MapEffectQualityConfig {
   const quality = isRecord(value) ? value : {}
   return {
     renderScale: renderScale(quality.renderScale),
-    maxAlpha: finiteNumber(quality.maxAlpha, V2_QUALITY_DEFAULTS.maxAlpha, 0.1, 1)
+    maxAlpha: finiteNumber(quality.maxAlpha, QUALITY_DEFAULTS.maxAlpha, 0.1, 1)
   }
 }
 
@@ -352,9 +386,9 @@ function normalizeV2Config(value: unknown): MapEffectConfigV2 | null {
   if (root.version !== 2) return null
   return {
     version: 2,
-    base: normalizeV2Base(root.base),
-    hover: normalizeV2Hover(root.hover),
-    quality: normalizeV2Quality(root.quality)
+    base: normalizeBase(root.base, LEGACY_V2_BASE_DEFAULTS),
+    hover: normalizeHover(root.hover, LEGACY_V2_HOVER_DEFAULTS),
+    quality: normalizeQuality(root.quality)
   }
 }
 
@@ -388,119 +422,120 @@ function normalizeLegacyHover(value: unknown): MapEffectHoverConfig {
   }
 }
 
-function normalizeV3Config(value: unknown): MapEffectConfigV3 | null {
-  const root = isRecord(value) ? value : {}
-  if (root.version !== 3) return null
-  return {
-    version: 3,
-    base: {
-      ...normalizeV2Base(root.base),
-      inwardGlow: normalizeInwardGlowConfig(
-        isRecord(root.base) ? root.base.inwardGlow : undefined,
-        BASE_INWARD_GLOW_DEFAULTS
-      )
-    },
-    hover: {
-      ...normalizeV2Hover(root.hover),
-      inwardGlow: normalizeInwardGlowConfig(
-        isRecord(root.hover) ? root.hover.inwardGlow : undefined,
-        HOVER_INWARD_GLOW_DEFAULTS
-      )
-    },
-    quality: normalizeV2Quality(root.quality)
-  }
-}
-
-interface MapEffectConfigParts {
-  base: MapEffectBaseConfigV3
-  hover: MapEffectHoverConfigV3
-  quality: MapEffectQualityConfig
-  bars: MapDistrictBarConfig
-}
-
-function normalizeMapEffectParts(root: UnknownRecord): MapEffectConfigParts {
-  return {
-    base: {
-      ...normalizeV2Base(root.base),
-      inwardGlow: normalizeInwardGlowConfig(
-        isRecord(root.base) ? root.base.inwardGlow : undefined,
-        BASE_INWARD_GLOW_DEFAULTS
-      )
-    },
-    hover: {
-      ...normalizeV2Hover(root.hover),
-      inwardGlow: normalizeInwardGlowConfig(
-        isRecord(root.hover) ? root.hover.inwardGlow : undefined,
-        HOVER_INWARD_GLOW_DEFAULTS
-      )
-    },
-    quality: normalizeV2Quality(root.quality),
-    bars: normalizeDistrictBarConfig(root.bars)
-  }
-}
-
 function normalizeV4Config(value: unknown): MapEffectConfigV4 | null {
   const root = isRecord(value) ? value : {}
   if (root.version !== 4) return null
-  return { version: 4, ...normalizeMapEffectParts(root) }
+  const base = isRecord(root.base) ? root.base : {}
+  const hover = isRecord(root.hover) ? root.hover : {}
+  return {
+    version: 4,
+    base: {
+      ...normalizeBase(base, V4_BASE_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(base.inwardGlow, BASE_INWARD_GLOW_DEFAULTS)
+    },
+    hover: {
+      ...normalizeHover(hover, V4_HOVER_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(hover.inwardGlow, HOVER_INWARD_GLOW_DEFAULTS),
+      mosaicParticles: normalizeMosaicParticleConfig(hover.mosaicParticles)
+    },
+    quality: normalizeQuality(root.quality)
+  }
 }
 
 function migrateV4Config(value: unknown): MapEffectConfig {
+  const root = isRecord(value) ? value : {}
   const v4 = normalizeV4Config(value)
   if (!v4) return cloneDefaults()
   return {
     version: 5,
     base: { ...v4.base, inwardGlow: cloneInwardGlowConfig(v4.base.inwardGlow) },
-    hover: { ...v4.hover, inwardGlow: cloneInwardGlowConfig(v4.hover.inwardGlow) },
+    hover: {
+      ...v4.hover,
+      inwardGlow: cloneInwardGlowConfig(v4.hover.inwardGlow),
+      mosaicParticles: cloneMosaicParticleConfig(v4.hover.mosaicParticles)
+    },
     quality: { ...v4.quality },
-    bars: cloneDistrictBarConfig(v4.bars)
+    bars: normalizeDistrictBarConfig(root.bars)
   }
 }
 
 function migrateV3Config(value: unknown): MapEffectConfig {
-  const v3 = normalizeV3Config(value)
-  if (!v3) return cloneDefaults()
-  return migrateV4Config({
-    version: 4,
-    base: { ...v3.base, inwardGlow: cloneInwardGlowConfig(v3.base.inwardGlow) },
-    hover: { ...v3.hover, inwardGlow: cloneInwardGlowConfig(v3.hover.inwardGlow) },
-    quality: { ...v3.quality },
+  const root = isRecord(value) ? value : {}
+  if (root.version !== 3) return cloneDefaults()
+  const base = isRecord(root.base) ? root.base : {}
+  const hover = isRecord(root.hover) ? root.hover : {}
+  return {
+    version: 5,
+    base: {
+      ...normalizeBase(base, V4_BASE_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(base.inwardGlow, BASE_INWARD_GLOW_DEFAULTS)
+    },
+    hover: {
+      ...normalizeHover(hover, V4_HOVER_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(hover.inwardGlow, HOVER_INWARD_GLOW_DEFAULTS),
+      mosaicParticles: cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS)
+    },
+    quality: normalizeQuality(root.quality),
     bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
-  })
+  }
 }
 
 function migrateV2Config(value: unknown): MapEffectConfig {
   const v2 = normalizeV2Config(value)
   if (!v2) return cloneDefaults()
-  return migrateV3Config({
-    version: 3,
+  return {
+    version: 5,
     base: { ...v2.base, inwardGlow: cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS) },
-    hover: { ...v2.hover, inwardGlow: cloneInwardGlowConfig(HOVER_INWARD_GLOW_DEFAULTS) },
-    quality: { ...v2.quality }
-  })
+    hover: {
+      ...v2.hover,
+      inwardGlow: cloneInwardGlowConfig(HOVER_INWARD_GLOW_DEFAULTS),
+      mosaicParticles: cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS)
+    },
+    quality: { ...v2.quality },
+    bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
+  }
 }
 
 function migrateLegacyConfig(value: unknown): MapEffectConfig {
-  if (isExactValue(value, LEGACY_APPROVED_V1_DEFAULTS) || isExactValue(value, LEGACY_INITIAL_V1_DEFAULTS)) {
-    return cloneDefaults()
-  }
+  if (isExactValue(value, LEGACY_APPROVED_V1_DEFAULTS)
+    || isExactValue(value, LEGACY_INITIAL_V1_DEFAULTS)) return cloneDefaults()
   const root = isRecord(value) ? value : {}
   if (root.version !== 1) return cloneDefaults()
   const base = normalizeLegacyBase(root.base)
   const hover = normalizeLegacyHover(root.hover)
   const defaults = cloneDefaults()
-  return migrateV3Config({
-    version: 3,
+  return {
+    version: 5,
     base: { ...defaults.base, ...base },
-    hover: { ...defaults.hover, ...hover },
-    quality: defaults.quality
-  })
+    hover: {
+      ...defaults.hover,
+      ...hover,
+      mosaicParticles: cloneMosaicParticleConfig(defaults.hover.mosaicParticles)
+    },
+    quality: { ...defaults.quality },
+    bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
+  }
 }
 
 export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
   const root = isRecord(value) ? value : {}
   if (root.version !== 5) return cloneDefaults()
-  return { version: 5, ...normalizeMapEffectParts(root) }
+  const base = isRecord(root.base) ? root.base : {}
+  const hover = isRecord(root.hover) ? root.hover : {}
+  return {
+    version: 5,
+    base: {
+      ...normalizeBase(base, V4_BASE_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(base.inwardGlow, BASE_INWARD_GLOW_DEFAULTS)
+    },
+    hover: {
+      ...normalizeHover(hover, V4_HOVER_DEFAULTS),
+      inwardGlow: normalizeInwardGlowConfig(hover.inwardGlow, HOVER_INWARD_GLOW_DEFAULTS),
+      mosaicParticles: normalizeMosaicParticleConfig(hover.mosaicParticles)
+    },
+    quality: normalizeQuality(root.quality),
+    bars: normalizeDistrictBarConfig(root.bars)
+  }
 }
 
 function parseJson(raw: string): unknown {

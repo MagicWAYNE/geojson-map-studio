@@ -23,6 +23,7 @@ export interface MapLayout {
 }
 
 export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
+  mosaicState: 'disabled' | 'ready' | 'active' | 'degraded'
   degraded: boolean
 }
 
@@ -43,8 +44,7 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   hoverState: 'ready',
   baseInwardState: 'active',
   hoverInwardState: 'ready',
-  baseWaveActive: false,
-  hoverWaveActive: false,
+  mosaicState: 'ready',
   degraded: false
 }
 export const DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: MapDistrictBarRuntimeStatus = {
@@ -133,8 +133,7 @@ function sameEffectRuntimeStatus(
     && next.hoverState === current.hoverState
     && next.baseInwardState === current.baseInwardState
     && next.hoverInwardState === current.hoverInwardState
-    && next.baseWaveActive === current.baseWaveActive
-    && next.hoverWaveActive === current.hoverWaveActive
+    && next.mosaicState === current.mosaicState
     && next.degraded === current.degraded
 }
 
