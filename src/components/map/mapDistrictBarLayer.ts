@@ -32,6 +32,32 @@ interface LayerState {
 
 const layerStates = new WeakMap<DistrictBarLayer, LayerState>()
 const disposedLayers = new WeakSet<DistrictBarLayer>()
+const warnedDistrictBarIssues = new Set<string>()
+
+function failureReason(cause: unknown): string {
+  return cause instanceof Error && cause.message ? cause.message : String(cause)
+}
+
+function warnDistrictBarIssue(name: string, reason: string, cause?: unknown): void {
+  const key = `${name}\u0000${reason}`
+  if (warnedDistrictBarIssues.has(key)) return
+  warnedDistrictBarIssues.add(key)
+  const message = `区县柱体跳过：${name}（${reason}）`
+  if (cause === undefined) console.warn(message)
+  else console.warn(message, cause)
+}
+
+function disposePartialVisual(
+  columnGeometry: THREE.CylinderGeometry | null,
+  columnMaterial: THREE.MeshStandardMaterial | null,
+  ringGeometry: THREE.RingGeometry | null,
+  ringMaterial: THREE.MeshBasicMaterial | null
+): void {
+  columnGeometry?.dispose()
+  columnMaterial?.dispose()
+  ringGeometry?.dispose()
+  ringMaterial?.dispose()
+}
 
 function clampProgress(value: number): number {
   return THREE.MathUtils.clamp(Number.isFinite(value) ? value : 0, 0, 1)
@@ -102,12 +128,16 @@ export function createDistrictBarLayer(
   const layer: DistrictBarLayer = { group, byName: new Map(), range: null }
   const state: LayerState = { depth, elapsedMs: 0, values: new Map() }
   layerStates.set(layer, state)
-  if (!config.enabled) return layer
 
-  const validItems = regions.flatMap((region) => {
+  const validItems: [Region, DistrictMapItem][] = []
+  for (const region of regions) {
     const item = dataByName.get(region.name)
-    return item && Number.isFinite(item.aj) && item.aj >= 0 ? [[region, item] as const] : []
-  })
+    if (!item || !Number.isFinite(item.aj) || item.aj < 0) {
+      warnDistrictBarIssue(region.name, '无效或缺失 aj')
+      continue
+    }
+    validItems.push([region, item])
+  }
   if (!validItems.length) return layer
 
   const values = validItems.map(([, item]) => item.aj)
@@ -117,7 +147,10 @@ export function createDistrictBarLayer(
   for (const [index, [region, item]] of validItems.entries()) {
     if (layer.byName.has(region.name)) continue
     const anchor = findRegionInteriorPoint(region)
-    if (!anchor) continue
+    if (!anchor) {
+      warnDistrictBarIssue(region.name, '缺少安全锚点')
+      continue
+    }
     const baseHeight = mapDistrictBarHeight(
       item.aj,
       config.minHeight,
@@ -125,9 +158,14 @@ export function createDistrictBarLayer(
       config.sqrtExponent,
       range.max
     )
-    const column = new THREE.Mesh(
-      new THREE.CylinderGeometry(1, 1, 1, 20, 1, false),
-      new THREE.MeshStandardMaterial({
+    let columnGeometry: THREE.CylinderGeometry | null = null
+    let columnMaterial: THREE.MeshStandardMaterial | null = null
+    let ringGeometry: THREE.RingGeometry | null = null
+    let ringMaterial: THREE.MeshBasicMaterial | null = null
+
+    try {
+      columnGeometry = new THREE.CylinderGeometry(1, 1, 1, 20, 1, false)
+      columnMaterial = new THREE.MeshStandardMaterial({
         color: config.color,
         emissive: config.color,
         emissiveIntensity: config.glowStrength,
@@ -135,32 +173,35 @@ export function createDistrictBarLayer(
         transparent: true,
         depthWrite: false
       })
-    )
-    column.rotation.x = Math.PI / 2
-    column.position.set(anchor[0], anchor[1], depth + 0.08)
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.45, 1, 32),
-      new THREE.MeshBasicMaterial({
+      const column = new THREE.Mesh(columnGeometry, columnMaterial)
+      column.rotation.x = Math.PI / 2
+      column.position.set(anchor[0], anchor[1], depth + 0.08)
+      ringGeometry = new THREE.RingGeometry(0.45, 1, 32)
+      ringMaterial = new THREE.MeshBasicMaterial({
         color: config.color,
         opacity: 0,
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending
       })
-    )
-    ring.position.set(anchor[0], anchor[1], depth + 0.09)
-    const visual: DistrictBarVisual = {
-      name: region.name,
-      group,
-      column,
-      ring,
-      baseHeight,
-      delayMs: index * config.staggerMs,
-      hoverProgress: 0
+      const ring = new THREE.Mesh(ringGeometry, ringMaterial)
+      ring.position.set(anchor[0], anchor[1], depth + 0.09)
+      const visual: DistrictBarVisual = {
+        name: region.name,
+        group,
+        column,
+        ring,
+        baseHeight,
+        delayMs: index * config.staggerMs,
+        hoverProgress: 0
+      }
+      layer.byName.set(region.name, visual)
+      state.values.set(region.name, item.aj)
+      group.add(column, ring)
+    } catch (cause) {
+      disposePartialVisual(columnGeometry, columnMaterial, ringGeometry, ringMaterial)
+      warnDistrictBarIssue(region.name, `资源构造失败：${failureReason(cause)}`, cause)
     }
-    layer.byName.set(region.name, visual)
-    state.values.set(region.name, item.aj)
-    group.add(column, ring)
   }
 
   applyDistrictBarConfig(layer, config)
