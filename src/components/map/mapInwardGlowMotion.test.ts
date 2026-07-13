@@ -19,7 +19,7 @@ describe('mapInwardGlowMotion', () => {
   })
 
   it('waits for delay, loops by period, and reports an eased phase', () => {
-    const wave = { ...BASE_INWARD_GLOW_DEFAULTS.wave, delayMs: 200, periodMs: 1000 }
+    const wave = { ...BASE_INWARD_GLOW_DEFAULTS.wave, enabled: true, delayMs: 200, periodMs: 1000 }
 
     expect(computeInwardWavePhase(1199, 1000, wave)).toEqual({ active: false, phase: 0 })
     expect(computeInwardWavePhase(1700, 1000, wave)).toEqual({ active: true, phase: 0.75 })
