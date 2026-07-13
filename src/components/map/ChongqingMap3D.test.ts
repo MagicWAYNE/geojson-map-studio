@@ -2,7 +2,7 @@
 import { createApp, nextTick, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
+import { cloneMapEffectConfig, MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { MAP_HUD_DEFAULTS, type MapHudConfig } from './mapHudConfig'
 
 const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
@@ -21,8 +21,6 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   hoverState: 'disabled' as const,
   baseInwardState: 'active' as const,
   hoverInwardState: 'ready' as const,
-  baseWaveActive: true,
-  hoverWaveActive: false,
   degraded: false
 }))
 const mapDebugMocks = vi.hoisted(() => ({
@@ -84,11 +82,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/composables/useMapDebug', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   useMapDebug: () => {
-    const effect = reactive<MapEffectConfig>({
-      ...MAP_EFFECT_DEFAULTS,
-      base: { ...MAP_EFFECT_DEFAULTS.base },
-      hover: { ...MAP_EFFECT_DEFAULTS.hover }
-    })
+    const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
     mapDebugMocks.effect = effect
     const hud = reactive<MapHudConfig>({
       ...MAP_HUD_DEFAULTS,
@@ -136,9 +130,7 @@ beforeEach(() => {
     baseState: 'enabled',
     hoverState: 'ready',
     baseInwardState: 'active',
-    hoverInwardState: 'ready',
-    baseWaveActive: false,
-    hoverWaveActive: false
+    hoverInwardState: 'ready'
   })
   apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
   geometryMocks.parseSvgRegions.mockReturnValue([])
@@ -239,8 +231,6 @@ describe('ChongqingMap3D effect wiring', () => {
       hoverState: 'ready',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
-      baseWaveActive: false,
-      hoverWaveActive: false,
       degraded: false
     })
 
@@ -295,20 +285,7 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.app.unmount()
   })
 
-  it('publishes the inward wave state established by the current render frame', async () => {
-    let baseWaveActive = false
-    pipelineMocks.instance.getStatus.mockImplementation(() => ({
-      targetWidth: 680,
-      targetHeight: 680,
-      renderScale: 0.5,
-      baseState: 'enabled',
-      hoverState: 'ready',
-      baseInwardState: 'active',
-      hoverInwardState: 'ready',
-      baseWaveActive,
-      hoverWaveActive: false
-    }))
-    pipelineMocks.instance.render.mockImplementation(() => { baseWaveActive = true })
+  it('renders the wave-free pipeline without a frame-time argument', async () => {
     const mounted = await mountInitializedMap()
     mapDebugMocks.updateEffectRuntimeStatus.mockClear()
     pipelineMocks.instance.getStatus.mockClear()
@@ -316,20 +293,13 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.runFrame(1250)
 
     expect(pipelineMocks.instance.render)
-      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera), 1250)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
     expect(pipelineMocks.instance.getStatus).toHaveBeenCalledTimes(1)
-    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
-      targetWidth: 680,
-      targetHeight: 680,
-      renderScale: 0.5,
-      baseState: 'enabled',
-      hoverState: 'ready',
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
       baseInwardState: 'active',
       hoverInwardState: 'ready',
-      baseWaveActive: true,
-      hoverWaveActive: false,
       degraded: false
-    })
+    }))
 
     mounted.app.unmount()
   })
@@ -409,7 +379,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 3,
+      version: 4,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) })
@@ -428,7 +398,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
     mounted.runFrame(1234)
     expect(pipelineMocks.instance.render)
-      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera), 1234)
+      .toHaveBeenCalledWith(expect.any(THREE.Scene), expect.any(THREE.Camera))
     expect(mounted.renderer.render).not.toHaveBeenCalled()
 
     mounted.app.unmount()

@@ -19,7 +19,8 @@ type MountedControls = {
 const EFFECT_STORAGE_KEYS = new Set([
   'cq-map-effect-config-v1',
   'cq-map-effect-config-v2',
-  'cq-map-effect-config-v3'
+  'cq-map-effect-config-v3',
+  'cq-map-effect-config-v4'
 ])
 
 function expectNoEffectStorageWrites(setItem: ReturnType<typeof vi.fn>): void {
@@ -212,7 +213,7 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(3)
+    expect(draftCopy.version).toBe(4)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
     expect(draftCopy.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(draftCopy.hover.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.hover.inwardGlow)
@@ -235,8 +236,6 @@ describe('MapEffectControls', () => {
       hoverState: 'active',
       baseInwardState: 'active',
       hoverInwardState: 'active',
-      baseWaveActive: true,
-      hoverWaveActive: false,
       degraded: false
     })
     await nextTick()
@@ -248,8 +247,7 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 生效中')
     expect(status.textContent).toContain('常态内扩: 生效中')
     expect(status.textContent).toContain('Hover 内扩: 生效中')
-    expect(status.textContent).toContain('常态传播波: 生效中')
-    expect(status.textContent).toContain('Hover 传播波: 未生效')
+    expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 正常')
     expect(root.textContent).toContain('性能提示')
 
@@ -270,8 +268,6 @@ describe('MapEffectControls', () => {
       hoverState: 'zero',
       baseInwardState: 'disabled',
       hoverInwardState: 'zero',
-      baseWaveActive: false,
-      hoverWaveActive: true,
       degraded: true
     })
     await nextTick()
@@ -279,8 +275,7 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 参数为零')
     expect(status.textContent).toContain('常态内扩: 已关闭')
     expect(status.textContent).toContain('Hover 内扩: 参数为零')
-    expect(status.textContent).toContain('常态传播波: 未生效')
-    expect(status.textContent).toContain('Hover 传播波: 生效中')
+    expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
     app.unmount()
   })
@@ -650,41 +645,39 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('isolates nested inward drafts and applies them in place with stable nested identities', async () => {
+  it('isolates stable inward drafts and applies them in place with stable nested identities', async () => {
     const { app, root, effect, setItem } = await mountControls()
     const base = effect.base
     const inward = effect.base.inwardGlow
-    const wave = inward.wave
-    const originalPeriod = wave.periodMs
+    const originalWidth = inward.width
     await setLivePreview(root, false)
     setItem.mockClear()
 
-    const period = root.querySelector<HTMLInputElement>('#effect-base-inward-wave-periodMs-number')!
-    period.value = '4321'
-    period.dispatchEvent(new Event('change', { bubbles: true }))
+    const width = root.querySelector<HTMLInputElement>('#effect-base-inward-width-number')!
+    width.value = '143'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(period.value).toBe('4300')
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(originalPeriod)
+    expect(width.value).toBe('143')
+    expect(effect.base.inwardGlow.width).toBe(originalWidth)
     expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+    expect(effect.base.inwardGlow.width).toBe(143)
     expect(effect.base).toBe(base)
     expect(effect.base.inwardGlow).toBe(inward)
-    expect(effect.base.inwardGlow.wave).toBe(wave)
     expectNoEffectStorageWrites(setItem)
 
-    period.value = '5100'
-    period.dispatchEvent(new Event('change', { bubbles: true }))
+    width.value = '151'
+    width.dispatchEvent(new Event('change', { bubbles: true }))
     button(root, '放弃草稿').click()
     await nextTick()
-    expect(period.value).toBe('4300')
-    expect(effect.base.inwardGlow.wave.periodMs).toBe(4300)
+    expect(width.value).toBe('143')
+    expect(effect.base.inwardGlow.width).toBe(143)
 
-    effect.base.inwardGlow.wave.periodMs = 4700
+    effect.base.inwardGlow.width = 147
     await nextTick()
-    expect(period.value).toBe('4700')
+    expect(width.value).toBe('147')
     app.unmount()
   })
 
@@ -695,15 +688,15 @@ describe('MapEffectControls', () => {
     const groupButton = (title: string, label: string) => Array.from(group(title).querySelectorAll<HTMLButtonElement>('button'))
       .find((candidate) => candidate.textContent === label)!
 
-    expect(group('常态内扩柔光').querySelector('#effect-base-inward-wave-easing-select')).not.toBeNull()
-    expect(group('Hover 内扩柔光').querySelector('#effect-hover-inward-wave-easing-select')).not.toBeNull()
+    expect(group('常态内扩柔光').querySelector('#effect-base-inward-width-number')).not.toBeNull()
+    expect(group('Hover 内扩柔光').querySelector('#effect-hover-inward-width-number')).not.toBeNull()
+    expect(group('常态内扩柔光').querySelector('[id*="wave"]')).toBeNull()
+    expect(group('Hover 内扩柔光').querySelector('[id*="wave"]')).toBeNull()
 
     effect.base.outerGlowWidth = 123
     effect.hover.inwardGlow.width = 101
     effect.base.inwardGlow.width = 99
-    effect.base.inwardGlow.wave.periodMs = 7777
     const inwardIdentity = effect.base.inwardGlow
-    const waveIdentity = effect.base.inwardGlow.wave
     groupButton('常态内扩柔光', '重置本组').click()
     await nextTick()
 
@@ -711,7 +704,6 @@ describe('MapEffectControls', () => {
     expect(effect.hover.inwardGlow.width).toBe(101)
     expect(effect.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(effect.base.inwardGlow).toBe(inwardIdentity)
-    expect(effect.base.inwardGlow.wave).toBe(waveIdentity)
 
     effect.base.inwardGlow.width = 88
     groupButton('常态内扩柔光', '应用 B1 预设').click()
@@ -720,7 +712,7 @@ describe('MapEffectControls', () => {
 
     button(root, '恢复全部默认值').click()
     await nextTick()
-    expect(effect.version).toBe(3)
+    expect(effect.version).toBe(4)
     expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })

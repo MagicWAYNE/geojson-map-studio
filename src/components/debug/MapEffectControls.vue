@@ -558,8 +558,6 @@ onBeforeUnmount(() => {
           <span>Hover: {{ hoverStatusLabel() }}</span>
           <span>常态内扩: {{ baseInwardStatusLabel() }}</span>
           <span>Hover 内扩: {{ hoverInwardStatusLabel() }}</span>
-          <span>常态传播波: {{ effectRuntimeStatus.baseWaveActive ? '生效中' : '未生效' }}</span>
-          <span>Hover 传播波: {{ effectRuntimeStatus.hoverWaveActive ? '生效中' : '未生效' }}</span>
           <span>运行状态: {{ effectRuntimeStatus.degraded ? '外扩柔光已降级关闭（屏幕空间柔光）' : '正常' }}</span>
         </div>
         <p v-if="group.title === '渲染质量与性能' && performanceWarning" class="performance-warning">

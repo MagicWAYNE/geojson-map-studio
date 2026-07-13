@@ -194,13 +194,12 @@ function setGlowRegionProgress(source: THREE.Mesh, easedProgress: number): boole
 
 function renderGlowFrame(
   mainScene: THREE.Scene,
-  mainCamera: THREE.Camera,
-  nowMs: number
+  mainCamera: THREE.Camera
 ): boolean {
   const pipeline = outwardGlow
   if (!pipeline) return false
   try {
-    pipeline.render(mainScene, mainCamera, nowMs)
+    pipeline.render(mainScene, mainCamera)
     return publishGlowStatus()
   } catch (cause) {
     handleGlowPipelineFailure(pipeline, cause, 'runtime')
@@ -551,7 +550,7 @@ function loop(now: number) {
   controls?.update()
   if (renderer && scene && camera) {
     if (outwardGlow) {
-      if (!renderGlowFrame(scene, camera, now)) renderer.render(scene, camera)
+      if (!renderGlowFrame(scene, camera)) renderer.render(scene, camera)
     } else renderer.render(scene, camera)
   }
   frames++

@@ -1,16 +1,3 @@
-export type InwardWaveEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
-
-export interface MapInwardWaveConfig {
-  enabled: boolean
-  widthRatio: number
-  strength: number
-  periodMs: number
-  delayMs: number
-  travelRatio: number
-  decay: number
-  easing: InwardWaveEasing
-}
-
 export interface MapInwardGlowConfig {
   enabled: boolean
   color: string
@@ -26,15 +13,9 @@ export interface MapInwardGlowConfig {
   nearPasses: number
   farPasses: number
   baseRatio: number
-  wave: MapInwardWaveConfig
 }
 
-function freezeInwardGlowDefaults<T extends MapInwardGlowConfig>(value: T): Readonly<T> {
-  Object.freeze(value.wave)
-  return Object.freeze(value)
-}
-
-export const BASE_INWARD_GLOW_DEFAULTS = freezeInwardGlowDefaults({
+export const BASE_INWARD_GLOW_DEFAULTS: Readonly<MapInwardGlowConfig> = Object.freeze({
   enabled: true,
   color: '#3c69eb',
   width: 36,
@@ -48,20 +29,10 @@ export const BASE_INWARD_GLOW_DEFAULTS = freezeInwardGlowDefaults({
   edgeSoftness: 1,
   nearPasses: 1,
   farPasses: 4,
-  baseRatio: 0.7,
-  wave: {
-    enabled: false,
-    widthRatio: 0.24,
-    strength: 0.45,
-    periodMs: 3600,
-    delayMs: 0,
-    travelRatio: 1,
-    decay: 0.65,
-    easing: 'ease-out' as const
-  }
+  baseRatio: 0.7
 })
 
-export const HOVER_INWARD_GLOW_DEFAULTS = freezeInwardGlowDefaults({
+export const HOVER_INWARD_GLOW_DEFAULTS: Readonly<MapInwardGlowConfig> = Object.freeze({
   enabled: true,
   color: '#d8f5ff',
   width: 64,
@@ -75,42 +46,12 @@ export const HOVER_INWARD_GLOW_DEFAULTS = freezeInwardGlowDefaults({
   edgeSoftness: 0.96,
   nearPasses: 2,
   farPasses: 4,
-  baseRatio: 0.6,
-  wave: {
-    enabled: false,
-    widthRatio: 0.22,
-    strength: 0.65,
-    periodMs: 1400,
-    delayMs: 0,
-    travelRatio: 1,
-    decay: 0.55,
-    easing: 'ease-out' as const
-  }
+  baseRatio: 0.6
 })
-
-export function cloneInwardGlowConfig(value: Readonly<MapInwardGlowConfig>): MapInwardGlowConfig {
-  return { ...value, wave: { ...value.wave } }
-}
-
-export function assignInwardGlowConfig(
-  target: MapInwardGlowConfig,
-  source: Readonly<MapInwardGlowConfig>
-): void {
-  const wave = target.wave
-  Object.assign(target, source)
-  target.wave = wave
-  Object.assign(wave, source.wave)
-}
 
 type UnknownRecord = Record<string, unknown>
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
-const INWARD_WAVE_EASINGS: readonly InwardWaveEasing[] = [
-  'linear',
-  'ease-in',
-  'ease-out',
-  'ease-in-out'
-]
 
 function isRecord(value: unknown): value is UnknownRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -134,10 +75,15 @@ function passCount(value: unknown, fallback: number): number {
   return Math.round(finiteNumber(value, fallback, 1, 8))
 }
 
-function easing(value: unknown, fallback: InwardWaveEasing): InwardWaveEasing {
-  return INWARD_WAVE_EASINGS.includes(value as InwardWaveEasing)
-    ? value as InwardWaveEasing
-    : fallback
+export function cloneInwardGlowConfig(value: Readonly<MapInwardGlowConfig>): MapInwardGlowConfig {
+  return { ...value }
+}
+
+export function assignInwardGlowConfig(
+  target: MapInwardGlowConfig,
+  source: Readonly<MapInwardGlowConfig>
+): void {
+  Object.assign(target, source)
 }
 
 export function normalizeInwardGlowConfig(
@@ -145,8 +91,6 @@ export function normalizeInwardGlowConfig(
   defaults: Readonly<MapInwardGlowConfig>
 ): MapInwardGlowConfig {
   const inward = isRecord(value) ? value : {}
-  const wave = isRecord(inward.wave) ? inward.wave : {}
-  const defaultWave = defaults.wave
 
   return {
     enabled: finiteBoolean(inward.enabled, defaults.enabled),
@@ -162,16 +106,6 @@ export function normalizeInwardGlowConfig(
     edgeSoftness: finiteNumber(inward.edgeSoftness, defaults.edgeSoftness, 0, 1),
     nearPasses: passCount(inward.nearPasses, defaults.nearPasses),
     farPasses: passCount(inward.farPasses, defaults.farPasses),
-    baseRatio: finiteNumber(inward.baseRatio, defaults.baseRatio, 0, 1),
-    wave: {
-      enabled: finiteBoolean(wave.enabled, defaultWave.enabled),
-      widthRatio: finiteNumber(wave.widthRatio, defaultWave.widthRatio, 0.01, 1),
-      strength: finiteNumber(wave.strength, defaultWave.strength, 0, 2),
-      periodMs: finiteNumber(wave.periodMs, defaultWave.periodMs, 250, 10000),
-      delayMs: finiteNumber(wave.delayMs, defaultWave.delayMs, 0, 5000),
-      travelRatio: finiteNumber(wave.travelRatio, defaultWave.travelRatio, 0.25, 2),
-      decay: finiteNumber(wave.decay, defaultWave.decay, 0, 4),
-      easing: easing(wave.easing, defaultWave.easing)
-    }
+    baseRatio: finiteNumber(inward.baseRatio, defaults.baseRatio, 0, 1)
   }
 }

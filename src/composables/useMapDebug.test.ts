@@ -5,6 +5,7 @@ import {
   MAP_EFFECT_STORAGE_KEY,
   MAP_EFFECT_STORAGE_KEY_V1,
   MAP_EFFECT_STORAGE_KEY_V2,
+  MAP_EFFECT_STORAGE_KEY_V3,
   cloneMapEffectConfig
 } from '@/components/map/mapEffectConfig'
 import { MAP_HUD_DEFAULTS } from '@/components/map/mapHudConfig'
@@ -119,6 +120,7 @@ describe('useMapDebug effects', () => {
       hover: { glowWidth: 37 },
       quality: { renderScale: 1, maxAlpha: 0.25 }
     }))
+    values.set(MAP_EFFECT_STORAGE_KEY_V3, JSON.stringify({ ...cachedV3, version: 3 }))
     values.set(MAP_EFFECT_STORAGE_KEY, JSON.stringify(cachedV3))
     vi.stubGlobal('localStorage', {
       getItem,
@@ -131,7 +133,7 @@ describe('useMapDebug effects', () => {
 
     expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
     expect(debug.layout).toEqual(savedLayout)
-    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
       expect(values.has(key)).toBe(true)
@@ -164,17 +166,17 @@ describe('useMapDebug effects', () => {
     const { useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
     debug.effect.base.outerGlowWidth = 42
-    debug.effect.base.inwardGlow.wave.periodMs = 4200
-    debug.effect.hover.inwardGlow.wave.strength = 0.9
+    debug.effect.base.inwardGlow.width = 140
+    debug.effect.hover.mosaicParticles.density = 0.42
     debug.effect.hover.glowFarOpacityRatio = 0.63
     await nextTick()
 
     expect(debug.effect.base.outerGlowWidth).toBe(42)
-    expect(debug.effect.base.inwardGlow.wave.periodMs).toBe(4200)
-    expect(debug.effect.hover.inwardGlow.wave.strength).toBe(0.9)
+    expect(debug.effect.base.inwardGlow.width).toBe(140)
+    expect(debug.effect.hover.mosaicParticles.density).toBe(0.42)
     expect(debug.effect.hover.glowFarOpacityRatio).toBe(0.63)
     expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
-    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
     }
@@ -209,8 +211,9 @@ describe('useMapDebug effects', () => {
     debug.effect.hover.glowFalloff = -2
     debug.effect.hover.glowFarOpacityRatio = 3.1
     debug.effect.quality.maxAlpha = 1.5
-    debug.effect.base.inwardGlow.wave.periodMs = 99
+    debug.effect.base.inwardGlow.width = 999
     debug.effect.hover.inwardGlow.maxAlpha = 9
+    debug.effect.hover.mosaicParticles.density = 9
 
     await nextTick()
     await nextTick()
@@ -220,11 +223,12 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.hover.glowFalloff).toBe(0.25)
     expect(debug.effect.hover.glowFarOpacityRatio).toBe(2)
     expect(debug.effect.quality.maxAlpha).toBe(1)
-    expect(debug.effect.base.inwardGlow.wave.periodMs).toBe(250)
+    expect(debug.effect.base.inwardGlow.width).toBe(200)
     expect(debug.effect.hover.inwardGlow.maxAlpha).toBe(1)
+    expect(debug.effect.hover.mosaicParticles.density).toBe(1)
     await nextTick()
     expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
-    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY]) {
+    for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
     }
@@ -246,12 +250,11 @@ describe('useMapDebug effects', () => {
     const quality = effect.quality
     const baseInward = base.inwardGlow
     const hoverInward = hover.inwardGlow
-    const baseWave = baseInward.wave
-    const hoverWave = hoverInward.wave
+    const mosaicParticles = hover.mosaicParticles
 
     effect.base.outerGlowWidth = 22
-    effect.base.inwardGlow.wave.periodMs = 4200
-    effect.hover.inwardGlow.wave.strength = 0.9
+    effect.base.inwardGlow.width = 140
+    effect.hover.mosaicParticles.density = 0.9
     effect.quality.maxAlpha = 0.25
     debug.resetEffect()
     await nextTick()
@@ -263,8 +266,7 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.quality).toBe(quality)
     expect(debug.effect.base.inwardGlow).toBe(baseInward)
     expect(debug.effect.hover.inwardGlow).toBe(hoverInward)
-    expect(debug.effect.base.inwardGlow.wave).toBe(baseWave)
-    expect(debug.effect.hover.inwardGlow.wave).toBe(hoverWave)
+    expect(debug.effect.hover.mosaicParticles).toBe(mosaicParticles)
     expect(setItem).not.toHaveBeenCalledWith(MAP_EFFECT_STORAGE_KEY, expect.any(String))
   })
 
@@ -291,9 +293,7 @@ describe('useMapDebug effects', () => {
 
     const inwardStatuses = [
       { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseInwardState: 'zero' as const },
-      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverInwardState: 'active' as const },
-      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, baseWaveActive: true },
-      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverWaveActive: true }
+      { ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, hoverInwardState: 'active' as const }
     ]
     expect(debug.updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })).toBe(true)
     for (const status of inwardStatuses) {
@@ -313,14 +313,10 @@ describe('useMapDebug effects', () => {
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverState).toBe('ready')
 
     expect(MAP_EFFECT_DEFAULTS.base.inwardGlow.enabled).toBe(true)
-    expect(MAP_EFFECT_DEFAULTS.base.inwardGlow.wave.enabled).toBe(false)
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseInwardState).toBe('active')
-    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseWaveActive).toBe(false)
 
     expect(MAP_EFFECT_DEFAULTS.hover.inwardGlow.enabled).toBe(true)
-    expect(MAP_EFFECT_DEFAULTS.hover.inwardGlow.wave.enabled).toBe(false)
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverInwardState).toBe('ready')
-    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverWaveActive).toBe(false)
   })
 
   it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
@@ -333,8 +329,6 @@ describe('useMapDebug effects', () => {
       hoverState: 'ready',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
-      baseWaveActive: false,
-      hoverWaveActive: false,
       degraded: false
     })
     expectTypeOf<MapOutwardGlowPipelineStatus['baseState']>()
@@ -345,8 +339,6 @@ describe('useMapDebug effects', () => {
       .toEqualTypeOf<'active' | 'zero' | 'disabled'>()
     expectTypeOf<MapOutwardGlowPipelineStatus['hoverInwardState']>()
       .toEqualTypeOf<'ready' | 'active' | 'zero' | 'disabled'>()
-    expectTypeOf<MapOutwardGlowPipelineStatus['baseWaveActive']>().toEqualTypeOf<boolean>()
-    expectTypeOf<MapOutwardGlowPipelineStatus['hoverWaveActive']>().toEqualTypeOf<boolean>()
   })
 
   it('applies changed configuration to existing static and hover glow materials', () => {

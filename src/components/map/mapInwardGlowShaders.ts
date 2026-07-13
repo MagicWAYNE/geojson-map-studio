@@ -20,12 +20,6 @@ uniform float uFalloff;
 uniform float uEdgeSoftness;
 uniform float uMaxAlpha;
 uniform float uBaseRatio;
-uniform float uWaveActive;
-uniform float uWavePhase;
-uniform float uWaveWidthRatio;
-uniform float uWaveStrength;
-uniform float uWaveTravelRatio;
-uniform float uWaveDecay;
 varying vec2 vUv;
 void main() {
   float mask = clamp(texture2D(tMask, vUv).r, 0.0, 1.0);
@@ -43,15 +37,8 @@ void main() {
   );
   float shaped = pow(combined, clamp(uFalloff, 0.25, 4.0));
   float baseAlpha = shaped * clamp(uBaseRatio, 0.0, 1.0) * insideGate;
-  float depth = clamp(1.0 - 2.0 * farBand / max(mask, 0.0001), 0.0, 1.0);
-  float center = uWavePhase * uWaveTravelRatio;
-  float halfWidth = max(clamp(uWaveWidthRatio, 0.01, 1.0) * 0.5, 0.0001);
-  float wavePeak = 1.0 - smoothstep(0.0, halfWidth, abs(depth - center));
-  float waveDecay = uWaveDecay <= 0.0 ? 1.0 : pow(max(1.0 - uWavePhase, 0.0), uWaveDecay);
-  float waveEnvelope = shaped * wavePeak * waveDecay * insideGate;
-  float waveAlpha = uWaveActive > 0.5 ? waveEnvelope * clamp(uWaveStrength, 0.0, 2.0) : 0.0;
   float outsideGuard = step(0.0001, mask);
-  float alpha = min((baseAlpha + waveAlpha) * outsideGuard, uMaxAlpha);
+  float alpha = min(baseAlpha * outsideGuard, uMaxAlpha);
   gl_FragColor = vec4(uColor, alpha);
 }
 `
@@ -62,11 +49,6 @@ const DEFAULT_FALLOFF = 1
 const DEFAULT_EDGE_SOFTNESS = 0.96
 const DEFAULT_MAX_ALPHA = 1
 const DEFAULT_BASE_RATIO = 0.7
-const DEFAULT_WAVE_PHASE = 0
-const DEFAULT_WAVE_WIDTH_RATIO = 0.24
-const DEFAULT_WAVE_STRENGTH = 0
-const DEFAULT_WAVE_TRAVEL_RATIO = 1
-const DEFAULT_WAVE_DECAY = 0.65
 
 export interface InwardGlowShaderResources {
   material: THREE.ShaderMaterial
@@ -85,49 +67,12 @@ export interface InwardCompositeInputs {
   edgeSoftness: number
   maxAlpha: number
   baseRatio: number
-  waveActive: boolean
-  wavePhase: number
-  waveWidthRatio: number
-  waveStrength: number
-  waveTravelRatio: number
-  waveDecay: number
-}
-
-export interface InwardWaveSampleInputs {
-  depth: number
-  phase: number
-  widthRatio: number
-  travelRatio: number
-  decay: number
-}
-
-export interface InwardWaveSample {
-  center: number
-  peak: number
-  amplitude: number
-  value: number
 }
 
 function finiteClamped(value: number, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(max, Math.max(min, value))
     : fallback
-}
-
-export function evaluateInwardWaveSample(inputs: InwardWaveSampleInputs): InwardWaveSample {
-  const depth = finiteClamped(inputs.depth, 0, 0, 1)
-  const phase = finiteClamped(inputs.phase, DEFAULT_WAVE_PHASE, 0, 1)
-  const widthRatio = finiteClamped(inputs.widthRatio, DEFAULT_WAVE_WIDTH_RATIO, 0.01, 1)
-  const travelRatio = finiteClamped(inputs.travelRatio, DEFAULT_WAVE_TRAVEL_RATIO, 0.25, 2)
-  const decay = finiteClamped(inputs.decay, DEFAULT_WAVE_DECAY, 0, 4)
-  const center = phase * travelRatio
-  const halfWidth = Math.max(widthRatio * 0.5, 0.0001)
-  const distanceRatio = Math.min(1, Math.max(0, Math.abs(depth - center) / halfWidth))
-  const smoothDistance = distanceRatio * distanceRatio * (3 - 2 * distanceRatio)
-  const peak = 1 - smoothDistance
-  const amplitude = decay <= 0 ? 1 : Math.pow(Math.max(1 - phase, 0), decay)
-
-  return { center, peak, amplitude, value: peak * amplitude }
 }
 
 export function createInwardGlowShaderResources(): InwardGlowShaderResources {
@@ -142,13 +87,7 @@ export function createInwardGlowShaderResources(): InwardGlowShaderResources {
       uFalloff: { value: DEFAULT_FALLOFF },
       uEdgeSoftness: { value: DEFAULT_EDGE_SOFTNESS },
       uMaxAlpha: { value: DEFAULT_MAX_ALPHA },
-      uBaseRatio: { value: DEFAULT_BASE_RATIO },
-      uWaveActive: { value: 0 },
-      uWavePhase: { value: DEFAULT_WAVE_PHASE },
-      uWaveWidthRatio: { value: DEFAULT_WAVE_WIDTH_RATIO },
-      uWaveStrength: { value: DEFAULT_WAVE_STRENGTH },
-      uWaveTravelRatio: { value: DEFAULT_WAVE_TRAVEL_RATIO },
-      uWaveDecay: { value: DEFAULT_WAVE_DECAY }
+      uBaseRatio: { value: DEFAULT_BASE_RATIO }
     },
     vertexShader,
     fragmentShader: compositeFragmentShader,
@@ -187,27 +126,6 @@ export function renderInwardComposite(
   )
   material.uniforms.uMaxAlpha.value = finiteClamped(inputs.maxAlpha, DEFAULT_MAX_ALPHA, 0.1, 1)
   material.uniforms.uBaseRatio.value = finiteClamped(inputs.baseRatio, DEFAULT_BASE_RATIO, 0, 1)
-  material.uniforms.uWaveActive.value = inputs.waveActive ? 1 : 0
-  material.uniforms.uWavePhase.value = finiteClamped(inputs.wavePhase, DEFAULT_WAVE_PHASE, 0, 1)
-  material.uniforms.uWaveWidthRatio.value = finiteClamped(
-    inputs.waveWidthRatio,
-    DEFAULT_WAVE_WIDTH_RATIO,
-    0.01,
-    1
-  )
-  material.uniforms.uWaveStrength.value = finiteClamped(
-    inputs.waveStrength,
-    DEFAULT_WAVE_STRENGTH,
-    0,
-    2
-  )
-  material.uniforms.uWaveTravelRatio.value = finiteClamped(
-    inputs.waveTravelRatio,
-    DEFAULT_WAVE_TRAVEL_RATIO,
-    0.25,
-    2
-  )
-  material.uniforms.uWaveDecay.value = finiteClamped(inputs.waveDecay, DEFAULT_WAVE_DECAY, 0, 4)
   quad.material = material
   renderer.setRenderTarget(null)
   quad.render(renderer)
