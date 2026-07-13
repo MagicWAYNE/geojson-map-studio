@@ -317,6 +317,8 @@ describe('useMapDebug effects', () => {
 
     expect(MAP_EFFECT_DEFAULTS.hover.inwardGlow.enabled).toBe(true)
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.hoverInwardState).toBe('ready')
+    expect(MAP_EFFECT_DEFAULTS.hover.mosaicParticles.enabled).toBe(true)
+    expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.mosaicState).toBe('ready')
   })
 
   it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
@@ -329,6 +331,7 @@ describe('useMapDebug effects', () => {
       hoverState: 'ready',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
+      mosaicState: 'ready',
       degraded: false
     })
     expectTypeOf<MapOutwardGlowPipelineStatus['baseState']>()

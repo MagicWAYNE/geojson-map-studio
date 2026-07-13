@@ -253,6 +253,7 @@ export function createMapMosaicParticles(
 
   for (const source of sources) {
     let material: THREE.ShaderMaterial | null = null
+    let overlay: THREE.Mesh<THREE.BufferGeometry, THREE.Material[]> | null = null
     try {
       const regionId = source.userData.name
       if (typeof regionId !== 'string' || regionId.trim() === '') {
@@ -263,7 +264,7 @@ export function createMapMosaicParticles(
         currentRenderPixelsPerScreenPixel(),
         deriveMosaicActivationSeed(config.seed, regionId, 0)
       )
-      const overlay = new THREE.Mesh(source.geometry, [material, hiddenSideMaterial])
+      overlay = new THREE.Mesh(source.geometry, [material, hiddenSideMaterial])
       overlay.name = `${source.name || source.userData.name || 'region'}-mosaic-particles`
       overlay.visible = false
       overlay.renderOrder = source.renderOrder + 1
@@ -280,8 +281,19 @@ export function createMapMosaicParticles(
       entries.push(entry)
       entryBySource.set(source, entry)
     } catch (cause) {
+      if (overlay) source.remove(overlay)
       material?.dispose()
-      console.warn(`区块 ${String(source.userData.name ?? source.name ?? '')} 的马赛克粒子初始化失败，已跳过`, cause)
+      for (const entry of entries) {
+        entry.source.remove(entry.overlay)
+        entry.material.dispose()
+      }
+      hiddenSideMaterial.dispose()
+      entries.length = 0
+      entryBySource.clear()
+      const regionName = String(source.userData.name ?? source.name ?? '')
+      const error = new Error(`区块 ${regionName} 的马赛克粒子初始化失败`)
+      Object.assign(error, { cause })
+      throw error
     }
   }
 

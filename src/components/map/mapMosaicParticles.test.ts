@@ -287,31 +287,22 @@ describe('createMapMosaicParticles', () => {
     particles.dispose()
   })
 
-  it('isolates a failed region and disposes overlays idempotently without owning geometry', () => {
-    const broken = createRegion('坏区')
+  it('atomically cleans up and throws when any region overlay fails to initialize', () => {
     const valid = createRegion('正常区')
+    const broken = createRegion('坏区')
     vi.spyOn(broken, 'add').mockImplementation(() => {
       throw new Error('overlay failed')
     })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const geometryDispose = vi.spyOn(valid.geometry, 'dispose')
+    const shaderDispose = vi.spyOn(THREE.ShaderMaterial.prototype, 'dispose')
+    const hiddenSideDispose = vi.spyOn(THREE.MeshBasicMaterial.prototype, 'dispose')
     const { metrics } = createDisplayMetrics()
-    const particles = createMapMosaicParticles(metrics, [broken, valid])
-    const overlay = overlayOf(valid)
-    const [topMaterial, sideMaterial] = overlay.material as [THREE.ShaderMaterial, THREE.Material]
-    const topDispose = vi.spyOn(topMaterial, 'dispose')
-    const sideDispose = vi.spyOn(sideMaterial, 'dispose')
 
-    expect(broken.children).toHaveLength(0)
-    expect(valid.children).toHaveLength(1)
-    expect(warn).toHaveBeenCalledTimes(1)
+    expect(() => createMapMosaicParticles(metrics, [valid, broken]))
+      .toThrow('区块 坏区 的马赛克粒子初始化失败')
 
-    particles.dispose()
-    particles.dispose()
     expect(valid.children).toHaveLength(0)
-    expect(topDispose).toHaveBeenCalledTimes(1)
-    expect(sideDispose).toHaveBeenCalledTimes(1)
-    expect(geometryDispose).not.toHaveBeenCalled()
-    warn.mockRestore()
+    expect(broken.children).toHaveLength(0)
+    expect(shaderDispose).toHaveBeenCalledTimes(2)
+    expect(hiddenSideDispose).toHaveBeenCalledTimes(1)
   })
 })

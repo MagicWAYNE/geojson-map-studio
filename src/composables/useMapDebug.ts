@@ -23,6 +23,7 @@ export interface MapLayout {
 }
 
 export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
+  mosaicState: 'disabled' | 'ready' | 'active' | 'degraded'
   degraded: boolean
 }
 
@@ -36,6 +37,7 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   hoverState: 'ready',
   baseInwardState: 'active',
   hoverInwardState: 'ready',
+  mosaicState: 'ready',
   degraded: false
 }
 const LAYOUT_KEY = 'cq-map-debug-layout'
@@ -115,6 +117,7 @@ function sameEffectRuntimeStatus(
     && next.hoverState === current.hoverState
     && next.baseInwardState === current.baseInwardState
     && next.hoverInwardState === current.hoverInwardState
+    && next.mosaicState === current.mosaicState
     && next.degraded === current.degraded
 }
 

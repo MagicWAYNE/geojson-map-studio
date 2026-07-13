@@ -149,6 +149,7 @@ describe('MapEffectControls', () => {
     const baseIdentity = effect.base
     const hoverIdentity = effect.hover
     const qualityIdentity = effect.quality
+    const mosaicIdentity = effect.hover.mosaicParticles
     await setLivePreview(root, false)
     setItem.mockClear()
 
@@ -158,17 +159,25 @@ describe('MapEffectControls', () => {
     const passes = root.querySelector<HTMLInputElement>('#effect-hover-glowNearPasses-number')!
     passes.value = '7.6'
     passes.dispatchEvent(new Event('change', { bubbles: true }))
+    const mosaicBrightness = root.querySelector<HTMLInputElement>(
+      '#effect-hover-mosaic-brightness-number'
+    )!
+    mosaicBrightness.value = '2.35'
+    mosaicBrightness.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(effect.base.outerGlowWidth).not.toBe(137)
+    expect(effect.hover.mosaicParticles.brightness).not.toBe(2.35)
     expectNoEffectStorageWrites(setItem)
 
     button(root, '应用参数').click()
     await nextTick()
     expect(effect.base.outerGlowWidth).toBe(137)
     expect(effect.hover.glowNearPasses).toBe(8)
+    expect(effect.hover.mosaicParticles.brightness).toBe(2.35)
     expect(effect.base).toBe(baseIdentity)
     expect(effect.hover).toBe(hoverIdentity)
     expect(effect.quality).toBe(qualityIdentity)
+    expect(effect.hover.mosaicParticles).toBe(mosaicIdentity)
     expectNoEffectStorageWrites(setItem)
 
     width.value = '99'
@@ -236,6 +245,7 @@ describe('MapEffectControls', () => {
       hoverState: 'active',
       baseInwardState: 'active',
       hoverInwardState: 'active',
+      mosaicState: 'active',
       degraded: false
     })
     await nextTick()
@@ -247,6 +257,7 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 生效中')
     expect(status.textContent).toContain('常态内扩: 生效中')
     expect(status.textContent).toContain('Hover 内扩: 生效中')
+    expect(status.textContent).toContain('马赛克粒子: 生效中')
     expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 正常')
     expect(root.textContent).toContain('性能提示')
@@ -268,6 +279,7 @@ describe('MapEffectControls', () => {
       hoverState: 'zero',
       baseInwardState: 'disabled',
       hoverInwardState: 'zero',
+      mosaicState: 'degraded',
       degraded: true
     })
     await nextTick()
@@ -275,8 +287,24 @@ describe('MapEffectControls', () => {
     expect(status.textContent).toContain('Hover: 参数为零')
     expect(status.textContent).toContain('常态内扩: 已关闭')
     expect(status.textContent).toContain('Hover 内扩: 参数为零')
+    expect(status.textContent).toContain('马赛克粒子: 已降级')
     expect(status.textContent).not.toContain('传播波')
     expect(status.textContent).toContain('运行状态: 外扩柔光已降级关闭')
+
+    updateEffectRuntimeStatus({
+      targetWidth: 680,
+      targetHeight: 680,
+      renderScale: 0.5,
+      baseState: 'enabled',
+      hoverState: 'ready',
+      baseInwardState: 'active',
+      hoverInwardState: 'ready',
+      mosaicState: 'degraded',
+      degraded: false
+    })
+    await nextTick()
+    expect(status.textContent).toContain('马赛克粒子: 已降级')
+    expect(status.textContent).toContain('运行状态: 马赛克粒子已降级关闭（其他效果正常）')
     app.unmount()
   })
 
@@ -298,7 +326,7 @@ describe('MapEffectControls', () => {
     app.unmount()
   })
 
-  it('renders the seven advanced groups with stable accessible controls and design ranges', async () => {
+  it('renders the advanced groups with standalone mosaic controls and stable design ranges', async () => {
     const { app, root } = await mountControls()
     const groups = Array.from(root.querySelectorAll<HTMLElement>('.effect-group'))
     const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
@@ -310,12 +338,17 @@ describe('MapEffectControls', () => {
       'Hover 表面',
       'Hover 外扩柔光',
       'Hover 内扩柔光',
+      'Hover 马赛克粒子',
       '渲染质量与性能',
       '可复制参数'
     ])
 
     const baseGlow = group('常态外扩柔光')
     const hoverGlow = group('Hover 外扩柔光')
+    const mosaic = group('Hover 马赛克粒子')
+    expect(mosaic.querySelector('#effect-hover-mosaic-enabled-checkbox')).not.toBeNull()
+    expect(mosaic.querySelector('#effect-hover-mosaic-primaryColor-color')).not.toBeNull()
+    expect(mosaic.querySelector('#effect-hover-mosaic-seed-number')).not.toBeNull()
     const glowKeys = [
       'Enabled', 'Color', 'Width', 'Strength', 'NearRadiusRatio', 'NearOpacityRatio',
       'FarRadiusRatio', 'FarOpacityRatio', 'Falloff', 'EdgeSoftness', 'NearPasses', 'FarPasses'

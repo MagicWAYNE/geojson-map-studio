@@ -21,11 +21,13 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   hoverState: 'disabled' as const,
   baseInwardState: 'active' as const,
   hoverInwardState: 'ready' as const,
+  mosaicState: 'ready' as const,
   degraded: false
 }))
 const mapDebugMocks = vi.hoisted(() => ({
   effect: null as MapEffectConfig | null,
   hud: null as MapHudConfig | null,
+  effectRuntimeStatus: null as typeof runtimeStatusDefault | null,
   updateEffectRuntimeStatus: vi.fn()
 }))
 const pipelineMocks = vi.hoisted(() => ({
@@ -103,10 +105,17 @@ vi.mock('@/composables/useMapDebug', () => ({
       rotating: { ...MAP_HUD_DEFAULTS.rotating }
     })
     mapDebugMocks.hud = hud
+    const effectRuntimeStatus = reactive({ ...runtimeStatusDefault })
+    mapDebugMocks.effectRuntimeStatus = effectRuntimeStatus
+    mapDebugMocks.updateEffectRuntimeStatus.mockImplementation((next) => {
+      Object.assign(effectRuntimeStatus, next)
+      return true
+    })
     return {
       cameraView: { value: '' },
       effect,
       hud,
+      effectRuntimeStatus,
       updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus
     }
   }
@@ -127,6 +136,7 @@ afterEach(() => {
   mapDebugMocks.updateEffectRuntimeStatus.mockReset()
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
+  mapDebugMocks.effectRuntimeStatus = null
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -219,7 +229,8 @@ async function mountInitializedMap(regionCount = 1) {
 
 function expectDegradedGlowFallback(
   mounted: Awaited<ReturnType<typeof mountInitializedMap>>,
-  warn: ReturnType<typeof vi.spyOn>
+  warn: ReturnType<typeof vi.spyOn>,
+  mosaicState: 'ready' | 'active' = 'ready'
 ): void {
   expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
   expect(warn).toHaveBeenCalledWith(
@@ -229,6 +240,7 @@ function expectDegradedGlowFallback(
   expect(warn).toHaveBeenCalledTimes(1)
   expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith({
     ...runtimeStatusDefault,
+    mosaicState,
     degraded: true
   })
   expect(mounted.renderer.render)
@@ -292,7 +304,82 @@ describe('ChongqingMap3D effect wiring', () => {
       '马赛克粒子初始化失败，已跳过粒子层',
       expect.any(Error)
     )
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'degraded',
+      degraded: false
+    }))
     expect(pipelineMocks.instance.render).toHaveBeenCalled()
+    mounted.app.unmount()
+  })
+
+  it('isolates a mosaic runtime failure while keeping the map and outward glow alive', async () => {
+    const mounted = await mountInitializedMap()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    mosaicMocks.instance.setConfig.mockClear()
+    mosaicMocks.instance.setConfig.mockImplementationOnce(() => {
+      throw new Error('mosaic config failed')
+    })
+    pipelineMocks.instance.render.mockClear()
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+
+    expect(() => apply()).not.toThrow()
+
+    expect(mosaicMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      '马赛克粒子运行失败，已关闭粒子层',
+      expect.any(Error)
+    )
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'degraded',
+      degraded: false
+    }))
+
+    expect(() => mounted.runFrame(16)).not.toThrow()
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.render).not.toHaveBeenCalled()
+
+    mapDebugMocks.effect!.hover.mosaicParticles.enabled = false
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    apply()
+    expect(mosaicMocks.instance.setConfig).toHaveBeenCalledTimes(1)
+    expect(mosaicMocks.instance.dispose).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'disabled',
+      degraded: false
+    }))
+    mounted.app.unmount()
+  })
+
+  it('publishes ready, active, and disabled mosaic states', async () => {
+    const mounted = await mountInitializedMap()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'ready'
+    }))
+
+    const [, meshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: meshes[0] } as THREE.Intersection
+    ])
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    mounted.runFrame(32)
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'active'
+    }))
+
+    mapDebugMocks.effect!.hover.mosaicParticles.enabled = false
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+    mapDebugMocks.updateEffectRuntimeStatus.mockClear()
+    apply()
+    expect(mapDebugMocks.updateEffectRuntimeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mosaicState: 'disabled'
+    }))
     mounted.app.unmount()
   })
 
@@ -306,6 +393,7 @@ describe('ChongqingMap3D effect wiring', () => {
       hoverState: 'ready',
       baseInwardState: 'active',
       hoverInwardState: 'ready',
+      mosaicState: 'ready',
       degraded: false
     })
 
@@ -708,7 +796,7 @@ describe('ChongqingMap3D effect wiring', () => {
     })
 
     expect(() => mounted.runFrame(32)).not.toThrow()
-    expectDegradedGlowFallback(mounted, warn)
+    expectDegradedGlowFallback(mounted, warn, 'active')
     expect(pipelineMocks.instance.setRegionProgress).toHaveBeenCalledTimes(1)
     expect(pipelineMocks.instance.render).not.toHaveBeenCalled()
 

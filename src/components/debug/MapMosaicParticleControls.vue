@@ -1,0 +1,262 @@
+<script setup lang="ts">
+import { reactive, watch } from 'vue'
+import {
+  HOVER_MOSAIC_PARTICLE_DEFAULTS,
+  cloneMosaicParticleConfig,
+  normalizeMosaicParticleConfig,
+  type MapMosaicParticleConfig
+} from '@/components/map/mapMosaicParticleConfig'
+
+type NumberKey = Exclude<
+  keyof MapMosaicParticleConfig,
+  'enabled' | 'primaryColor' | 'accentColor' | 'reseedOnEnter'
+>
+type ColorKey = 'primaryColor' | 'accentColor'
+type BooleanKey = 'enabled' | 'reseedOnEnter'
+
+interface NumberField {
+  key: NumberKey
+  label: string
+  min: number
+  max: number
+  step: number
+}
+
+const props = defineProps<{
+  modelValue: MapMosaicParticleConfig
+}>()
+
+const emit = defineEmits<{
+  'update:modelValue': [value: MapMosaicParticleConfig]
+}>()
+
+const FIELDS: readonly NumberField[] = [
+  { key: 'accentRatio', label: '双色比例', min: 0, max: 1, step: 0.01 },
+  { key: 'density', label: '基础密度', min: 0, max: 1, step: 0.01 },
+  { key: 'clusterChance', label: '簇概率', min: 0, max: 1, step: 0.01 },
+  { key: 'clusterRadius', label: '簇半径', min: 1, max: 6, step: 1 },
+  { key: 'clusterStrength', label: '簇增强', min: 0, max: 3, step: 0.05 },
+  { key: 'accentClusterBias', label: '紫色簇偏向', min: 0, max: 1, step: 0.01 },
+  { key: 'targetCellPx', label: '目标像素尺寸', min: 1, max: 32, step: 1 },
+  { key: 'minCellPx', label: '最小像素尺寸', min: 1, max: 16, step: 1 },
+  { key: 'maxCellPx', label: '最大像素尺寸', min: 4, max: 32, step: 1 },
+  { key: 'gapRatio', label: '方块间隙', min: 0, max: 0.8, step: 0.01 },
+  { key: 'opacity', label: '透明度', min: 0, max: 1, step: 0.01 },
+  { key: 'brightness', label: '亮度', min: 0, max: 3, step: 0.05 },
+  { key: 'flickerHz', label: '闪烁频率', min: 0.1, max: 12, step: 0.1 },
+  { key: 'dutyCycle', label: '闪烁占空比', min: 0, max: 1, step: 0.01 },
+  { key: 'pulseSharpness', label: '闪烁锐度', min: 0.25, max: 4, step: 0.05 },
+  { key: 'clusterFlickerScale', label: '簇速度倍率', min: 0.1, max: 3, step: 0.05 },
+  { key: 'burstDurationMs', label: '入场时长', min: 0, max: 1500, step: 10 },
+  { key: 'burstStrength', label: '入场亮度增强', min: 0, max: 3, step: 0.05 },
+  { key: 'burstDensityBoost', label: '入场密度增强', min: 0, max: 1, step: 0.01 },
+  { key: 'surfaceOffset', label: '顶面偏移', min: 0, max: 1, step: 0.01 },
+  { key: 'seed', label: '固定种子', min: 0, max: 9999, step: 1 }
+]
+
+const numberDrafts = reactive<Record<string, string>>({})
+const committedNumbers = new Map<string, string>()
+const HEX = /^#[0-9a-f]{6}$/i
+
+function fieldId(name: string, control: 'checkbox' | 'color' | 'hex' | 'number' | 'range'): string {
+  return `effect-hover-mosaic-${name}-${control}`
+}
+
+function emitClone(update: (next: MapMosaicParticleConfig) => void): void {
+  const next = cloneMosaicParticleConfig(props.modelValue)
+  update(next)
+  emit('update:modelValue', normalizeMosaicParticleConfig(next))
+}
+
+function updateBoolean(key: BooleanKey, event: Event): void {
+  const value = (event.target as HTMLInputElement).checked
+  if (value === props.modelValue[key]) return
+  emitClone((next) => (next[key] = value))
+}
+
+function updateColor(key: ColorKey, event: Event): void {
+  const input = event.target as HTMLInputElement
+  if (!HEX.test(input.value)) {
+    input.value = props.modelValue[key]
+    return
+  }
+  const value = input.value.toLowerCase()
+  if (value === props.modelValue[key]) {
+    input.value = value
+    return
+  }
+  emitClone((next) => (next[key] = value))
+}
+
+function numberDraft(field: NumberField): string {
+  return numberDrafts[field.key] ?? String(props.modelValue[field.key])
+}
+
+function updateNumberDraft(field: NumberField, event: Event): void {
+  numberDrafts[field.key] = (event.target as HTMLInputElement).value
+  committedNumbers.delete(field.key)
+}
+
+function normalizedFieldNumber(field: NumberField, raw: string): number {
+  const current = props.modelValue[field.key]
+  const parsed = raw.trim() === '' ? current : Number(raw)
+  const finite = Number.isFinite(parsed) ? parsed : current
+  const clamped = Math.min(field.max, Math.max(field.min, finite))
+  const precision = (String(field.step).split('.')[1] ?? '').length
+  return Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+}
+
+function writeNumber(field: NumberField, raw: string): void {
+  const next = cloneMosaicParticleConfig(props.modelValue)
+  next[field.key] = normalizedFieldNumber(field, raw)
+  const normalized = normalizeMosaicParticleConfig(next)
+  const value = normalized[field.key]
+  const normalizedDraft = String(value)
+  numberDrafts[field.key] = normalizedDraft
+  if (
+    committedNumbers.get(field.key) === normalizedDraft
+    || value === props.modelValue[field.key]
+  ) return
+  committedNumbers.set(field.key, normalizedDraft)
+  emit('update:modelValue', normalized)
+}
+
+function commitNumber(field: NumberField, event: Event): void {
+  writeNumber(field, (event.target as HTMLInputElement).value)
+}
+
+function updateRange(field: NumberField, event: Event): void {
+  writeNumber(field, (event.target as HTMLInputElement).value)
+}
+
+function applyBluePurplePreset(): void {
+  emit('update:modelValue', cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS))
+}
+
+function randomizeSeed(): void {
+  const seed = Math.floor(Math.random() * 10000)
+  emitClone((next) => (next.seed = seed))
+}
+
+function resetGroup(): void {
+  emit('update:modelValue', cloneMosaicParticleConfig(HOVER_MOSAIC_PARTICLE_DEFAULTS))
+}
+
+watch(() => props.modelValue, () => {
+  for (const field of FIELDS) {
+    const value = String(props.modelValue[field.key])
+    numberDrafts[field.key] = value
+    if (committedNumbers.get(field.key) !== value) committedNumbers.delete(field.key)
+  }
+}, { deep: true, immediate: true })
+</script>
+
+<template>
+  <section class="mosaic-controls">
+    <div class="field">
+      <div class="field-head">
+        <label :for="fieldId('enabled', 'checkbox')">启用马赛克粒子</label>
+        <input
+          :id="fieldId('enabled', 'checkbox')"
+          class="checkbox"
+          type="checkbox"
+          :checked="modelValue.enabled"
+          @change="updateBoolean('enabled', $event)"
+        />
+      </div>
+    </div>
+    <div v-for="colorField in [
+      { key: 'primaryColor' as const, label: '主色' },
+      { key: 'accentColor' as const, label: '强调色' }
+    ]" :key="colorField.key" class="field">
+      <div class="field-head">
+        <label :for="fieldId(colorField.key, 'color')">{{ colorField.label }}</label>
+        <input
+          :id="fieldId(colorField.key, 'color')"
+          class="color"
+          type="color"
+          :value="modelValue[colorField.key]"
+          @input="updateColor(colorField.key, $event)"
+        />
+        <input
+          :id="fieldId(colorField.key, 'hex')"
+          class="hex"
+          type="text"
+          :value="modelValue[colorField.key]"
+          :aria-label="colorField.label + '十六进制颜色'"
+          @change="updateColor(colorField.key, $event)"
+        />
+      </div>
+    </div>
+    <div v-for="field in FIELDS" :key="field.key" class="field">
+      <div class="field-head">
+        <label :for="fieldId(field.key, 'number')">{{ field.label }}</label>
+        <input
+          :id="fieldId(field.key, 'number')"
+          class="num"
+          type="number"
+          :value="numberDraft(field)"
+          :min="field.min"
+          :max="field.max"
+          :step="field.step"
+          @input="updateNumberDraft(field, $event)"
+          @change="commitNumber(field, $event)"
+          @blur="commitNumber(field, $event)"
+        />
+      </div>
+      <input
+        :id="fieldId(field.key, 'range')"
+        class="slider"
+        type="range"
+        :value="modelValue[field.key]"
+        :min="field.min"
+        :max="field.max"
+        :step="field.step"
+        :aria-label="field.label + '滑块'"
+        @input="updateRange(field, $event)"
+      />
+    </div>
+    <div class="field">
+      <div class="field-head">
+        <label :for="fieldId('reseedOnEnter', 'checkbox')">每次进入重新组合</label>
+        <input
+          :id="fieldId('reseedOnEnter', 'checkbox')"
+          class="checkbox"
+          type="checkbox"
+          :checked="modelValue.reseedOnEnter"
+          @change="updateBoolean('reseedOnEnter', $event)"
+        />
+      </div>
+    </div>
+    <div class="effect-actions group-actions">
+      <button class="btn" type="button" @click="applyBluePurplePreset">应用蓝紫参考预设</button>
+      <button class="btn ghost" type="button" @click="randomizeSeed">随机种子</button>
+      <button class="btn ghost" type="button" @click="resetGroup">重置本组</button>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.mosaic-controls { display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.field-head label { flex: 1; }
+.num, .hex {
+  box-sizing: border-box; height: 26px; padding: 2px 6px; text-align: right;
+  color: #00deff; background: rgba(36, 131, 255, 0.12);
+  border: 1px solid rgba(36, 131, 255, 0.4); border-radius: 3px; outline: none;
+}
+.num { width: 76px; }
+.hex { width: 82px; }
+.checkbox { width: 18px; height: 18px; accent-color: #00deff; cursor: pointer; }
+.color { width: 30px; height: 26px; padding: 1px; border: 1px solid rgba(36, 131, 255, 0.4); background: transparent; }
+.slider { width: 100%; accent-color: #00deff; cursor: pointer; }
+.effect-actions { display: flex; gap: 8px; }
+.group-actions { margin-top: 2px; }
+.btn {
+  flex: 1; padding: 8px 4px; font-size: 12px; font-family: 'OPPOSans-M'; cursor: pointer;
+  color: #041020; background: linear-gradient(180deg, #00deff, #2483ff);
+  border: none; border-radius: 4px;
+}
+.btn.ghost { color: #7fa8d9; background: transparent; border: 1px solid rgba(36, 131, 255, 0.5); }
+</style>
