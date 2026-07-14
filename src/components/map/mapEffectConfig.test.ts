@@ -4,6 +4,7 @@ import {
   HOVER_INWARD_GLOW_DEFAULTS
 } from './mapInwardGlowConfig'
 import { MAP_DISTRICT_BAR_DEFAULTS } from './mapDistrictBarConfig'
+import { MAP_DISTRICT_BAR_OVERLAY_DEFAULTS } from './mapDistrictBarOverlayConfig'
 import { HOVER_MOSAIC_PARTICLE_DEFAULTS } from './mapMosaicParticleConfig'
 import {
   B3_GLOW_PROFILE_DEFAULTS,
@@ -13,6 +14,7 @@ import {
   MAP_EFFECT_STORAGE_KEY_V2,
   MAP_EFFECT_STORAGE_KEY_V3,
   MAP_EFFECT_STORAGE_KEY_V4,
+  MAP_EFFECT_STORAGE_KEY_V5,
   assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
@@ -53,6 +55,11 @@ const V5_DEFAULTS = {
   bars: MAP_DISTRICT_BAR_DEFAULTS
 } as const
 
+const V6_DEFAULTS = {
+  ...V5_DEFAULTS,
+  version: 6
+} as const
+
 const V2_DEFAULTS = {
   version: 2,
   base: {
@@ -90,45 +97,52 @@ const APPROVED_V1_DEFAULTS = {
 } as const
 
 describe('mapEffectConfig', () => {
-  it('exports combined v5 defaults and storage constants', () => {
+  it('exports combined v6 defaults and storage constants', () => {
     expect(B3_GLOW_PROFILE_DEFAULTS).toEqual({
       nearRadiusRatio: 0.35, nearOpacityRatio: 0.83, farRadiusRatio: 1,
       farOpacityRatio: 1, falloff: 1, edgeSoftness: 0.96, nearPasses: 2, farPasses: 4
     })
-    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v5')
+    expect(MAP_EFFECT_STORAGE_KEY).toBe('cq-map-effect-config-v6')
+    expect(MAP_EFFECT_STORAGE_KEY_V5).toBe('cq-map-effect-config-v5')
     expect(MAP_EFFECT_STORAGE_KEY_V4).toBe('cq-map-effect-config-v4')
     expect(MAP_EFFECT_STORAGE_KEY_V3).toBe('cq-map-effect-config-v3')
     expect(MAP_EFFECT_STORAGE_KEY_V2).toBe('cq-map-effect-config-v2')
     expect(MAP_EFFECT_STORAGE_KEY_V1).toBe('cq-map-effect-config-v1')
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V6_DEFAULTS)
   })
 
   it('returns deep clones and freezes all exported nested defaults', () => {
     const a = normalizeMapEffectConfig(undefined)
     const b = normalizeMapEffectConfig(undefined)
 
-    expect(a).toEqual(V5_DEFAULTS)
+    expect(a).toEqual(V6_DEFAULTS)
     expect(a).not.toBe(b)
     expect(a.base.inwardGlow).not.toBe(b.base.inwardGlow)
     expect(a.hover.inwardGlow).not.toBe(b.hover.inwardGlow)
     expect(a.hover.mosaicParticles).not.toBe(b.hover.mosaicParticles)
     expect(a.bars).not.toBe(b.bars)
+    expect(a.bars.overlay).not.toBe(b.bars.overlay)
+    expect(a.bars.overlay.badge).not.toBe(b.bars.overlay.badge)
     a.hover.mosaicParticles.seed = 42
-    expect(MAP_EFFECT_DEFAULTS).toEqual(V5_DEFAULTS)
+    expect(MAP_EFFECT_DEFAULTS).toEqual(V6_DEFAULTS)
 
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.base.inwardGlow)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.hover.inwardGlow)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.hover.mosaicParticles)).toBe(true)
     expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars)).toBe(true)
+    expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars.overlay)).toBe(true)
+    expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars.overlay.badge)).toBe(true)
+    expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars.overlay.panel)).toBe(true)
+    expect(Object.isFrozen(MAP_EFFECT_DEFAULTS.bars.overlay.collision)).toBe(true)
   })
 
-  it('migrates known v1 defaults and preserves custom v1 values in v5', () => {
+  it('migrates known v1 defaults and preserves custom v1 values in v6', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1
         ? JSON.stringify(APPROVED_V1_DEFAULTS)
         : null
-    })).toEqual(V5_DEFAULTS)
+    })).toEqual(V6_DEFAULTS)
 
     const custom = {
       ...APPROVED_V1_DEFAULTS,
@@ -138,7 +152,7 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V1 ? JSON.stringify(custom) : null
     })).toMatchObject({
-      version: 5,
+      version: 6,
       base: { innerWidth: 1.75, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
       hover: {
         enterMs: 360,
@@ -153,7 +167,7 @@ describe('mapEffectConfig', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V2 ? JSON.stringify(V2_DEFAULTS) : null
     })).toEqual({
-      version: 5,
+      version: 6,
       base: { ...V2_DEFAULTS.base, inwardGlow: BASE_INWARD_GLOW_DEFAULTS },
       hover: {
         ...V2_DEFAULTS.hover,
@@ -182,7 +196,7 @@ describe('mapEffectConfig', () => {
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V3 ? JSON.stringify(customV3) : null
     })
     expect(migratedV3).toMatchObject({
-      version: 5,
+      version: 6,
       base: { outerGlowWidth: 91, inwardGlow: { width: 44 } },
       hover: {
         glowWidth: 77,
@@ -196,7 +210,7 @@ describe('mapEffectConfig', () => {
     expect(migratedV3.hover.inwardGlow).not.toHaveProperty('wave')
   })
 
-  it('migrates v4 mosaic values into v5 and adds bar defaults', () => {
+  it('migrates v4 mosaic values into v6 and adds bar defaults', () => {
     const customV4 = {
       ...V4_DEFAULTS,
       hover: {
@@ -208,14 +222,47 @@ describe('mapEffectConfig', () => {
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V4 ? JSON.stringify(customV4) : null
     })).toEqual({
       ...customV4,
-      version: 5,
+      version: 6,
       bars: MAP_DISTRICT_BAR_DEFAULTS
     })
   })
 
-  it('normalizes combined v5 fields and drops legacy wave fields', () => {
+  it('migrates v5 values into v6 before resetting the complete bars config on load', () => {
+    const legacyV5 = {
+      ...V5_DEFAULTS,
+      base: { ...V5_DEFAULTS.base, outerGlowWidth: 91 },
+      hover: {
+        ...V5_DEFAULTS.hover,
+        mosaicParticles: { ...HOVER_MOSAIC_PARTICLE_DEFAULTS, density: 0.42 }
+      },
+      quality: { renderScale: 0.75, maxAlpha: 0.8 },
+      bars: {
+        ...MAP_DISTRICT_BAR_DEFAULTS,
+        width: 6.4,
+        overlay: undefined
+      }
+    }
+
+    const migrated = normalizeMapEffectConfig(legacyV5)
+    expect(migrated).toMatchObject({
+      version: 6,
+      base: { outerGlowWidth: 91 },
+      hover: { mosaicParticles: { density: 0.42 } },
+      quality: { renderScale: 0.75, maxAlpha: 0.8 },
+      bars: { width: 6.4, overlay: MAP_DISTRICT_BAR_OVERLAY_DEFAULTS }
+    })
+
+    expect(loadMapEffectConfig({
+      getItem: (key) => key === MAP_EFFECT_STORAGE_KEY_V5 ? JSON.stringify(legacyV5) : null
+    })).toEqual({
+      ...migrated,
+      bars: MAP_DISTRICT_BAR_DEFAULTS
+    })
+  })
+
+  it('normalizes combined v6 fields and drops legacy wave fields', () => {
     const normalized = normalizeMapEffectConfig({
-      version: 5,
+      version: 6,
       base: {
         innerColor: '#ABCDEF', innerWidth: 9, outerGlowWidth: 300,
         inwardGlow: { color: '#FEDCBA', width: 300, wave: { enabled: true } }
@@ -230,7 +277,7 @@ describe('mapEffectConfig', () => {
     })
 
     expect(normalized).toMatchObject({
-      version: 5,
+      version: 6,
       base: {
         innerColor: '#abcdef', innerWidth: 4, outerGlowWidth: 200,
         inwardGlow: { color: '#fedcba', width: 200 }
@@ -249,13 +296,20 @@ describe('mapEffectConfig', () => {
 
   it('resets saved bar tuning on load while retaining effects and mosaic values', () => {
     const saved = {
-      ...V5_DEFAULTS,
-      base: { ...V5_DEFAULTS.base, outerGlowWidth: 91 },
+      ...V6_DEFAULTS,
+      base: { ...V6_DEFAULTS.base, outerGlowWidth: 91 },
       hover: {
-        ...V5_DEFAULTS.hover,
+        ...V6_DEFAULTS.hover,
         mosaicParticles: { ...HOVER_MOSAIC_PARTICLE_DEFAULTS, density: 0.42 }
       },
-      bars: { ...MAP_DISTRICT_BAR_DEFAULTS, width: 6.4 }
+      bars: {
+        ...MAP_DISTRICT_BAR_DEFAULTS,
+        width: 6.4,
+        overlay: {
+          ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS,
+          badge: { ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS.badge, minWidth: 120 }
+        }
+      }
     }
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY ? JSON.stringify(saved) : null
@@ -271,12 +325,19 @@ describe('mapEffectConfig', () => {
     source.hover.inwardGlow.strength = 0.4
     source.hover.mosaicParticles.seed = 42
     source.bars.hoverLift = 2.5
+    source.bars.overlay.badge.minWidth = 120
+    source.bars.overlay.panel.width = 420
+    source.bars.overlay.collision.badgeMaxShift = 88
     const target = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
     const identities = {
       base: target.base,
       hover: target.hover,
       quality: target.quality,
       bars: target.bars,
+      overlay: target.bars.overlay,
+      badge: target.bars.overlay.badge,
+      panel: target.bars.overlay.panel,
+      collision: target.bars.overlay.collision,
       baseInward: target.base.inwardGlow,
       hoverInward: target.hover.inwardGlow,
       mosaic: target.hover.mosaicParticles
@@ -289,30 +350,52 @@ describe('mapEffectConfig', () => {
     expect(target.hover).toBe(identities.hover)
     expect(target.quality).toBe(identities.quality)
     expect(target.bars).toBe(identities.bars)
+    expect(target.bars.overlay).toBe(identities.overlay)
+    expect(target.bars.overlay.badge).toBe(identities.badge)
+    expect(target.bars.overlay.panel).toBe(identities.panel)
+    expect(target.bars.overlay.collision).toBe(identities.collision)
     expect(target.base.inwardGlow).toBe(identities.baseInward)
     expect(target.hover.inwardGlow).toBe(identities.hoverInward)
     expect(target.hover.mosaicParticles).toBe(identities.mosaic)
   })
 
-  it('does not fall back after broken v5 storage and writes normalized v5 payloads', () => {
+  it('assigns the top-level overlay enabled flag from source to target', () => {
+    const source = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
+    const target = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
+    source.bars.overlay.enabled = false
+    target.bars.overlay.enabled = true
+
+    assignMapEffectConfig(target, source)
+
+    expect(target.bars.overlay.enabled).toBe(false)
+  })
+
+  it('does not fall back after broken v6 storage and writes normalized v6 payloads', () => {
     expect(loadMapEffectConfig({
       getItem: (key) => key === MAP_EFFECT_STORAGE_KEY
-        ? '{broken-v5'
-        : key === MAP_EFFECT_STORAGE_KEY_V4
-          ? JSON.stringify(V4_DEFAULTS)
+        ? '{broken-v6'
+        : key === MAP_EFFECT_STORAGE_KEY_V5
+          ? JSON.stringify(V5_DEFAULTS)
           : null
-    })).toEqual(V5_DEFAULTS)
+    })).toEqual(V6_DEFAULTS)
 
+    const customV6 = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
+    customV6.bars.overlay.badge.minWidth = 120
+    customV6.bars.overlay.panel.width = 420
+    customV6.bars.overlay.collision.badgeMaxShift = 88
     const writes: Array<[string, string]> = []
-    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, V5_DEFAULTS)
-    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(V5_DEFAULTS)]])
-    const text = formatMapEffectConfig(V5_DEFAULTS)
-    expect(text).toContain('"version": 5')
+    saveMapEffectConfig({ setItem: (key, value) => writes.push([key, value]) }, customV6)
+    expect(writes).toEqual([[MAP_EFFECT_STORAGE_KEY, JSON.stringify(customV6)]])
+    const text = formatMapEffectConfig(customV6)
+    expect(text).toContain('"version": 6')
+    expect(text).toContain('"minWidth": 120')
+    expect(text).toContain('"width": 420')
+    expect(text).toContain('"badgeMaxShift": 88')
     expect(text).not.toContain('"wave"')
-    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(V5_DEFAULTS)
+    expect(normalizeMapEffectConfig(JSON.parse(text))).toEqual(customV6)
     expect(() => saveMapEffectConfig(
       { setItem: () => { throw new Error('denied') } },
-      V5_DEFAULTS
+      V6_DEFAULTS
     )).not.toThrow()
   })
 })

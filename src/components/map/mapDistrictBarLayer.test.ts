@@ -7,6 +7,7 @@ import {
   applyDistrictBarConfig,
   createDistrictBarLayer,
   disposeDistrictBarLayer,
+  getDistrictBarTopSnapshots,
   mapDistrictBarHeight,
   setDistrictBarHoverProgress,
   updateDistrictBarLayer
@@ -65,8 +66,8 @@ const regions: Region[] = [
   { name: 'B', outers: [{ ring: [[5, 0], [9, 0], [9, 4], [5, 4]], holes: [] }] }
 ]
 
-function items(entries: [string, number][]): ReadonlyMap<string, DistrictMapItem> {
-  return new Map(entries.map(([name, aj]) => [name, { name, aj, ztje: 0, zzs: 0 }]))
+function items(entries: [string, number, number?][]): ReadonlyMap<string, DistrictMapItem> {
+  return new Map(entries.map(([name, aj, ztje = 0]) => [name, { name, aj, ztje, zzs: 0 }]))
 }
 
 describe('mapDistrictBarLayer', () => {
@@ -74,6 +75,122 @@ describe('mapDistrictBarLayer', () => {
     expect(mapDistrictBarHeight(0, 3, 20, 0.5, 100)).toBe(3)
     expect(mapDistrictBarHeight(25, 3, 20, 0.5, 100)).toBeCloseTo(11.5)
     expect(mapDistrictBarHeight(100, 3, 20, 0.5, 100)).toBe(20)
+  })
+
+  it('按 order 公开区县柱顶业务快照', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
+    const layer = createDistrictBarLayer(
+      [regions[1], regions[0]],
+      items([['A', 25, 120.5], ['B', 100, 980.25]]),
+      config,
+      4
+    )
+    updateDistrictBarLayer(layer, config, 0)
+    const firstVisual = layer.byName.get('B')!
+    layer.byName.delete('B')
+    layer.byName.set('B', firstVisual)
+
+    expect(getDistrictBarTopSnapshots(layer).map((snapshot) => ({
+      name: snapshot.name,
+      caseCount: snapshot.caseCount,
+      amount: snapshot.amount,
+      order: snapshot.order
+    }))).toEqual([
+      { name: 'B', caseCount: 100, amount: 980.25, order: 0 },
+      { name: 'A', caseCount: 25, amount: 120.5, order: 1 }
+    ])
+  })
+
+  it('返回包含入场缩放、hover 抬升和父级变换的世界柱顶坐标', () => {
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      minHeight: 4,
+      maxHeight: 4,
+      enterMs: 1_000,
+      staggerMs: 0,
+      hoverLift: 3,
+      baseOffset: -0.08
+    }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100, 200]]), config, 0)
+    const mapGroup = new THREE.Group()
+    mapGroup.position.set(10, 20, 30)
+    mapGroup.rotation.z = Math.PI / 2
+    mapGroup.add(layer.group)
+
+    setDistrictBarHoverProgress(layer, 'A', 0.5)
+    updateDistrictBarLayer(layer, config, 500)
+
+    const [snapshot] = getDistrictBarTopSnapshots(layer)
+    expect(snapshot.worldPosition[0]).toBeCloseTo(8)
+    expect(snapshot.worldPosition[1]).toBeCloseTo(22)
+    expect(snapshot.worldPosition[2]).toBeCloseTo(33.5)
+  })
+
+  it('按 scene graph 当前状态公开柱体可见性', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 100, staggerMs: 0 }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100]]), config, 0)
+    const mapGroup = new THREE.Group()
+    mapGroup.add(layer.group)
+
+    updateDistrictBarLayer(layer, config, 0)
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(false)
+
+    updateDistrictBarLayer(layer, config, 100)
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(true)
+
+    applyDistrictBarConfig(layer, { ...config, enabled: false })
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(false)
+
+    applyDistrictBarConfig(layer, { ...config, width: 0 })
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(false)
+
+    applyDistrictBarConfig(layer, config)
+    mapGroup.visible = false
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(false)
+
+    mapGroup.visible = true
+    expect(getDistrictBarTopSnapshots(layer)[0].visible).toBe(true)
+  })
+
+  it('连续读取返回独立的普通快照对象和位置 tuple', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100, 200]]), config, 0)
+    updateDistrictBarLayer(layer, config, 0)
+
+    const [first] = getDistrictBarTopSnapshots(layer)
+    const [second] = getDistrictBarTopSnapshots(layer)
+
+    expect(Object.getPrototypeOf(first)).toBe(Object.prototype)
+    expect(Array.isArray(first.worldPosition)).toBe(true)
+    expect(first.worldPosition).not.toBeInstanceOf(THREE.Vector3)
+    expect(first).not.toBe(second)
+    expect(first.worldPosition).not.toBe(second.worldPosition)
+    expect(first).toEqual(second)
+  })
+
+  it('将公开快照的 hoverProgress 限制在 0 到 1', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
+    const layer = createDistrictBarLayer([regions[0]], items([['A', 100]]), config, 0)
+    const visual = layer.byName.get('A')!
+
+    visual.hoverProgress = 2
+    expect(getDistrictBarTopSnapshots(layer)[0].hoverProgress).toBe(1)
+
+    visual.hoverProgress = -2
+    expect(getDistrictBarTopSnapshots(layer)[0].hoverProgress).toBe(0)
+  })
+
+  it('释放后返回空的柱顶快照列表', () => {
+    const layer = createDistrictBarLayer(
+      [regions[0]],
+      items([['A', 100]]),
+      MAP_DISTRICT_BAR_DEFAULTS,
+      0
+    )
+
+    disposeDistrictBarLayer(layer)
+
+    expect(getDistrictBarTopSnapshots(layer)).toEqual([])
   })
 
   it('只为有有效案件量且存在锚点的区块创建柱体与光环', () => {

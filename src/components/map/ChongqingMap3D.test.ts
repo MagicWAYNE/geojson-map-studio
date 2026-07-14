@@ -9,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
 const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
 const sceneSetupMocks = vi.hoisted(() => ({
   controlsDispose: vi.fn(),
+  controlsUpdate: vi.fn(),
   controlsTargetSet: vi.fn(),
   controlListeners: new Map<string, () => void>()
 }))
@@ -41,6 +42,7 @@ const districtBarMocks = vi.hoisted(() => ({
   create: vi.fn(),
   applyConfig: vi.fn(),
   update: vi.fn(),
+  getSnapshots: vi.fn(),
   setHoverProgress: vi.fn(),
   dispose: vi.fn(),
   layer: null as {
@@ -48,6 +50,12 @@ const districtBarMocks = vi.hoisted(() => ({
     byName: Map<string, unknown>
     range: { min: number; max: number } | null
   } | null
+}))
+const overlayLayoutMocks = vi.hoisted(() => ({ calculate: vi.fn() }))
+const overlayComponentMocks = vi.hoisted(() => ({
+  props: null as null | { layout: unknown, config: unknown },
+  emitSizes: null as null | ((sizes: unknown) => void),
+  layoutOnUnmount: null as unknown
 }))
 const pipelineMocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -97,9 +105,35 @@ vi.mock('./mapDistrictBarLayer', () => ({
   createDistrictBarLayer: districtBarMocks.create,
   applyDistrictBarConfig: districtBarMocks.applyConfig,
   updateDistrictBarLayer: districtBarMocks.update,
+  getDistrictBarTopSnapshots: districtBarMocks.getSnapshots,
   setDistrictBarHoverProgress: districtBarMocks.setHoverProgress,
   disposeDistrictBarLayer: districtBarMocks.dispose
 }))
+vi.mock('./mapDistrictBarOverlayLayout', () => ({
+  calculateDistrictBarOverlayLayout: overlayLayoutMocks.calculate
+}))
+vi.mock('./MapDistrictBarOverlay.vue', async () => {
+  const { defineComponent, getCurrentInstance, h, onBeforeUnmount } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'MapDistrictBarOverlayStub',
+      props: ['layout', 'config'],
+      emits: ['sizes-change'],
+      setup(props, { emit }) {
+        const parentSetupState = (
+          getCurrentInstance()?.parent as unknown as
+            { setupState?: Record<string, unknown> } | undefined
+        )?.setupState
+        overlayComponentMocks.props = props
+        overlayComponentMocks.emitSizes = (sizes) => emit('sizes-change', sizes)
+        onBeforeUnmount(() => {
+          overlayComponentMocks.layoutOnUnmount = parentSetupState?.districtBarOverlayLayout
+        })
+        return () => h('div', { class: 'map-district-bar-overlay-stub' })
+      }
+    })
+  }
+})
 vi.mock('./mapMosaicParticles', () => ({
   createMapMosaicParticles: mosaicMocks.create
 }))
@@ -110,7 +144,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
     addEventListener = vi.fn((type: string, callback: () => void) => {
       sceneSetupMocks.controlListeners.set(type, callback)
     })
-    update = vi.fn()
+    update = sceneSetupMocks.controlsUpdate
     dispose = sceneSetupMocks.controlsDispose
   }
 }))
@@ -155,6 +189,7 @@ afterEach(() => {
   stopEffectWatch.mockClear()
   applyMapEffectConfig.mockClear()
   sceneSetupMocks.controlsDispose.mockClear()
+  sceneSetupMocks.controlsUpdate.mockClear()
   sceneSetupMocks.controlsTargetSet.mockClear()
   sceneSetupMocks.controlListeners.clear()
   threeMocks.createRenderer.mockClear()
@@ -168,6 +203,10 @@ afterEach(() => {
     if (typeof value === 'function' && 'mockReset' in value) value.mockReset()
   })
   districtBarMocks.layer = null
+  overlayLayoutMocks.calculate.mockReset()
+  overlayComponentMocks.props = null
+  overlayComponentMocks.emitSizes = null
+  overlayComponentMocks.layoutOnUnmount = null
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
   mapDebugMocks.effectRuntimeStatus = null
@@ -202,6 +241,8 @@ beforeEach(() => {
     range: { min: 20, max: 70 }
   }
   districtBarMocks.create.mockReturnValue(districtBarMocks.layer)
+  districtBarMocks.getSnapshots.mockReturnValue([])
+  overlayLayoutMocks.calculate.mockReturnValue({ badges: [], panel: null })
 })
 
 function deferred<T>() {
@@ -212,6 +253,25 @@ function deferred<T>() {
     reject = rejectPromise
   })
   return { promise, resolve, reject }
+}
+
+function districtBarSnapshots() {
+  return Array.from({ length: 8 }, (_, order) => ({
+    name: `测试区${order}`,
+    caseCount: 10 + order,
+    amount: 1 + order,
+    order,
+    visible: true,
+    hoverProgress: 0,
+    worldPosition: [order, order + 1, order + 2] as const
+  }))
+}
+
+function nonEmptyOverlayLayout(name = '测试区0') {
+  return {
+    badges: [{ name, visible: true }],
+    panel: null
+  }
 }
 
 async function mountInitializedMap(regionCount = 1) {
@@ -752,7 +812,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, apply] = watchMapEffectConfig.mock.calls[0]
     apply()
     expect(pipelineMocks.instance.setConfig).toHaveBeenCalledWith(expect.objectContaining({
-      version: 5,
+      version: 6,
       base: expect.objectContaining({ outerGlowFarPasses: expect.any(Number) }),
       hover: expect.objectContaining({ glowNearPasses: expect.any(Number) }),
       quality: expect.objectContaining({ renderScale: 0.5, maxAlpha: expect.any(Number) }),
@@ -1283,6 +1343,8 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(disconnect).toHaveBeenCalledTimes(1)
     expect(removeResizeListener).toHaveBeenCalledWith('resize', expect.any(Function))
     expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
 
     app.unmount()
 
@@ -1291,5 +1353,251 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(pipelineMocks.instance.dispose).toHaveBeenCalledTimes(1)
     expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
     expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(overlayComponentMocks.layoutOnUnmount).toEqual({ badges: [], panel: null })
+  })
+})
+
+describe('ChongqingMap3D district bar DOM overlay wiring', () => {
+  it('projects the same eight bar snapshots after controls and bar animation but before rendering', async () => {
+    const snapshots = districtBarSnapshots()
+    const mounted = await mountInitializedMap()
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[0] } as THREE.Intersection
+    ])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+
+    districtBarMocks.setHoverProgress.mockClear()
+    sceneSetupMocks.controlsUpdate.mockClear()
+    districtBarMocks.update.mockClear()
+    districtBarMocks.getSnapshots.mockReset().mockReturnValue(snapshots)
+    overlayLayoutMocks.calculate.mockClear()
+    pipelineMocks.instance.render.mockClear()
+
+    mounted.runFrame(32)
+
+    expect(overlayLayoutMocks.calculate).toHaveBeenCalledTimes(1)
+    expect(overlayLayoutMocks.calculate.mock.calls[0][0].snapshots).toBe(snapshots)
+    const calls = [
+      districtBarMocks.setHoverProgress,
+      sceneSetupMocks.controlsUpdate,
+      districtBarMocks.update,
+      districtBarMocks.getSnapshots,
+      overlayLayoutMocks.calculate,
+      pipelineMocks.instance.render
+    ]
+    for (let index = 1; index < calls.length; index++) {
+      expect(calls[index - 1].mock.invocationCallOrder[0])
+        .toBeLessThan(calls[index].mock.invocationCallOrder[0])
+    }
+
+    mounted.app.unmount()
+  })
+
+  it('derives hover from the picked region and removes the legacy pointer tooltip', async () => {
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    const mounted = await mountInitializedMap()
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[0] } as THREE.Intersection
+    ])
+
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    mounted.runFrame(16)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerleave'))
+    mounted.runFrame(32)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    expect(mounted.root.querySelector('.tip')).toBeNull()
+    expect(mounted.root.textContent).not.toContain('调解组织')
+
+    mounted.app.unmount()
+  })
+
+  it('clears an existing overlay when bar animation fails and never projects detached bars', async () => {
+    const layout = nonEmptyOverlayLayout()
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    overlayLayoutMocks.calculate.mockReturnValue(layout)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+    const stableEmptyLayout = overlayComponentMocks.props!.layout
+
+    mounted.runFrame(16)
+    await nextTick()
+    expect(overlayComponentMocks.props!.layout).toBe(layout)
+
+    districtBarMocks.getSnapshots.mockClear()
+    overlayLayoutMocks.calculate.mockClear()
+    pipelineMocks.instance.render.mockClear()
+    districtBarMocks.update.mockImplementationOnce(() => {
+      throw new Error('bar animation failed')
+    })
+
+    mounted.runFrame(32)
+    await nextTick()
+    expect(overlayComponentMocks.props!.layout).toBe(stableEmptyLayout)
+    expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+
+    mounted.runFrame(48)
+    expect(districtBarMocks.update).toHaveBeenCalledTimes(2)
+    expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
+    expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(2)
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ degraded: true })
+    )
+    expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
+
+    mounted.app.unmount()
+  })
+
+  it.each(['snapshot', 'calculator'] as const)(
+    'renders through a %s overlay failure and retries on the next frame without degrading bars',
+    async (failureSource) => {
+      const firstLayout = nonEmptyOverlayLayout('首次布局')
+      const recoveredLayout = nonEmptyOverlayLayout('恢复布局')
+      districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+      overlayLayoutMocks.calculate.mockReturnValueOnce(firstLayout)
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const mounted = await mountInitializedMap()
+
+      mounted.runFrame(16)
+      await nextTick()
+      expect(overlayComponentMocks.props!.layout).toBe(firstLayout)
+      pipelineMocks.instance.render.mockClear()
+
+      if (failureSource === 'snapshot') {
+        districtBarMocks.getSnapshots
+          .mockImplementationOnce(() => { throw new Error('snapshot failed') })
+          .mockImplementationOnce(() => { throw new Error('snapshot failed again') })
+      } else {
+        overlayLayoutMocks.calculate
+          .mockImplementationOnce(() => { throw new Error('calculator failed') })
+          .mockImplementationOnce(() => { throw new Error('calculator failed again') })
+      }
+      overlayLayoutMocks.calculate.mockReturnValue(recoveredLayout)
+
+      expect(() => mounted.runFrame(32)).not.toThrow()
+      await nextTick()
+      expect(overlayComponentMocks.props!.layout).toEqual({ badges: [], panel: null })
+      expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
+      expect(districtBarMocks.dispose).not.toHaveBeenCalled()
+      expect(mapDebugMocks.updateDistrictBarRuntimeStatus).not.toHaveBeenCalledWith(
+        expect.objectContaining({ degraded: true })
+      )
+      expect(warn).toHaveBeenCalledWith(
+        '区县柱体 DOM overlay 更新失败，已清空并将在下一帧重试',
+        expect.any(Error)
+      )
+
+      mounted.runFrame(48)
+      await nextTick()
+      expect(overlayComponentMocks.props!.layout).toEqual({ badges: [], panel: null })
+      expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(2)
+      expect(warn.mock.calls.filter(([message]) => (
+        message === '区县柱体 DOM overlay 更新失败，已清空并将在下一帧重试'
+      ))).toHaveLength(1)
+
+      mounted.runFrame(64)
+      await nextTick()
+      expect(overlayComponentMocks.props!.layout).toBe(recoveredLayout)
+      expect(districtBarMocks.update).toHaveBeenCalledTimes(4)
+      expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(3)
+
+      mounted.app.unmount()
+    }
+  )
+
+  it('keeps overlay empty and skips projection when district bar creation fails', async () => {
+    districtBarMocks.create.mockImplementationOnce(() => {
+      throw new Error('bar creation failed')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const mounted = await mountInitializedMap()
+
+    mounted.runFrame(16)
+    expect(overlayComponentMocks.props!.layout).toEqual({ badges: [], panel: null })
+    expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('区县柱体初始化失败，保留地图底图', expect.any(Error))
+
+    mounted.app.unmount()
+  })
+
+  it('defers measured size changes until the next frame and preserves object identity', async () => {
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    const mounted = await mountInitializedMap()
+    mounted.runFrame(16)
+    overlayLayoutMocks.calculate.mockClear()
+    const sizes = {
+      badgeByName: new Map([['测试区0', { width: 88, height: 36 }]]),
+      panel: { width: 320, height: 140 }
+    }
+
+    overlayComponentMocks.emitSizes!(sizes)
+    await nextTick()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
+
+    mounted.runFrame(32)
+    expect(overlayLayoutMocks.calculate).toHaveBeenCalledTimes(1)
+    expect(overlayLayoutMocks.calculate.mock.calls[0][0].sizes).toBe(sizes)
+
+    mounted.app.unmount()
+  })
+
+  it('uses ScaleScreen client dimensions rather than the transformed bounding rect', async () => {
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    const mounted = await mountInitializedMap()
+    vi.spyOn(mounted.root.querySelector('.cq-map3d')!, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1020,
+      bottom: 1020,
+      width: 1020,
+      height: 1020,
+      toJSON: () => ({})
+    })
+
+    mounted.runFrame(16)
+
+    expect(overlayLayoutMocks.calculate.mock.calls[0][0].viewport).toEqual({
+      clientWidth: 680,
+      clientHeight: 680
+    })
+
+    mounted.app.unmount()
+  })
+
+  it('replaces a non-empty shallow overlay layout with the stable empty layout during unmount', async () => {
+    const layout = nonEmptyOverlayLayout()
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    overlayLayoutMocks.calculate.mockReturnValue(layout)
+    const mounted = await mountInitializedMap()
+    const stableEmptyLayout = overlayComponentMocks.props!.layout
+    mounted.runFrame(16)
+    await nextTick()
+    expect(overlayComponentMocks.props!.layout).toBe(layout)
+    districtBarMocks.getSnapshots.mockClear()
+    overlayLayoutMocks.calculate.mockClear()
+
+    mounted.app.unmount()
+
+    expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
+    expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
+    expect(districtBarMocks.dispose).toHaveBeenCalledTimes(1)
+    expect(overlayComponentMocks.layoutOnUnmount).toBe(stableEmptyLayout)
+    expect(mounted.root.querySelector('.map-district-bar-overlay-stub')).toBeNull()
   })
 })

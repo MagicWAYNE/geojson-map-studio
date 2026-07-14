@@ -95,8 +95,10 @@ export interface MapEffectConfigV4 {
   quality: MapEffectQualityConfig
 }
 
+const CURRENT_MAP_EFFECT_VERSION = 6 as const
+
 export interface MapEffectConfig {
-  version: 5
+  version: typeof CURRENT_MAP_EFFECT_VERSION
   base: MapEffectBaseConfigV4
   hover: MapEffectHoverConfigV4
   quality: MapEffectQualityConfig
@@ -117,7 +119,8 @@ export interface StorageWriter {
   setItem(key: string, value: string): void
 }
 
-export const MAP_EFFECT_STORAGE_KEY = 'cq-map-effect-config-v5'
+export const MAP_EFFECT_STORAGE_KEY = `cq-map-effect-config-v${CURRENT_MAP_EFFECT_VERSION}`
+export const MAP_EFFECT_STORAGE_KEY_V5 = 'cq-map-effect-config-v5'
 export const MAP_EFFECT_STORAGE_KEY_V4 = 'cq-map-effect-config-v4'
 export const MAP_EFFECT_STORAGE_KEY_V3 = 'cq-map-effect-config-v3'
 export const MAP_EFFECT_STORAGE_KEY_V2 = 'cq-map-effect-config-v2'
@@ -216,12 +219,16 @@ function freezeMapEffectDefaults<T extends MapEffectConfig>(value: T): Readonly<
   Object.freeze(value.base)
   Object.freeze(value.hover)
   Object.freeze(value.quality)
+  Object.freeze(value.bars.overlay.badge)
+  Object.freeze(value.bars.overlay.panel)
+  Object.freeze(value.bars.overlay.collision)
+  Object.freeze(value.bars.overlay)
   Object.freeze(value.bars)
   return Object.freeze(value)
 }
 
 const CANONICAL_MAP_EFFECT_DEFAULTS = freezeMapEffectDefaults({
-  version: 5 as const,
+  version: CURRENT_MAP_EFFECT_VERSION,
   base: { ...V4_BASE_DEFAULTS, inwardGlow: cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS) },
   hover: {
     ...V4_HOVER_DEFAULTS,
@@ -233,6 +240,16 @@ const CANONICAL_MAP_EFFECT_DEFAULTS = freezeMapEffectDefaults({
 })
 
 export const MAP_EFFECT_DEFAULTS: Readonly<MapEffectConfig> = CANONICAL_MAP_EFFECT_DEFAULTS
+
+type CurrentMapEffectCoreConfig = Pick<MapEffectConfig, 'base' | 'hover' | 'quality' | 'bars'>
+
+function finalizeCurrentMapEffectConfig(core: CurrentMapEffectCoreConfig): MapEffectConfig {
+  return {
+    ...CANONICAL_MAP_EFFECT_DEFAULTS,
+    ...core,
+    version: CURRENT_MAP_EFFECT_VERSION
+  }
+}
 
 type UnknownRecord = Record<string, unknown>
 
@@ -254,8 +271,7 @@ function isExactValue(value: unknown, expected: unknown): boolean {
 }
 
 export function cloneMapEffectConfig(config: Readonly<MapEffectConfig>): MapEffectConfig {
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: { ...config.base, inwardGlow: cloneInwardGlowConfig(config.base.inwardGlow) },
     hover: {
       ...config.hover,
@@ -264,7 +280,7 @@ export function cloneMapEffectConfig(config: Readonly<MapEffectConfig>): MapEffe
     },
     quality: { ...config.quality },
     bars: cloneDistrictBarConfig(config.bars)
-  }
+  })
 }
 
 function cloneDefaults(): MapEffectConfig {
@@ -281,7 +297,12 @@ export function assignMapEffectConfig(
     mosaicParticles: sourceMosaicParticles,
     ...sourceHover
   } = source.hover
+  const { overlay: sourceOverlay, ...sourceBars } = source.bars
   const bars = target.bars
+  const overlay = bars.overlay
+  const badge = overlay.badge
+  const panel = overlay.panel
+  const collision = overlay.collision
 
   Object.assign(target.base, sourceBase)
   Object.assign(target.hover, sourceHover)
@@ -289,9 +310,17 @@ export function assignMapEffectConfig(
   Object.assign(target.base.inwardGlow, sourceBaseInward)
   Object.assign(target.hover.inwardGlow, sourceHoverInward)
   Object.assign(target.hover.mosaicParticles, sourceMosaicParticles)
-  Object.assign(bars, source.bars)
+  Object.assign(bars, sourceBars)
+  overlay.enabled = sourceOverlay.enabled
+  Object.assign(badge, sourceOverlay.badge)
+  Object.assign(panel, sourceOverlay.panel)
+  Object.assign(collision, sourceOverlay.collision)
+  overlay.badge = badge
+  overlay.panel = panel
+  overlay.collision = collision
+  bars.overlay = overlay
   target.bars = bars
-  target.version = 5
+  target.version = CURRENT_MAP_EFFECT_VERSION
 }
 
 function color(value: unknown, fallback: string): string {
@@ -446,8 +475,7 @@ function migrateV4Config(value: unknown): MapEffectConfig {
   const root = isRecord(value) ? value : {}
   const v4 = normalizeV4Config(value)
   if (!v4) return cloneDefaults()
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: { ...v4.base, inwardGlow: cloneInwardGlowConfig(v4.base.inwardGlow) },
     hover: {
       ...v4.hover,
@@ -456,7 +484,7 @@ function migrateV4Config(value: unknown): MapEffectConfig {
     },
     quality: { ...v4.quality },
     bars: normalizeDistrictBarConfig(root.bars)
-  }
+  })
 }
 
 function migrateV3Config(value: unknown): MapEffectConfig {
@@ -464,8 +492,7 @@ function migrateV3Config(value: unknown): MapEffectConfig {
   if (root.version !== 3) return cloneDefaults()
   const base = isRecord(root.base) ? root.base : {}
   const hover = isRecord(root.hover) ? root.hover : {}
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: {
       ...normalizeBase(base, V4_BASE_DEFAULTS),
       inwardGlow: normalizeInwardGlowConfig(base.inwardGlow, BASE_INWARD_GLOW_DEFAULTS)
@@ -477,14 +504,13 @@ function migrateV3Config(value: unknown): MapEffectConfig {
     },
     quality: normalizeQuality(root.quality),
     bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
-  }
+  })
 }
 
 function migrateV2Config(value: unknown): MapEffectConfig {
   const v2 = normalizeV2Config(value)
   if (!v2) return cloneDefaults()
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: { ...v2.base, inwardGlow: cloneInwardGlowConfig(BASE_INWARD_GLOW_DEFAULTS) },
     hover: {
       ...v2.hover,
@@ -493,7 +519,7 @@ function migrateV2Config(value: unknown): MapEffectConfig {
     },
     quality: { ...v2.quality },
     bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
-  }
+  })
 }
 
 function migrateLegacyConfig(value: unknown): MapEffectConfig {
@@ -504,8 +530,7 @@ function migrateLegacyConfig(value: unknown): MapEffectConfig {
   const base = normalizeLegacyBase(root.base)
   const hover = normalizeLegacyHover(root.hover)
   const defaults = cloneDefaults()
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: { ...defaults.base, ...base },
     hover: {
       ...defaults.hover,
@@ -514,16 +539,13 @@ function migrateLegacyConfig(value: unknown): MapEffectConfig {
     },
     quality: { ...defaults.quality },
     bars: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
-  }
+  })
 }
 
-export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
-  const root = isRecord(value) ? value : {}
-  if (root.version !== 5) return cloneDefaults()
+function buildCurrentMapEffectConfig(root: UnknownRecord): MapEffectConfig {
   const base = isRecord(root.base) ? root.base : {}
   const hover = isRecord(root.hover) ? root.hover : {}
-  return {
-    version: 5,
+  return finalizeCurrentMapEffectConfig({
     base: {
       ...normalizeBase(base, V4_BASE_DEFAULTS),
       inwardGlow: normalizeInwardGlowConfig(base.inwardGlow, BASE_INWARD_GLOW_DEFAULTS)
@@ -535,7 +557,20 @@ export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
     },
     quality: normalizeQuality(root.quality),
     bars: normalizeDistrictBarConfig(root.bars)
-  }
+  })
+}
+
+function migrateV5Config(value: unknown): MapEffectConfig {
+  const root = isRecord(value) ? value : {}
+  return root.version === 5 ? buildCurrentMapEffectConfig(root) : cloneDefaults()
+}
+
+export function normalizeMapEffectConfig(value: unknown): MapEffectConfig {
+  const root = isRecord(value) ? value : {}
+  if (root.version === 5) return migrateV5Config(root)
+  return root.version === CURRENT_MAP_EFFECT_VERSION
+    ? buildCurrentMapEffectConfig(root)
+    : cloneDefaults()
 }
 
 function parseJson(raw: string): unknown {
@@ -550,8 +585,11 @@ function resetBarsOnLoad(config: MapEffectConfig): MapEffectConfig {
 export function loadMapEffectConfig(storage?: StorageReader | null): MapEffectConfig {
   if (!storage) return cloneDefaults()
   try {
-    const rawV5 = storage.getItem(MAP_EFFECT_STORAGE_KEY)
-    if (rawV5 !== null) return resetBarsOnLoad(normalizeMapEffectConfig(parseJson(rawV5)))
+    const rawV6 = storage.getItem(MAP_EFFECT_STORAGE_KEY)
+    if (rawV6 !== null) return resetBarsOnLoad(normalizeMapEffectConfig(parseJson(rawV6)))
+
+    const rawLegacyV5 = storage.getItem(MAP_EFFECT_STORAGE_KEY_V5)
+    if (rawLegacyV5 !== null) return resetBarsOnLoad(normalizeMapEffectConfig(parseJson(rawLegacyV5)))
 
     const rawV4 = storage.getItem(MAP_EFFECT_STORAGE_KEY_V4)
     if (rawV4 !== null) return resetBarsOnLoad(migrateV4Config(parseJson(rawV4)))

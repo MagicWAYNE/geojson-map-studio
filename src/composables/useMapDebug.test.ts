@@ -251,11 +251,20 @@ describe('useMapDebug effects', () => {
     const baseInward = base.inwardGlow
     const hoverInward = hover.inwardGlow
     const mosaicParticles = hover.mosaicParticles
+    const bars = effect.bars
+    const overlay = bars.overlay
+    const badge = overlay.badge
+    const panel = overlay.panel
+    const collision = overlay.collision
 
     effect.base.outerGlowWidth = 22
     effect.base.inwardGlow.width = 140
     effect.hover.mosaicParticles.density = 0.9
     effect.quality.maxAlpha = 0.25
+    effect.bars.width = 7.5
+    effect.bars.overlay.badge.minWidth = 170
+    effect.bars.overlay.panel.width = 500
+    effect.bars.overlay.collision.badgeMaxShift = 180
     debug.resetEffect()
     await nextTick()
 
@@ -267,6 +276,11 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.base.inwardGlow).toBe(baseInward)
     expect(debug.effect.hover.inwardGlow).toBe(hoverInward)
     expect(debug.effect.hover.mosaicParticles).toBe(mosaicParticles)
+    expect(debug.effect.bars).toBe(bars)
+    expect(debug.effect.bars.overlay).toBe(overlay)
+    expect(debug.effect.bars.overlay.badge).toBe(badge)
+    expect(debug.effect.bars.overlay.panel).toBe(panel)
+    expect(debug.effect.bars.overlay.collision).toBe(collision)
     expect(setItem).not.toHaveBeenCalledWith(MAP_EFFECT_STORAGE_KEY, expect.any(String))
   })
 

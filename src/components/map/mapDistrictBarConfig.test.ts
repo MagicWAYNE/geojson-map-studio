@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAP_DISTRICT_BAR_DEFAULTS,
+  cloneDistrictBarConfig,
   normalizeDistrictBarConfig
 } from './mapDistrictBarConfig'
+import { MAP_DISTRICT_BAR_OVERLAY_DEFAULTS } from './mapDistrictBarOverlayConfig'
 
 describe('mapDistrictBarConfig', () => {
   it('exports the exact defaults', () => {
@@ -16,7 +18,8 @@ describe('mapDistrictBarConfig', () => {
       pulseOuterOpacity: 0.08, pulseInnerOpacity: 0.7,
       pulseDurationMs: 1800, pulseStaggerMs: 120,
       enterMs: 760, staggerMs: 90,
-      hoverEmissiveIntensity: 0.8, hoverLift: 1.1
+      hoverEmissiveIntensity: 0.8, hoverLift: 1.1,
+      overlay: MAP_DISTRICT_BAR_OVERLAY_DEFAULTS
     })
   })
 
@@ -45,6 +48,30 @@ describe('mapDistrictBarConfig', () => {
       pulseWidth: 0.5, pulseOuterRadiusRatio: 5, pulseInnerRadiusRatio: 0.05,
       pulseOuterOpacity: 0, pulseInnerOpacity: 1, pulseDurationMs: 200, pulseStaggerMs: 1000,
       hoverEmissiveIntensity: 3, hoverLift: 0
+    })
+  })
+
+  it('clones and normalizes the nested DOM overlay deeply', () => {
+    const cloned = cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS)
+    const normalized = normalizeDistrictBarConfig({
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      overlay: {
+        ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS,
+        badge: { ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS.badge, minWidth: 999 },
+        panel: { ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS.panel, width: 1 },
+        collision: { ...MAP_DISTRICT_BAR_OVERLAY_DEFAULTS.collision, badgeMaxShift: 999 }
+      }
+    })
+
+    expect(cloned.overlay).toEqual(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS)
+    expect(cloned.overlay).not.toBe(MAP_DISTRICT_BAR_DEFAULTS.overlay)
+    expect(cloned.overlay.badge).not.toBe(MAP_DISTRICT_BAR_DEFAULTS.overlay.badge)
+    expect(cloned.overlay.panel).not.toBe(MAP_DISTRICT_BAR_DEFAULTS.overlay.panel)
+    expect(cloned.overlay.collision).not.toBe(MAP_DISTRICT_BAR_DEFAULTS.overlay.collision)
+    expect(normalized.overlay).toMatchObject({
+      badge: { minWidth: 180 },
+      panel: { width: 240 },
+      collision: { badgeMaxShift: 200 }
     })
   })
 })

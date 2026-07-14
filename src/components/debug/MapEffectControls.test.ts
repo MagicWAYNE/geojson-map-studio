@@ -20,7 +20,9 @@ const EFFECT_STORAGE_KEYS = new Set([
   'cq-map-effect-config-v1',
   'cq-map-effect-config-v2',
   'cq-map-effect-config-v3',
-  'cq-map-effect-config-v4'
+  'cq-map-effect-config-v4',
+  'cq-map-effect-config-v5',
+  'cq-map-effect-config-v6'
 ])
 
 function expectNoEffectStorageWrites(setItem: ReturnType<typeof vi.fn>): void {
@@ -222,7 +224,7 @@ describe('MapEffectControls', () => {
     copyButton(root).click()
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     const draftCopy = JSON.parse(writeText.mock.calls[0][0]) as MapEffectConfig
-    expect(draftCopy.version).toBe(5)
+    expect(draftCopy.version).toBe(6)
     expect(draftCopy.base.outerGlowWidth).toBe(151)
     expect(draftCopy.base.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.base.inwardGlow)
     expect(draftCopy.hover.inwardGlow).toEqual(MAP_EFFECT_DEFAULTS.hover.inwardGlow)
@@ -745,7 +747,7 @@ describe('MapEffectControls', () => {
 
     button(root, '恢复全部默认值').click()
     await nextTick()
-    expect(effect.version).toBe(5)
+    expect(effect.version).toBe(6)
     expect(effect).toEqual(MAP_EFFECT_DEFAULTS)
     app.unmount()
   })

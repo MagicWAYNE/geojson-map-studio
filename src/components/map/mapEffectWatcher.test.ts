@@ -29,7 +29,7 @@ describe('watchMapEffectConfig', () => {
     expect(apply).toHaveBeenCalledTimes(2)
   })
 
-  it('tracks full v5 quality, advanced glow, stable inward, mosaic, and bar fields', async () => {
+  it('tracks full v6 quality, advanced glow, stable inward, mosaic, and bar fields', async () => {
     const effect = reactive(createEffectConfig())
     const snapshots: MapEffectConfig[] = []
     const apply = vi.fn(() => snapshots.push(JSON.parse(JSON.stringify(effect))))
@@ -44,13 +44,14 @@ describe('watchMapEffectConfig', () => {
     effect.hover.glowFalloff = 2.25
     effect.hover.inwardGlow.width = 96
     effect.bars.hoverLift = 2.5
+    effect.bars.overlay.badge.minWidth = 104
     effect.hover.mosaicParticles.density = 0.28
     effect.hover.mosaicParticles.flickerHz = 4.8
     await nextTick()
 
     expect(apply).toHaveBeenCalledTimes(2)
     expect(snapshots.at(-1)).toMatchObject({
-      version: 5,
+      version: 6,
       quality: { renderScale: 0.75, maxAlpha: 0.65 },
       base: {
         outerGlowFarPasses: 7,
@@ -63,7 +64,10 @@ describe('watchMapEffectConfig', () => {
         inwardGlow: { width: 96 },
         mosaicParticles: { density: 0.28, flickerHz: 4.8 }
       },
-      bars: { hoverLift: 2.5 }
+      bars: {
+        hoverLift: 2.5,
+        overlay: { badge: { minWidth: 104 } }
+      }
     })
     stop()
   })

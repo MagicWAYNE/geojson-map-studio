@@ -29,10 +29,25 @@ export interface DistrictBarLayer {
   range: DistrictBarRange | null
 }
 
+export interface DistrictBarTopSnapshot {
+  readonly name: string
+  readonly caseCount: number
+  readonly amount: number
+  readonly order: number
+  readonly visible: boolean
+  readonly hoverProgress: number
+  readonly worldPosition: readonly [number, number, number]
+}
+
+interface LayerDatum {
+  aj: number
+  ztje: number
+}
+
 interface LayerState {
   depth: number
   elapsedMs: number
-  values: Map<string, number>
+  dataByName: Map<string, LayerDatum>
 }
 
 const layerStates = new WeakMap<DistrictBarLayer, LayerState>()
@@ -89,6 +104,15 @@ function createPulseRingGeometry(width: number): THREE.RingGeometry {
 
 function visualVisible(config: Readonly<MapDistrictBarConfig>, progress: number): boolean {
   return config.enabled && config.width > 0 && progress > 0
+}
+
+function sceneGraphVisible(object: THREE.Object3D): boolean {
+  let current: THREE.Object3D | null = object
+  while (current) {
+    if (!current.visible) return false
+    current = current.parent
+  }
+  return true
 }
 
 function updateVisual(
@@ -167,7 +191,7 @@ export function createDistrictBarLayer(
 ): DistrictBarLayer {
   const group = new THREE.Group()
   const layer: DistrictBarLayer = { group, byName: new Map(), range: null }
-  const state: LayerState = { depth, elapsedMs: 0, values: new Map() }
+  const state: LayerState = { depth, elapsedMs: 0, dataByName: new Map() }
   layerStates.set(layer, state)
 
   const validItems: [Region, DistrictMapItem][] = []
@@ -254,7 +278,7 @@ export function createDistrictBarLayer(
         surfaceLift: 0
       }
       layer.byName.set(region.name, visual)
-      state.values.set(region.name, item.aj)
+      state.dataByName.set(region.name, { aj: item.aj, ztje: item.ztje })
       group.add(column, ring, pulseRing)
     } catch (cause) {
       disposePartialVisual(
@@ -281,10 +305,10 @@ export function applyDistrictBarConfig(
   if (!state) return
   layer.group.visible = config.enabled
   for (const visual of layer.byName.values()) {
-    const value = state.values.get(visual.name)
-    if (value !== undefined && layer.range) {
+    const datum = state.dataByName.get(visual.name)
+    if (datum && layer.range) {
       visual.baseHeight = mapDistrictBarHeight(
-        value,
+        datum.aj,
         config.minHeight,
         config.maxHeight,
         config.sqrtExponent,
@@ -316,6 +340,30 @@ export function setDistrictBarHoverProgress(
   if (!visual) return
   visual.hoverProgress = clampProgress(progress)
   visual.surfaceLift = Number.isFinite(surfaceLift) ? Math.max(0, surfaceLift) : 0
+}
+
+export function getDistrictBarTopSnapshots(layer: DistrictBarLayer): DistrictBarTopSnapshot[] {
+  if (disposedLayers.has(layer)) return []
+  const state = layerStates.get(layer)
+  if (!state) return []
+  layer.group.updateWorldMatrix(true, true)
+
+  return [...layer.byName.values()]
+    .sort((left, right) => left.order - right.order)
+    .flatMap((visual) => {
+      const datum = state.dataByName.get(visual.name)
+      if (!datum) return []
+      const worldTop = new THREE.Vector3(0, 0.5, 0).applyMatrix4(visual.column.matrixWorld)
+      return [{
+        name: visual.name,
+        caseCount: datum.aj,
+        amount: datum.ztje,
+        order: visual.order,
+        visible: sceneGraphVisible(visual.column),
+        hoverProgress: clampProgress(visual.hoverProgress),
+        worldPosition: [worldTop.x, worldTop.y, worldTop.z] as const
+      }]
+    })
 }
 
 export function disposeDistrictBarLayer(layer: DistrictBarLayer): void {

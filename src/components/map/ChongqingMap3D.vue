@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
@@ -25,10 +25,17 @@ import {
   applyDistrictBarConfig,
   createDistrictBarLayer,
   disposeDistrictBarLayer,
+  getDistrictBarTopSnapshots,
   setDistrictBarHoverProgress,
   updateDistrictBarLayer,
   type DistrictBarLayer
 } from './mapDistrictBarLayer'
+import MapDistrictBarOverlay from './MapDistrictBarOverlay.vue'
+import {
+  calculateDistrictBarOverlayLayout,
+  type DistrictBarOverlayLayout,
+  type DistrictBarOverlayMeasuredSizes
+} from './mapDistrictBarOverlayLayout'
 import {
   createMapOutwardGlowPipeline,
   type MapOutwardGlowPipeline
@@ -70,7 +77,8 @@ const DEPTH = 4 // 挤出厚度
 const container = ref<HTMLElement | null>(null)
 const error = ref('')
 const fps = ref(0)
-const tip = reactive({ show: false, x: 0, y: 0, name: '', aj: 0, ztje: 0, zzs: 0 })
+const EMPTY_LAYOUT: DistrictBarOverlayLayout = { badges: [], panel: null }
+const districtBarOverlayLayout = shallowRef<DistrictBarOverlayLayout>(EMPTY_LAYOUT)
 
 const router = useRouter()
 const {
@@ -98,6 +106,7 @@ let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
 let districtBars: DistrictBarLayer | null = null
 let barAnimationStartedAt = 0
+let districtBarOverlaySizes: DistrictBarOverlayMeasuredSizes | undefined
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 const disposedGlowPipelines = new WeakSet<MapOutwardGlowPipeline>()
@@ -118,6 +127,16 @@ const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
 let glowStatusPublicationPending = false
 let districtBarFailureWarned = false
+let districtBarOverlayFailureWarned = false
+
+function clearDistrictBarOverlay(): void {
+  districtBarOverlayLayout.value = EMPTY_LAYOUT
+  districtBarOverlaySizes = undefined
+}
+
+function handleDistrictBarOverlaySizesChange(sizes: DistrictBarOverlayMeasuredSizes): void {
+  districtBarOverlaySizes = sizes
+}
 
 function currentMosaicState(): 'disabled' | 'ready' | 'active' | 'degraded' {
   if (!effect.hover.mosaicParticles.enabled) return 'disabled'
@@ -358,6 +377,7 @@ function publishDistrictBarRuntimeStatus(layer: DistrictBarLayer, degraded = fal
 }
 
 function handleDistrictBarFailure(cause: unknown, phase: '初始化' | '更新'): void {
+  clearDistrictBarOverlay()
   const layer = districtBars
   districtBars = null
   if (layer) {
@@ -371,6 +391,34 @@ function handleDistrictBarFailure(cause: unknown, phase: '初始化' | '更新')
   if (districtBarFailureWarned) return
   districtBarFailureWarned = true
   console.warn(`区县柱体${phase}失败，保留地图底图`, cause)
+}
+
+function updateDistrictBarOverlay(layer: DistrictBarLayer): void {
+  const el = container.value
+  const currentCamera = camera
+  if (!el || !currentCamera) {
+    clearDistrictBarOverlay()
+    return
+  }
+  try {
+    const snapshots = getDistrictBarTopSnapshots(layer)
+    districtBarOverlayLayout.value = calculateDistrictBarOverlayLayout({
+      snapshots,
+      camera: currentCamera,
+      viewport: {
+        clientWidth: el.clientWidth,
+        clientHeight: el.clientHeight
+      },
+      hoveredName: hoveredVisual?.mesh.userData.name ?? null,
+      config: effect.bars.overlay,
+      sizes: districtBarOverlaySizes
+    })
+  } catch (cause) {
+    clearDistrictBarOverlay()
+    if (districtBarOverlayFailureWarned) return
+    districtBarOverlayFailureWarned = true
+    console.warn('区县柱体 DOM overlay 更新失败，已清空并将在下一帧重试', cause)
+  }
 }
 
 function buildRegions(
@@ -649,26 +697,7 @@ function pick(e: PointerEvent): THREE.Mesh | null {
 }
 
 function onPointerMove(e: PointerEvent) {
-  const el = container.value
-  if (!el) return
-  const mesh = pick(e)
-  setHover(mesh)
-  if (mesh?.userData.item) {
-    const rect = el.getBoundingClientRect()
-    // tooltip 用布局坐标（除以 ScaleScreen 缩放），跟随鼠标且不越出右缘
-    const lx = ((e.clientX - rect.left) / rect.width) * el.clientWidth
-    const ly = ((e.clientY - rect.top) / rect.height) * el.clientHeight
-    const item = mesh.userData.item as DistrictMapItem
-    tip.show = true
-    tip.x = lx + 180 > el.clientWidth ? lx - 190 : lx + 16
-    tip.y = Math.max(ly - 40, 4)
-    tip.name = item.name
-    tip.aj = item.aj
-    tip.ztje = item.ztje
-    tip.zzs = item.zzs
-  } else {
-    tip.show = false
-  }
+  setHover(pick(e))
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -686,7 +715,6 @@ function onClick(e: PointerEvent) {
 
 function onPointerLeave() {
   setHover(null)
-  tip.show = false
 }
 
 // —— 渲染循环 + FPS ——
@@ -709,6 +737,7 @@ function loop(now: number) {
   if (bars) {
     try {
       updateDistrictBarLayer(bars, effect.bars, now - barAnimationStartedAt)
+      updateDistrictBarOverlay(bars)
     } catch (cause) {
       handleDistrictBarFailure(cause, '更新')
     }
@@ -843,6 +872,7 @@ async function init(generation: number) {
     raf = requestAnimationFrame(loop)
     loadMapHud(generation)
   } catch (e) {
+    clearDistrictBarOverlay()
     if (isCurrentInit(generation)) error.value = e instanceof Error ? e.message : String(e)
   } finally {
     if (!textureOwnedByScene) cleanupPendingTexture()
@@ -853,6 +883,7 @@ async function init(generation: number) {
 onMounted(() => {
   mounted = true
   districtBarFailureWarned = false
+  districtBarOverlayFailureWarned = false
   updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
   updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
   const generation = ++initGeneration
@@ -889,6 +920,8 @@ function disposeSceneResources(root: THREE.Object3D): void {
 function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   cancelAnimationFrame(raf)
   raf = 0
+  clearDistrictBarOverlay()
+  districtBarOverlayFailureWarned = false
   ro?.disconnect()
   ro = null
   window.removeEventListener('resize', handleWindowResize)
@@ -941,12 +974,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="container" class="cq-map3d">
-    <div v-show="tip.show" class="tip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
-      <b class="tip-name">{{ tip.name }}</b>
-      <div>案件量：<span class="v cyan">{{ tip.aj.toLocaleString() }}</span> 件</div>
-      <div>在调金额：<span class="v gold">{{ tip.ztje.toLocaleString() }}</span> 万元</div>
-      <div>调解组织：<span class="v green">{{ tip.zzs }}</span> 家</div>
-    </div>
+    <MapDistrictBarOverlay
+      :layout="districtBarOverlayLayout"
+      :config="effect.bars.overlay"
+      @sizes-change="handleDistrictBarOverlaySizesChange"
+    />
     <div class="hud">{{ fps }} FPS</div>
     <div v-if="error" class="err">{{ error }}</div>
   </div>
@@ -956,25 +988,13 @@ onBeforeUnmount(() => {
 .cq-map3d { position: relative; }
 .cq-map3d :deep(.gl) { width: 100%; height: 100%; display: block; }
 
-.tip {
-  position: absolute; z-index: 5; pointer-events: none; white-space: nowrap;
-  padding: 10px 14px; border: 1px solid #2483ff; border-radius: 4px;
-  background: rgba(6, 18, 40, 0.92);
-  color: #fff; font-size: 13px; font-family: 'OPPOSans-R'; line-height: 1.7;
-}
-.tip-name { font-size: 15px; }
-.v { font-family: 'Bebas'; font-size: 14px; }
-.cyan { color: #00deff; }
-.gold { color: #edd892; }
-.green { color: #44ffa2; }
-
 .hud {
   position: absolute; left: 6px; bottom: 4px; z-index: 5; pointer-events: none;
   font-size: 11px; color: rgba(127, 168, 217, 0.75); font-family: monospace;
 }
 
 .err {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
   color: #ff7d57; font-size: 16px; font-family: 'OPPOSans-R';
   background: rgba(6, 18, 40, 0.6);
 }
