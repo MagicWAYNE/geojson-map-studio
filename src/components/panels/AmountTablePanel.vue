@@ -8,7 +8,7 @@ import { getJeFenbuList } from '@/api'
 const columns: ScrollColumn[] = [
   { key: 'city', title: '省份', width: '21%' },
   { key: 'aj', title: '案件（件）', width: '21%', align: 'center', numeric: true },
-  { key: 'ztje', title: '在调金额（万元）', width: '28%', align: 'right', color: '#edd892', numeric: true }
+  { key: 'ztje', title: '在调金额（万元）', width: '38%', align: 'right', color: '#edd892', numeric: true }
 ]
 
 const rows = ref<Record<string, unknown>[]>([])
