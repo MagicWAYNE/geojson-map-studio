@@ -27,6 +27,7 @@ import {
   createDistrictBarLayer,
   disposeDistrictBarLayer,
   getDistrictBarTopSnapshots,
+  setDistrictBarFocus,
   setDistrictBarHoverProgress,
   updateDistrictBarLayer,
   type DistrictBarLayer
@@ -667,6 +668,7 @@ let downY = 0
 
 function setEffectiveHover(name: string | null): void {
   const next = name ? visualByName.get(name) ?? null : null
+  if (districtBars) setDistrictBarFocus(districtBars, next?.name ?? null)
   if (next === hoveredVisual) return
   if (hoveredVisual) hoveredVisual.active = false
   hoveredVisual = next

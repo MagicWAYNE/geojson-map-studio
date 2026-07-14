@@ -48,6 +48,7 @@ interface LayerState {
   depth: number
   elapsedMs: number
   dataByName: Map<string, LayerDatum>
+  focusedName: string | null
 }
 
 const layerStates = new WeakMap<DistrictBarLayer, LayerState>()
@@ -134,13 +135,13 @@ function updateVisual(
     pulse
   )
   const pulseOpacity = THREE.MathUtils.lerp(config.pulseOuterOpacity, config.pulseInnerOpacity, pulse) * progress
+  const inactiveOpacity = state.focusedName !== null && visual.name !== state.focusedName
+    ? config.hoverInactiveOpacity
+    : 1
 
   if (applyAppearance) {
     visual.column.material.color.set(config.color)
     visual.column.material.emissive.set(config.color)
-    visual.column.material.opacity = 1
-    visual.column.material.transparent = false
-    visual.column.material.depthWrite = true
     visual.ring.material.color.set(config.color)
     visual.pulseRing.material.color.set(config.pulseColor)
     if (visual.pulseWidth !== config.pulseWidth) {
@@ -165,8 +166,15 @@ function updateVisual(
     config.hoverEmissiveIntensity,
     hover
   )
-  visual.ring.material.opacity = config.baseRingOpacity * progress
-  visual.pulseRing.material.opacity = pulseOpacity
+  const transparent = inactiveOpacity < 1
+  if (visual.column.material.transparent !== transparent) {
+    visual.column.material.transparent = transparent
+    visual.column.material.needsUpdate = true
+  }
+  visual.column.material.opacity = inactiveOpacity
+  visual.column.material.depthWrite = !transparent
+  visual.ring.material.opacity = config.baseRingOpacity * progress * inactiveOpacity
+  visual.pulseRing.material.opacity = pulseOpacity * inactiveOpacity
   visual.column.visible = visualVisible(config, progress)
   visual.ring.visible = config.enabled && config.baseRingRadius > 0 && visual.ring.material.opacity > 0
   visual.pulseRing.visible = config.enabled && config.pulseEnabled && config.baseRingRadius > 0 && pulseOpacity > 0
@@ -191,7 +199,7 @@ export function createDistrictBarLayer(
 ): DistrictBarLayer {
   const group = new THREE.Group()
   const layer: DistrictBarLayer = { group, byName: new Map(), range: null }
-  const state: LayerState = { depth, elapsedMs: 0, dataByName: new Map() }
+  const state: LayerState = { depth, elapsedMs: 0, dataByName: new Map(), focusedName: null }
   layerStates.set(layer, state)
 
   const validItems: [Region, DistrictMapItem][] = []
@@ -340,6 +348,12 @@ export function setDistrictBarHoverProgress(
   if (!visual) return
   visual.hoverProgress = clampProgress(progress)
   visual.surfaceLift = Number.isFinite(surfaceLift) ? Math.max(0, surfaceLift) : 0
+}
+
+export function setDistrictBarFocus(layer: DistrictBarLayer, name: string | null): void {
+  const state = layerStates.get(layer)
+  if (!state) return
+  state.focusedName = name !== null && layer.byName.has(name) ? name : null
 }
 
 export function getDistrictBarTopSnapshots(layer: DistrictBarLayer): DistrictBarTopSnapshot[] {

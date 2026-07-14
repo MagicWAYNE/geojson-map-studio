@@ -188,6 +188,7 @@ function badgeStyle(badge: DistrictBarBadgeOverlayLayout): StyleWithVariables {
     '--district-bar-badge-font-size': pixels(config.fontSize),
     '--district-bar-badge-font-weight': String(config.fontWeight),
     '--district-bar-badge-shadow': `0 0 ${pixels(config.shadowBlur)} ${rgba(config.shadowColor, config.shadowOpacity)}`,
+    '--district-bar-badge-target-opacity': String(badge.dimmed ? config.hoverInactiveOpacity : 1),
     '--district-bar-badge-enter-ms': milliseconds(config.enterMs),
     '--district-bar-badge-delay': milliseconds(
       enteredBadgeNames.has(badge.name)
@@ -357,7 +358,7 @@ function panelStyle(): StyleWithVariables {
 }
 
 .district-bar-badge.is-visible {
-  opacity: 1;
+  opacity: var(--district-bar-badge-target-opacity);
   visibility: visible;
   transform: none;
   transition:
@@ -381,7 +382,7 @@ function panelStyle(): StyleWithVariables {
   }
 
   to {
-    opacity: 1;
+    opacity: var(--district-bar-badge-target-opacity);
     transform: none;
   }
 }

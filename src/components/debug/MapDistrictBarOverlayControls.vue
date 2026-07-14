@@ -99,7 +99,8 @@ export const MAP_DISTRICT_BAR_OVERLAY_CONTROL_GROUPS: readonly MapDistrictBarOve
       numberControl(['badge', 'fontWeight'], '字重'),
       { kind: 'color', path: ['badge', 'shadowColor'], label: '辉光颜色' },
       numberControl(['badge', 'shadowBlur'], '辉光模糊 px'),
-      numberControl(['badge', 'shadowOpacity'], '辉光透明度')
+      numberControl(['badge', 'shadowOpacity'], '辉光透明度'),
+      numberControl(['badge', 'hoverInactiveOpacity'], 'Hover 时其他标签透明度')
     ]
   },
   {

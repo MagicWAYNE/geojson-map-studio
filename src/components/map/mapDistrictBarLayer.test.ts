@@ -10,6 +10,7 @@ import {
   getDistrictBarTopSnapshots,
   mapDistrictBarHeight,
   setDistrictBarHoverProgress,
+  setDistrictBarFocus,
   updateDistrictBarLayer
 } from './mapDistrictBarLayer'
 
@@ -341,6 +342,43 @@ describe('mapDistrictBarLayer', () => {
     expect(a.column.material.emissiveIntensity).toBe(config.hoverEmissiveIntensity)
     expect(b.column.position.z).toBe(bZ)
     expect(b.column.material.emissiveIntensity).toBe(bIntensity)
+  })
+
+  it('hover 激活时仅降低其他区块柱体与光环的整体透明度，并支持实时调节与恢复', () => {
+    const config = {
+      ...MAP_DISTRICT_BAR_DEFAULTS,
+      enterMs: 0,
+      staggerMs: 0,
+      pulseStaggerMs: 0
+    }
+    const layer = createDistrictBarLayer(regions, items([['A', 100], ['B', 25]]), config, 4)
+    updateDistrictBarLayer(layer, config, 0)
+    const a = layer.byName.get('A')!
+    const b = layer.byName.get('B')!
+
+    setDistrictBarFocus(layer, 'A')
+    updateDistrictBarLayer(layer, config, 0)
+
+    expect(a.column.material.opacity).toBe(1)
+    expect(a.column.material.transparent).toBe(false)
+    expect(a.ring.material.opacity).toBeCloseTo(config.baseRingOpacity)
+    expect(b.column.material.opacity).toBe(0.5)
+    expect(b.column.material.transparent).toBe(true)
+    expect(b.column.material.depthWrite).toBe(false)
+    expect(b.ring.material.opacity).toBeCloseTo(config.baseRingOpacity * 0.5)
+    expect(b.pulseRing.material.opacity).toBeCloseTo(config.pulseOuterOpacity * 0.5)
+
+    const tuned = { ...config, hoverInactiveOpacity: 0.25 }
+    applyDistrictBarConfig(layer, tuned)
+    expect(b.column.material.opacity).toBe(0.25)
+    expect(b.ring.material.opacity).toBeCloseTo(config.baseRingOpacity * 0.25)
+
+    setDistrictBarFocus(layer, null)
+    updateDistrictBarLayer(layer, tuned, 0)
+    expect(b.column.material.opacity).toBe(1)
+    expect(b.column.material.transparent).toBe(false)
+    expect(b.column.material.depthWrite).toBe(true)
+    expect(b.ring.material.opacity).toBeCloseTo(config.baseRingOpacity)
   })
 
   it('保留稳定底环，并让窄脉冲环由外向内收缩且逐步增强', () => {

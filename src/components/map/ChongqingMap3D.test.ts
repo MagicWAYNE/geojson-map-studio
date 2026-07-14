@@ -47,6 +47,7 @@ const districtBarMocks = vi.hoisted(() => ({
   applyConfig: vi.fn(),
   update: vi.fn(),
   getSnapshots: vi.fn(),
+  setFocus: vi.fn(),
   setHoverProgress: vi.fn(),
   dispose: vi.fn(),
   layer: null as {
@@ -110,6 +111,7 @@ vi.mock('./mapDistrictBarLayer', () => ({
   applyDistrictBarConfig: districtBarMocks.applyConfig,
   updateDistrictBarLayer: districtBarMocks.update,
   getDistrictBarTopSnapshots: districtBarMocks.getSnapshots,
+  setDistrictBarFocus: districtBarMocks.setFocus,
   setDistrictBarHoverProgress: districtBarMocks.setHoverProgress,
   disposeDistrictBarLayer: districtBarMocks.dispose
 }))
@@ -1403,10 +1405,12 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
 
     mounted.runFrame(0)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区0')
     mounted.runFrame(4_999)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
     mounted.runFrame(5_000)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
 
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
       .mockReturnValueOnce([])
@@ -1416,11 +1420,13 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
     map.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
     mounted.runFrame(5_100)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, null)
 
     currentNow = 5_200
     map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
     mounted.runFrame(5_200)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区2')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区2')
 
     currentNow = 6_000
     map.dispatchEvent(new PointerEvent('pointerleave'))

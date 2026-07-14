@@ -51,6 +51,7 @@ export interface DistrictBarBadgeOverlayLayout {
   anchor: DistrictBarOverlayPoint | null
   rect: DistrictBarOverlayRect | null
   visible: boolean
+  dimmed: boolean
   text: string
   collisionShift: number
   collisionFree: boolean
@@ -207,6 +208,7 @@ export function calculateDistrictBarOverlayLayout(
       visible: snapshot.visible && input.config.enabled && input.config.badge.enabled &&
         projection.status === 'visible' &&
         !(input.config.badge.hideOnHover && snapshot.name === input.hoveredName),
+      dimmed: input.hoveredName !== null && snapshot.name !== input.hoveredName,
       text: formatNumber(
         snapshot.caseCount,
         input.config.badge.decimals,

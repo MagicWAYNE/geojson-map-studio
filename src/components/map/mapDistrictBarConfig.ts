@@ -32,6 +32,7 @@ export interface MapDistrictBarConfig {
   staggerMs: number
   hoverEmissiveIntensity: number
   hoverLift: number
+  hoverInactiveOpacity: number
   overlay: MapDistrictBarOverlayConfig
 }
 
@@ -62,6 +63,7 @@ export const MAP_DISTRICT_BAR_DEFAULTS: Readonly<MapDistrictBarConfig> = Object.
   staggerMs: 90,
   hoverEmissiveIntensity: 0.8,
   hoverLift: 1.1,
+  hoverInactiveOpacity: 0.5,
   overlay: MAP_DISTRICT_BAR_OVERLAY_DEFAULTS
 })
 
@@ -139,6 +141,12 @@ export function normalizeDistrictBarConfig(value: unknown): MapDistrictBarConfig
       3
     ),
     hoverLift: finiteNumber(bars.hoverLift, MAP_DISTRICT_BAR_DEFAULTS.hoverLift, 0, 4),
+    hoverInactiveOpacity: finiteNumber(
+      bars.hoverInactiveOpacity,
+      MAP_DISTRICT_BAR_DEFAULTS.hoverInactiveOpacity,
+      0,
+      1
+    ),
     overlay: normalizeDistrictBarOverlayConfig(bars.overlay)
   }
 }
