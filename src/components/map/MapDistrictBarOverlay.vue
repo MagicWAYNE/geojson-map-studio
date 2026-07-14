@@ -404,25 +404,29 @@ function panelStyle(): StyleWithVariables {
 
 .district-bar-panel-title-image {
   position: absolute;
-  left: var(--district-bar-panel-title-x);
+  left: calc(50% + var(--district-bar-panel-title-x));
   top: var(--district-bar-panel-title-y);
   width: var(--district-bar-panel-title-width);
   height: var(--district-bar-panel-title-height);
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .district-bar-panel-title-text {
   position: absolute;
-  left: calc(var(--district-bar-panel-title-x) + var(--district-bar-panel-title-text-x));
+  left: calc(50% + var(--district-bar-panel-title-x) + var(--district-bar-panel-title-text-x));
   top: calc(var(--district-bar-panel-title-y) + var(--district-bar-panel-title-text-y));
   display: flex;
   align-items: center;
+  justify-content: center;
   width: var(--district-bar-panel-title-width);
   height: var(--district-bar-panel-title-height);
   color: var(--district-bar-panel-title-color);
   font-size: var(--district-bar-panel-title-font-size);
   font-weight: var(--district-bar-panel-title-font-weight);
+  text-align: center;
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .district-bar-panel-row {

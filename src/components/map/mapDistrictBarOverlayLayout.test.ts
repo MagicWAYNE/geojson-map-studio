@@ -233,7 +233,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
     }).panel
     expect(overflow).toMatchObject({
       side: 'right',
-      rect: { left: 30, top: 34, width: 256, height: 104 },
+      rect: { left: 10, top: 34, width: 256, height: 104 },
       viewportOverflow: true
     })
 

@@ -265,8 +265,14 @@ export function calculateDistrictBarOverlayLayout(
       height: panelConfig.minHeight
     })
     const anchor = hovered.projection.anchor
-    const visualLeft = Math.min(0, panelConfig.titleOffsetX)
-    const visualRight = Math.max(size.width, panelConfig.titleOffsetX + panelConfig.titleAssetWidth)
+    const titleAssetLeft = size.width / 2 + panelConfig.titleOffsetX - panelConfig.titleAssetWidth / 2
+    const titleTextLeft = titleAssetLeft + panelConfig.titleTextOffsetX
+    const visualLeft = Math.min(0, titleAssetLeft, titleTextLeft)
+    const visualRight = Math.max(
+      size.width,
+      titleAssetLeft + panelConfig.titleAssetWidth,
+      titleTextLeft + panelConfig.titleAssetWidth
+    )
     const visualTop = Math.min(0, panelConfig.titleOffsetY)
     const visualBottom = Math.max(size.height, panelConfig.titleOffsetY + panelConfig.titleAssetHeight)
     const minX = panelConfig.viewportPadding - visualLeft
