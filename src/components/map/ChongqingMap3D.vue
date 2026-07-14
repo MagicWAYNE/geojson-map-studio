@@ -73,6 +73,8 @@ withDefaults(defineProps<{ focus?: string; showLines?: boolean }>(), {
 
 const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比例等比
 const DEPTH = 4 // 挤出厚度
+const INITIAL_CAMERA_POSITION = [-46.6, 155.9, 154.6] as const
+const INITIAL_CAMERA_TARGET = [10.1, -2.4, 9.1] as const
 
 const container = ref<HTMLElement | null>(null)
 const error = ref('')
@@ -558,7 +560,7 @@ function setupScene(mapGroup: THREE.Group) {
     scene.add(rim)
 
     camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
-    camera.position.set(-62.1, 94.9, 108.9)
+    camera.position.set(...INITIAL_CAMERA_POSITION)
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(el.clientWidth, el.clientHeight, false)
@@ -607,7 +609,7 @@ function setupScene(mapGroup: THREE.Group) {
     el.prepend(renderer.domElement)
 
     controls = new OrbitControls(camera, renderer.domElement)
-    controls.target.set(17.2, -3.5, 22.5)
+    controls.target.set(...INITIAL_CAMERA_TARGET)
     controls.enableDamping = true
     controls.dampingFactor = 0.12
     // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角

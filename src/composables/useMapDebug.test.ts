@@ -25,14 +25,16 @@ afterEach(() => {
 })
 
 describe('useMapDebug layout defaults', () => {
-  it('uses the tuned layout when storage is empty and resetLayout restores it', async () => {
+  it('uses the fixed layout defaults and resetLayout restores them without persistence', async () => {
     const values = new Map<string, string>()
+    const getItem = vi.fn((key: string) => values.get(key) ?? null)
+    const setItem = vi.fn((key: string, value: string) => values.set(key, value))
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value)
+      getItem,
+      setItem
     })
     const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
-    const expected = { left: 40, top: 230, width: 1000, height: 680 }
+    const expected = { left: 0, top: 96, width: 1000, height: 1000 }
     const debug = useMapDebug()
 
     expect(MAP_LAYOUT_DEFAULT).toEqual(expected)
@@ -41,16 +43,26 @@ describe('useMapDebug layout defaults', () => {
     debug.layout.width = 720
     debug.resetLayout()
     expect(debug.layout).toEqual(expected)
+    await nextTick()
+    expect(getItem).not.toHaveBeenCalled()
+    expect(setItem).not.toHaveBeenCalled()
   })
 
-  it('keeps a valid saved layout ahead of tuned source defaults', async () => {
+  it('ignores a saved layout so a browser refresh always restores source defaults', async () => {
     const saved = { left: 88, top: 99, width: 777, height: 666 }
+    const getItem = vi.fn((key: string) => key === 'cq-map-debug-layout' ? JSON.stringify(saved) : null)
+    const setItem = vi.fn()
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => key === 'cq-map-debug-layout' ? JSON.stringify(saved) : null,
-      setItem: vi.fn()
+      getItem,
+      setItem
     })
-    const { useMapDebug } = await import('./useMapDebug')
-    expect(useMapDebug().layout).toEqual(saved)
+    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
+    const debug = useMapDebug()
+    expect(debug.layout).toEqual(MAP_LAYOUT_DEFAULT)
+    expect(getItem).not.toHaveBeenCalled()
+    debug.layout.left = 480
+    await nextTick()
+    expect(setItem).not.toHaveBeenCalled()
   })
 })
 
@@ -79,7 +91,7 @@ describe('useMapDebug effects', () => {
     expect(reloadedUseMapDebug().hud).toEqual(MAP_HUD_DEFAULTS)
   })
 
-  it('ignores v1, v2, and v3 effect caches while preserving the layout cache', async () => {
+  it('ignores v1, v2, and v3 effect caches together with an old layout cache', async () => {
     const values = new Map<string, string>()
     const savedLayout = { left: 88, top: 99, width: 777, height: 666 }
     const cachedV3 = cloneMapEffectConfig(MAP_EFFECT_DEFAULTS)
@@ -128,24 +140,21 @@ describe('useMapDebug effects', () => {
       removeItem
     })
 
-    const { useMapDebug } = await import('./useMapDebug')
+    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
     const debug = useMapDebug()
 
     expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
-    expect(debug.layout).toEqual(savedLayout)
+    expect(debug.layout).toEqual(MAP_LAYOUT_DEFAULT)
     for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
       expect(values.has(key)).toBe(true)
     }
-    expect(getItem).toHaveBeenCalledWith('cq-map-debug-layout')
+    expect(getItem).not.toHaveBeenCalledWith('cq-map-debug-layout')
 
     debug.layout.left = 480
     await nextTick()
-    expect(setItem).toHaveBeenCalledWith(
-      'cq-map-debug-layout',
-      JSON.stringify({ ...savedLayout, left: 480 })
-    )
+    expect(setItem).not.toHaveBeenCalled()
   })
 
   it('keeps deep changes only for the current module session and reloads source defaults', async () => {
@@ -175,7 +184,7 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.base.inwardGlow.width).toBe(140)
     expect(debug.effect.hover.mosaicParticles.density).toBe(0.42)
     expect(debug.effect.hover.glowFarOpacityRatio).toBe(0.63)
-    expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
+    expect(writes).toEqual([])
     for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
@@ -227,7 +236,7 @@ describe('useMapDebug effects', () => {
     expect(debug.effect.hover.inwardGlow.maxAlpha).toBe(1)
     expect(debug.effect.hover.mosaicParticles.density).toBe(1)
     await nextTick()
-    expect(writes.filter(([key]) => key !== 'cq-map-debug-layout')).toEqual([])
+    expect(writes).toEqual([])
     for (const key of [MAP_EFFECT_STORAGE_KEY_V1, MAP_EFFECT_STORAGE_KEY_V2, MAP_EFFECT_STORAGE_KEY_V3, MAP_EFFECT_STORAGE_KEY]) {
       expect(getItem).not.toHaveBeenCalledWith(key)
       expect(removeItem).not.toHaveBeenCalledWith(key)
