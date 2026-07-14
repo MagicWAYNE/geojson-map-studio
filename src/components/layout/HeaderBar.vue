@@ -4,9 +4,11 @@ import headerImg from '@/assets/images/header-bar.png'
 import fsIn from '@/assets/images/fullscreen-in.png'
 import fsOut from '@/assets/images/fullscreen-out.png'
 import { useMapDebug } from '@/composables/useMapDebug'
+import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
 
 defineProps<{ debug?: boolean }>()
 const { drawerOpen } = useMapDebug()
+const { enabled: carouselEnabled, toggle: toggleCarousel } = useMapDistrictCarousel()
 
 const now = ref('')
 const isFs = ref(false)
@@ -50,6 +52,31 @@ async function toggleFs() {
     <div class="scan" aria-hidden="true"></div>
     <div class="controls">
       <span class="timer">{{ now }}</span>
+      <button
+        v-if="debug"
+        class="carousel-btn"
+        :class="{ active: carouselEnabled }"
+        type="button"
+        :title="carouselEnabled ? '关闭区块轮播' : '开启区块轮播'"
+        :aria-pressed="carouselEnabled"
+        @click="toggleCarousel"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6.4 7.2A7 7 0 0 1 18 8.6" />
+          <path d="M17.8 5.5v3.4h-3.4" />
+          <path d="M17.6 16.8A7 7 0 0 1 6 15.4" />
+          <path d="M6.2 18.5v-3.4h3.4" />
+          <path d="m10.2 9 4.6 3-4.6 3z" fill="currentColor" stroke="none" />
+        </svg>
+      </button>
       <svg
         v-if="debug"
         class="debug-btn"
@@ -142,6 +169,14 @@ async function toggleFs() {
   font-family: 'OPPOSans-M'; font-size: 20px; color: #fff; letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
 }
+.carousel-btn {
+  width: 32px; height: 32px; padding: 0; border: 0; background: transparent;
+  display: grid; place-items: center;
+  cursor: pointer; pointer-events: auto; color: rgba(255, 255, 255, 0.72);
+}
+.carousel-btn svg { width: 100%; height: 100%; }
+.carousel-btn:hover, .carousel-btn.active { color: #00deff; }
+.carousel-btn:focus-visible { outline: 1px solid #00deff; outline-offset: 2px; }
 .debug-btn {
   width: 32px; height: 32px;
   cursor: pointer; pointer-events: auto; color: #fff;
