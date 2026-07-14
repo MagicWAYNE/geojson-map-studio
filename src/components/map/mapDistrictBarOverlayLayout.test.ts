@@ -202,7 +202,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
       name: 'center',
       anchor: { x: 500, y: 250 },
       side: 'right',
-      rect: { left: 526, top: 262, width: 256, height: 104 },
+      rect: { left: 526, top: 242, width: 240, height: 108 },
       viewportOverflow: false,
       titleText: 'center',
       caseText: '1235',
@@ -215,7 +215,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
       config
     }).panel
     expect(rightEdge?.side).toBe('left')
-    expect(rightEdge?.rect.left).toBeCloseTo(568)
+    expect(rightEdge?.rect.left).toBeCloseTo(584)
 
     const topEdge = calculateDistrictBarOverlayLayout({
       ...input([snapshot('top-edge', [0, 10, -10])]),
@@ -233,7 +233,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
     }).panel
     expect(overflow).toMatchObject({
       side: 'right',
-      rect: { left: 10, top: 34, width: 256, height: 104 },
+      rect: { left: 27, top: 34, width: 240, height: 108 },
       viewportOverflow: true
     })
 
@@ -243,7 +243,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
       config,
       sizes: { panel: { width: 300, height: 180 } }
     }).panel
-    expect(measured?.rect).toEqual({ left: 526, top: 262, width: 300, height: 180 })
+    expect(measured?.rect).toEqual({ left: 526, top: 242, width: 300, height: 180 })
 
     const tieConfig = cloneDistrictBarOverlayConfig(config)
     Object.assign(tieConfig.panel, {
