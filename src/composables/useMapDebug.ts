@@ -34,8 +34,8 @@ export interface MapDistrictBarRuntimeStatus {
   degraded: boolean
 }
 
-/** 与 HomeView 原 .pos-map 样式一致的默认值 */
-export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 40, top: 230, width: 1000, height: 680 }
+/** 刷新后固定恢复为 HomeView 中 .pos-map 的源码布局。 */
+export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 0, top: 96, width: 1000, height: 1000 }
 export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetWidth: 1,
   targetHeight: 1,
@@ -53,34 +53,10 @@ export const DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: MapDistrictBarRuntimeStatu
   dataMax: null,
   degraded: false
 }
-const LAYOUT_KEY = 'cq-map-debug-layout'
-
-function storage(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage
-  } catch {
-    return null
-  }
-}
-
-function loadLayout(): MapLayout {
-  try {
-    const raw = storage()?.getItem(LAYOUT_KEY)
-    if (raw) {
-      const value = JSON.parse(raw) as Record<string, unknown>
-      if ((['left', 'top', 'width', 'height'] as const).every((key) => typeof value[key] === 'number')) {
-        return value as unknown as MapLayout
-      }
-    }
-  } catch {
-    // 存量数据损坏时回退默认布局。
-  }
-  return { ...MAP_LAYOUT_DEFAULT }
-}
-
 // 模块级单例：HeaderBar（开关）、抽屉、HomeView（应用样式）、3D 地图（视角上报）共享同一份状态
 const drawerOpen = ref(false)
-const layout = reactive<MapLayout>(loadLayout())
+// 布局调试只在当前页面会话有效，浏览器刷新始终恢复源码默认值。
+const layout = reactive<MapLayout>({ ...MAP_LAYOUT_DEFAULT })
 const effect = reactive(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
 // HUD 调试参数只在当前页面会话内有效，刷新后始终恢复源码默认值。
 const hud = reactive(cloneMapHudConfig(MAP_HUD_DEFAULTS))
@@ -92,14 +68,6 @@ const districtBarRuntimeStatus = reactive<MapDistrictBarRuntimeStatus>({
 const cameraView = ref('')
 const effectJson = computed(() => formatMapEffectConfig(effect))
 const hudJson = computed(() => formatMapHudConfig(hud))
-
-watch(layout, (value) => {
-  try {
-    storage()?.setItem(LAYOUT_KEY, JSON.stringify(value))
-  } catch {
-    // 本次会话继续可用。
-  }
-})
 
 watch(effect, (value) => {
   const normalized = normalizeMapEffectConfig(value)

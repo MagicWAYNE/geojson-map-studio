@@ -59,7 +59,7 @@ const { layout: mapLayout } = useMapDebug()
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
 
 /* —— 面板定位槽（后续任务直接使用这些 class）—— */
-.pos-map { position: absolute; /* left/top/width/height 由调试面板动态控制，默认值见 useMapDebug.ts */ }
+.pos-map { position: absolute; left: 0px; top: 96px; width: 1000px; height: 1000px; }
 .pos-kpi { position: absolute; left: 36px; top: 143px; }
 .pos-amount { position: absolute; left: 36px; top: 812px; }
 .pos-quality-title { position: absolute; left: 868px; top: 129px; }

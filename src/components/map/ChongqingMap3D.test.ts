@@ -855,13 +855,13 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.app.unmount()
   })
 
-  it('starts from the tuned camera position and controls target', async () => {
+  it('starts from the fixed camera position and controls target', async () => {
     const mounted = await mountInitializedMap()
     mounted.runFrame()
     const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
 
-    expect(camera.position.toArray()).toEqual([-62.1, 94.9, 108.9])
-    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(17.2, -3.5, 22.5)
+    expect(camera.position.toArray()).toEqual([-46.6, 155.9, 154.6])
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(10.1, -2.4, 9.1)
 
     mounted.app.unmount()
   })
