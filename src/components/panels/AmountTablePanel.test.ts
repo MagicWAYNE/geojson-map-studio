@@ -20,11 +20,13 @@ afterEach(() => {
 })
 
 describe('AmountTablePanel', () => {
-  it('renders the amount column with its requested additional width', async () => {
+  it('fits the table to its compact panel width without trailing whitespace', async () => {
     const { app, root } = await mountPanel()
 
+    expect(root.querySelector<HTMLElement>('.amount-panel')!.style.width).toBe('288px')
+    expect(root.querySelector<HTMLElement>('.sub-title')!.style.width).toBe('288px')
     expect([...root.querySelectorAll<HTMLElement>('.thead span')].map((column) => column.style.width))
-      .toEqual(['21%', '21%', '38%'])
+      .toEqual(['26.25%', '26.25%', '47.5%'])
 
     app.unmount()
   })
