@@ -78,7 +78,7 @@ const EXPECTED_NUMBER_METADATA: Record<string, readonly [number, number, number]
   'panel.rowGap': [0, 80, 1],
   'panel.titleAssetWidth': [80, 220, 1],
   'panel.titleAssetHeight': [24, 120, 1],
-  'panel.titleOffsetX': [-80, 80, 1],
+  'panel.titleOffsetX': [-200, 200, 1],
   'panel.titleOffsetY': [-80, 80, 1],
   'panel.titleTextOffsetX': [-80, 80, 1],
   'panel.titleTextOffsetY': [-80, 80, 1],

@@ -152,7 +152,7 @@ export const MAP_DISTRICT_BAR_OVERLAY_NUMBER_CONSTRAINTS = {
     rowGap: { min: 0, max: 80, step: 1 },
     titleAssetWidth: { min: 80, max: 220, step: 1 },
     titleAssetHeight: { min: 24, max: 120, step: 1 },
-    titleOffsetX: { min: -80, max: 80, step: 1 },
+    titleOffsetX: { min: -200, max: 200, step: 1 },
     titleOffsetY: { min: -80, max: 80, step: 1 },
     titleTextOffsetX: { min: -80, max: 80, step: 1 },
     titleTextOffsetY: { min: -80, max: 80, step: 1 },

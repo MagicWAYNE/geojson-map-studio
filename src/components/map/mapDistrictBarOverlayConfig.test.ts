@@ -231,7 +231,7 @@ describe('mapDistrictBarOverlayConfig', () => {
         rowGap: 80,
         titleAssetWidth: 80,
         titleAssetHeight: 120,
-        titleOffsetX: -80,
+        titleOffsetX: -200,
         titleOffsetY: 80,
         titleTextOffsetX: -80,
         titleTextOffsetY: 80,
