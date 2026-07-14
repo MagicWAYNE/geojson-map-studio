@@ -20,11 +20,11 @@ afterEach(() => {
 })
 
 describe('AmountTablePanel', () => {
-  it('renders every table column at half of its previous width', async () => {
+  it('renders every table column at 70 percent of its original width', async () => {
     const { app, root } = await mountPanel()
 
     expect([...root.querySelectorAll<HTMLElement>('.thead span')].map((column) => column.style.width))
-      .toEqual(['15%', '15%', '20%'])
+      .toEqual(['21%', '21%', '28%'])
 
     app.unmount()
   })
