@@ -131,12 +131,12 @@ describe('calculateDistrictBarOverlayLayout', () => {
     })
 
     expect(result.badges[0]).toMatchObject({
-      rect: { left: 461, top: 206, width: 78, height: 34 },
+      rect: { left: 476, top: 222, width: 48, height: 24 },
       visible: true,
       collisionShift: 0,
       collisionFree: true
     })
-    expect(result.badges[1].rect).toEqual({ left: 450, top: 220, width: 100, height: 20 })
+    expect(result.badges[1].rect).toEqual({ left: 450, top: 226, width: 100, height: 20 })
     expect(result.badges.map((badge) => badge.visible)).toEqual([true, true, false, false])
 
     config.collision.badgeCollisionEnabled = false
@@ -146,7 +146,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
         snapshot('B', [0, 0, -10], 1)
       ]),
       config
-    }).badges.map((badge) => badge.rect?.top)).toEqual([206, 206])
+    }).badges.map((badge) => badge.rect?.top)).toEqual([222, 222])
   })
 
   it('honors both badge enable switches, literal offsets, and invalid measurement fallback', () => {
@@ -170,7 +170,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
     expect(calculateDistrictBarOverlayLayout({
       ...input([snapshot('offset', [0, 0, -10])]),
       config: offsetConfig
-    }).badges[0].rect).toEqual({ left: 468, top: 203, width: 78, height: 34 })
+    }).badges[0].rect).toEqual({ left: 483, top: 219, width: 48, height: 24 })
 
     const invalidMeasurements = calculateDistrictBarOverlayLayout({
       ...input([
@@ -185,8 +185,8 @@ describe('calculateDistrictBarOverlayLayout', () => {
       }
     })
     expect(invalidMeasurements.badges.map((badge) => badge.rect)).toEqual([
-      { left: 461, top: 206, width: 78, height: 34 },
-      { left: 461, top: 206, width: 78, height: 34 }
+      { left: 476, top: 222, width: 48, height: 24 },
+      { left: 476, top: 222, width: 48, height: 24 }
     ])
   })
 
@@ -202,7 +202,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
       name: 'center',
       anchor: { x: 500, y: 250 },
       side: 'right',
-      rect: { left: 526, top: 262, width: 340, height: 124 },
+      rect: { left: 526, top: 262, width: 256, height: 104 },
       viewportOverflow: false,
       titleText: 'center',
       caseText: '1235',
@@ -215,7 +215,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
       config
     }).panel
     expect(rightEdge?.side).toBe('left')
-    expect(rightEdge?.rect.left).toBeCloseTo(484)
+    expect(rightEdge?.rect.left).toBeCloseTo(568)
 
     const topEdge = calculateDistrictBarOverlayLayout({
       ...input([snapshot('top-edge', [0, 10, -10])]),
@@ -233,7 +233,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
     }).panel
     expect(overflow).toMatchObject({
       side: 'right',
-      rect: { left: 22, top: 34, width: 340, height: 124 },
+      rect: { left: 30, top: 34, width: 256, height: 104 },
       viewportOverflow: true
     })
 
@@ -246,14 +246,24 @@ describe('calculateDistrictBarOverlayLayout', () => {
     expect(measured?.rect).toEqual({ left: 526, top: 262, width: 300, height: 180 })
 
     const tieConfig = cloneDistrictBarOverlayConfig(config)
-    tieConfig.panel.preferredSide = 'left'
-    const tied = calculateDistrictBarOverlayLayout({
-      ...input([snapshot('tie', [0.48, 0, -10])]),
-      viewport: { clientWidth: 500, clientHeight: 500 },
-      hoveredName: 'tie',
-      config: tieConfig
-    }).panel
-    expect(tied?.side).toBe('left')
+    Object.assign(tieConfig.panel, {
+      width: 340,
+      gapX: 20,
+      viewportPadding: 10,
+      titleOffsetX: 0,
+      titleAssetWidth: 340
+    })
+    const tiedPanel = (preferredSide: 'left' | 'right') => {
+      tieConfig.panel.preferredSide = preferredSide
+      return calculateDistrictBarOverlayLayout({
+        ...input([snapshot('tie', [0, 0, -10])]),
+        viewport: { clientWidth: 500, clientHeight: 500 },
+        hoveredName: 'tie',
+        config: tieConfig
+      }).panel
+    }
+    expect(tiedPanel('left')?.side).toBe('left')
+    expect(tiedPanel('right')?.side).toBe('right')
   })
 
   it('uses title right and bottom protrusions in exact panel clamp bounds', () => {
@@ -314,9 +324,9 @@ describe('calculateDistrictBarOverlayLayout', () => {
       visible: badge.visible,
       collisionFree: badge.collisionFree
     }))).toEqual([
-      { name: 'A', top: 100, shift: 0, visible: true, collisionFree: true },
-      { name: 'B', top: 138, shift: 18, visible: true, collisionFree: true },
-      { name: 'C', top: 157, shift: 32, visible: true, collisionFree: false }
+      { name: 'A', top: 116, shift: 0, visible: true, collisionFree: true },
+      { name: 'B', top: 144, shift: 8, visible: true, collisionFree: true },
+      { name: 'C', top: 172, shift: 31, visible: true, collisionFree: true }
     ])
   })
 

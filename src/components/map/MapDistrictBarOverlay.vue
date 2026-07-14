@@ -339,6 +339,7 @@ function panelStyle(): StyleWithVariables {
   height: var(--district-bar-badge-height);
   padding: 0 var(--district-bar-badge-padding-x);
   color: var(--district-bar-badge-text-color);
+  font-family: Bebas, 'Microsoft Yahei', sans-serif;
   font-size: var(--district-bar-badge-font-size);
   font-weight: var(--district-bar-badge-font-weight);
   white-space: nowrap;
@@ -438,6 +439,7 @@ function panelStyle(): StyleWithVariables {
 
 .district-bar-panel-value {
   color: var(--district-bar-panel-value-color);
+  font-family: Bebas, 'Microsoft Yahei', sans-serif;
   font-size: var(--district-bar-panel-value-font-size);
   font-weight: var(--district-bar-panel-value-font-weight);
 }

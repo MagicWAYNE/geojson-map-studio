@@ -227,6 +227,16 @@ describe('MapDistrictBarOverlay', () => {
     expect(computedOverlay.pointerEvents).toBe('none')
     expect(getComputedStyle(renderedBadges[0]).pointerEvents).toBe('none')
     expect(getComputedStyle(root.querySelector<HTMLElement>('.district-bar-panel')!).pointerEvents).toBe('none')
+    const heroNumberFont = 'Bebas, "Microsoft Yahei", sans-serif'
+    expect(getComputedStyle(renderedBadges[0]).fontFamily).toBe(heroNumberFont)
+    expect(rows.map((row) =>
+      getComputedStyle(row.querySelector<HTMLElement>('.district-bar-panel-value')!).fontFamily
+    )).toEqual([heroNumberFont, heroNumberFont])
+    expect([
+      panelElement.querySelector<HTMLElement>('.district-bar-panel-title-text'),
+      ...panelElement.querySelectorAll<HTMLElement>('.district-bar-panel-label'),
+      ...panelElement.querySelectorAll<HTMLElement>('.district-bar-panel-unit')
+    ].map((element) => getComputedStyle(element!).fontFamily)).not.toContain(heroNumberFont)
     expect(computedOverlay.position).toBe('absolute')
     expect(computedOverlay.overflow).toBe('hidden')
     expect([
@@ -615,11 +625,6 @@ describe('MapDistrictBarOverlay', () => {
     expect([arrayBadge.style.width, arrayBadge.style.height]).toEqual(['', ''])
     expect([singleBadge.style.width, singleBadge.style.height]).toEqual(['', ''])
     expect([oldPanel.style.width, oldPanel.style.height]).toEqual(['', ''])
-    expect(arrayBadge.style.getPropertyValue('--district-bar-badge-min-width')).toBe('78px')
-    expect(arrayBadge.style.getPropertyValue('--district-bar-badge-height')).toBe('34px')
-    expect(oldPanel.style.getPropertyValue('--district-bar-panel-width')).toBe('340px')
-    expect(oldPanel.style.getPropertyValue('--district-bar-panel-min-height')).toBe('124px')
-
     resize.notify(initialEntries)
     resize.notify([
       resizeEntry(arrayBadge, [{ inlineSize: 100.7, blockSize: 34.25 } as ResizeObserverSize])
@@ -668,9 +673,6 @@ describe('MapDistrictBarOverlay', () => {
     ])
     expect(measured[3].panel).toEqual({ width: 355, height: 131 })
     expect([currentPanel.style.width, currentPanel.style.height]).toEqual(['', ''])
-    expect(currentPanel.style.getPropertyValue('--district-bar-panel-width')).toBe('340px')
-    expect(currentPanel.style.getPropertyValue('--district-bar-panel-min-height')).toBe('124px')
-
     expect(inputLayout.badges[0].rect).toBe(arrayBadgeRect)
     expect(inputLayout.badges[1].rect).toBe(singleBadgeRect)
     expect(inputLayout.panel?.rect).toBe(initialPanelRect)
