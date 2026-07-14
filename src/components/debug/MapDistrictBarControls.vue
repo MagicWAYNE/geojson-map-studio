@@ -48,7 +48,8 @@ const NUMBER_FIELDS: readonly NumberField[] = [
   { key: 'enterMs', label: '入场时长 ms', min: 0, max: 3000, step: 10 },
   { key: 'staggerMs', label: '错峰间隔 ms', min: 0, max: 1000, step: 10 },
   { key: 'hoverEmissiveIntensity', label: 'Hover 提亮强度', min: 0, max: 3, step: 0.05 },
-  { key: 'hoverLift', label: 'Hover 上浮距离', min: 0, max: 4, step: 0.1 }
+  { key: 'hoverLift', label: 'Hover 上浮距离', min: 0, max: 4, step: 0.1 },
+  { key: 'hoverInactiveOpacity', label: 'Hover 时其他柱状图透明度', min: 0, max: 1, step: 0.01 }
 ]
 
 const HEX = /^#[0-9a-f]{6}$/i

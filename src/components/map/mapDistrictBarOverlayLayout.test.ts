@@ -138,6 +138,7 @@ describe('calculateDistrictBarOverlayLayout', () => {
     })
     expect(result.badges[1].rect).toEqual({ left: 450, top: 226, width: 100, height: 20 })
     expect(result.badges.map((badge) => badge.visible)).toEqual([true, true, false, false])
+    expect(result.badges.map((badge) => badge.dimmed)).toEqual([true, true, true, false])
 
     config.collision.badgeCollisionEnabled = false
     expect(calculateDistrictBarOverlayLayout({

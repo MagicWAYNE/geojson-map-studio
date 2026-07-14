@@ -84,7 +84,8 @@ describe('MapDistrictBarControls', () => {
       ['enterMs', '0', '3000'],
       ['staggerMs', '0', '1000'],
       ['hoverEmissiveIntensity', '0', '3'],
-      ['hoverLift', '0', '4']
+      ['hoverLift', '0', '4'],
+      ['hoverInactiveOpacity', '0', '1']
     ]
     for (const [key, min, max] of ranges) {
       const number = input(root, `effect-bars-${key}-number`)

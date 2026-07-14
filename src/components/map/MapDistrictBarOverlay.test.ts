@@ -131,6 +131,7 @@ function badge(
     rect: { left: 20 + order * 10, top: 30 + order * 10, width: 90, height: 34 },
     visible: true,
     text: String((order + 1) * 11),
+    dimmed: false,
     collisionShift: 0,
     collisionFree: true,
     ...overrides
@@ -287,6 +288,7 @@ describe('MapDistrictBarOverlay', () => {
       shadowColor: '#123456',
       shadowBlur: 11,
       shadowOpacity: 0.25,
+      hoverInactiveOpacity: 0.37,
       enterDelayMs: 75,
       enterMs: 345,
       staggerMs: 25
@@ -333,7 +335,8 @@ describe('MapDistrictBarOverlay', () => {
     config.collision.badgeMaxShift = 200
     const layoutBadge = badge('position-source', 3, {
       rect: { left: 155, top: 244, width: 999, height: 888 },
-      collisionShift: 31
+      collisionShift: 31,
+      dimmed: true
     })
     const layoutPanel = panel('渝中区', {
       rect: { left: 511, top: 177, width: 777, height: 666 },
@@ -359,6 +362,7 @@ describe('MapDistrictBarOverlay', () => {
     expect(badgeElement.style.getPropertyValue('--district-bar-badge-font-size')).toBe('19px')
     expect(badgeElement.style.getPropertyValue('--district-bar-badge-font-weight')).toBe('700')
     expect(badgeElement.style.getPropertyValue('--district-bar-badge-shadow')).toBe('0 0 11px rgba(18, 52, 86, 0.25)')
+    expect(badgeElement.style.getPropertyValue('--district-bar-badge-target-opacity')).toBe('0.37')
     expect(badgeElement.style.getPropertyValue('--district-bar-badge-enter-ms')).toBe('345ms')
     expect(badgeElement.style.getPropertyValue('--district-bar-badge-delay')).toBe('150ms')
     expect(badgeElement.style.opacity).toBe('')

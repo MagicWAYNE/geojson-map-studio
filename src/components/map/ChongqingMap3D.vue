@@ -11,6 +11,7 @@ import {
   DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS,
   useMapDebug
 } from '@/composables/useMapDebug'
+import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
 import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
@@ -26,10 +27,15 @@ import {
   createDistrictBarLayer,
   disposeDistrictBarLayer,
   getDistrictBarTopSnapshots,
+  setDistrictBarFocus,
   setDistrictBarHoverProgress,
   updateDistrictBarLayer,
   type DistrictBarLayer
 } from './mapDistrictBarLayer'
+import {
+  createMapDistrictHoverCarousel,
+  type MapDistrictHoverCarousel
+} from './mapDistrictHoverCarousel'
 import MapDistrictBarOverlay from './MapDistrictBarOverlay.vue'
 import {
   calculateDistrictBarOverlayLayout,
@@ -91,6 +97,7 @@ const {
   updateEffectRuntimeStatus,
   updateDistrictBarRuntimeStatus
 } = useMapDebug()
+const { enabled: districtCarouselEnabled } = useMapDistrictCarousel()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染
 let renderer: THREE.WebGLRenderer | null = null
@@ -107,6 +114,7 @@ let mounted = false
 let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
 let districtBars: DistrictBarLayer | null = null
+let districtHoverCarousel: MapDistrictHoverCarousel | null = null
 let barAnimationStartedAt = 0
 let districtBarOverlaySizes: DistrictBarOverlayMeasuredSizes | undefined
 const regionMeshes: THREE.Mesh[] = []
@@ -117,6 +125,7 @@ let mosaicFailureWarned = false
 let mosaicDegraded = false
 
 interface RegionVisual {
+  name: string
   mesh: THREE.Mesh
   group: THREE.Group
   topMaterial: THREE.MeshStandardMaterial
@@ -127,9 +136,11 @@ interface RegionVisual {
 
 const regionVisuals: RegionVisual[] = []
 const visualByMesh = new Map<THREE.Mesh, RegionVisual>()
+const visualByName = new Map<string, RegionVisual>()
 let glowStatusPublicationPending = false
 let districtBarFailureWarned = false
 let districtBarOverlayFailureWarned = false
+let pointerInsideMap = false
 
 function clearDistrictBarOverlay(): void {
   districtBarOverlayLayout.value = EMPTY_LAYOUT
@@ -369,6 +380,12 @@ function applyHudConfig(): void {
 
 const stopHudWatch = hudConfig ? watch(hudConfig, applyHudConfig, { deep: true }) : () => undefined
 
+const stopDistrictCarouselWatch = watch(districtCarouselEnabled, (enabled) => {
+  const carousel = districtHoverCarousel
+  if (!carousel) return
+  setEffectiveHover(carousel.setEnabled(enabled, performance.now()))
+})
+
 function publishDistrictBarRuntimeStatus(layer: DistrictBarLayer, degraded = false): void {
   updateDistrictBarRuntimeStatus({
     renderedCount: layer.byName.size,
@@ -479,6 +496,7 @@ function buildRegions(
       console.warn(`区块 ${name} 的 hover 宽线初始化失败，保留材质高亮和轻抬`, cause)
     }
     const visual: RegionVisual = {
+      name,
       mesh,
       group: regionGroup,
       topMaterial: topMat,
@@ -488,6 +506,7 @@ function buildRegions(
     }
     regionVisuals.push(visual)
     visualByMesh.set(mesh, visual)
+    visualByName.set(name, visual)
     group.add(regionGroup)
   }
 
@@ -644,18 +663,18 @@ function setupScene(mapGroup: THREE.Group) {
   }
 }
 
-// —— hover / tooltip / 点击下钻 ——
+// —— 自动轮播 / hover / 点击下钻 ——
 let hoveredVisual: RegionVisual | null = null
 let downX = 0
 let downY = 0
 
-function setHover(mesh: THREE.Mesh | null): void {
-  const next = mesh ? visualByMesh.get(mesh) ?? null : null
+function setEffectiveHover(name: string | null): void {
+  const next = name ? visualByName.get(name) ?? null : null
+  if (districtBars) setDistrictBarFocus(districtBars, next?.name ?? null)
   if (next === hoveredVisual) return
   if (hoveredVisual) hoveredVisual.active = false
   hoveredVisual = next
   if (hoveredVisual) hoveredVisual.active = true
-  if (container.value) container.value.style.cursor = next ? 'pointer' : 'default'
 }
 
 function renderRegionVisual(visual: RegionVisual, eased: number): void {
@@ -666,7 +685,7 @@ function renderRegionVisual(visual: RegionVisual, eased: number): void {
   visual.topMaterial.emissive.copy(baseTopEmissive).lerp(hoverEmissiveTarget, eased)
   visual.topMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, hover.emissiveIntensity, eased)
   if (visual.hoverGlow) setHoverGlowProgress(visual.hoverGlow, effect, eased)
-  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.mesh.userData.name, eased, hover.lift)
+  if (districtBars) setDistrictBarHoverProgress(districtBars, visual.name, eased, hover.lift)
   setMosaicRegionProgress(visual.mesh, eased)
   if (setGlowRegionProgress(visual.mesh, eased)) glowStatusPublicationPending = true
 }
@@ -687,7 +706,7 @@ function updateRegionVisuals(deltaMs: number, force = false): boolean {
   return glowStatusPublicationPending
 }
 
-function pick(e: PointerEvent): THREE.Mesh | null {
+function pick(e: PointerEvent): RegionVisual | null {
   const el = container.value
   if (!el || !camera) return null
   const rect = el.getBoundingClientRect()
@@ -695,11 +714,22 @@ function pick(e: PointerEvent): THREE.Mesh | null {
   const ry = (e.clientY - rect.top) / rect.height
   raycaster.setFromCamera(new THREE.Vector2(rx * 2 - 1, -(ry * 2 - 1)), camera)
   const hit = raycaster.intersectObjects(regionMeshes, false)[0]
-  return (hit?.object as THREE.Mesh) ?? null
+  return hit ? visualByMesh.get(hit.object as THREE.Mesh) ?? null : null
 }
 
 function onPointerMove(e: PointerEvent) {
-  setHover(pick(e))
+  pointerInsideMap = true
+  const visual = pick(e)
+  const name = visual?.name
+  const carousel = districtHoverCarousel
+  setEffectiveHover(carousel ? carousel.pointerMove(name ?? null) : name ?? null)
+  if (container.value) container.value.style.cursor = visual ? 'pointer' : 'default'
+}
+
+function onPointerEnter() {
+  pointerInsideMap = true
+  const carousel = districtHoverCarousel
+  if (carousel) setEffectiveHover(carousel.pointerEnter())
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -710,13 +740,21 @@ function onPointerDown(e: PointerEvent) {
 function onClick(e: PointerEvent) {
   // 区分拖拽旋转与点击
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return
-  const mesh = pick(e)
-  const name = mesh?.userData.name as string | undefined
+  const name = pick(e)?.name
   if (name) router.push(`/district/${encodeURIComponent(name)}`)
 }
 
 function onPointerLeave() {
-  setHover(null)
+  pointerInsideMap = false
+  const carousel = districtHoverCarousel
+  setEffectiveHover(carousel ? carousel.pointerLeave(performance.now()) : null)
+  if (container.value) container.value.style.cursor = 'default'
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') return
+  const carousel = districtHoverCarousel
+  if (carousel) setEffectiveHover(carousel.resetTiming(performance.now()))
 }
 
 // —— 渲染循环 + FPS ——
@@ -728,6 +766,8 @@ function loop(now: number) {
   raf = requestAnimationFrame(loop)
   const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
   lastFrameAt = now
+  const carousel = districtHoverCarousel
+  if (carousel) setEffectiveHover(carousel.tick(now))
   const previousMosaicState = currentMosaicState()
   const glowStatusChanged = updateRegionVisuals(deltaMs)
   advanceMosaicParticles(deltaMs)
@@ -863,12 +903,19 @@ async function init(generation: number) {
     if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
     applyEffectConfig()
 
+    districtHoverCarousel = createMapDistrictHoverCarousel(
+      regionVisuals.map((visual) => visual.name),
+      districtCarouselEnabled.value,
+      performance.now()
+    )
+    setEffectiveHover(
+      pointerInsideMap
+        ? districtHoverCarousel.pointerEnter()
+        : districtHoverCarousel.current()
+    )
+
     const el = container.value
     if (!el || !isCurrentInit(generation)) return
-    el.addEventListener('pointermove', onPointerMove)
-    el.addEventListener('pointerdown', onPointerDown)
-    el.addEventListener('click', onClick as EventListener)
-    el.addEventListener('pointerleave', onPointerLeave)
 
     lastFpsAt = performance.now()
     raf = requestAnimationFrame(loop)
@@ -888,6 +935,13 @@ onMounted(() => {
   districtBarOverlayFailureWarned = false
   updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
   updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
+  const el = container.value
+  el?.addEventListener('pointerenter', onPointerEnter)
+  el?.addEventListener('pointermove', onPointerMove)
+  el?.addEventListener('pointerdown', onPointerDown)
+  el?.addEventListener('click', onClick as EventListener)
+  el?.addEventListener('pointerleave', onPointerLeave)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   const generation = ++initGeneration
   void init(generation)
 })
@@ -922,6 +976,15 @@ function disposeSceneResources(root: THREE.Object3D): void {
 function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   cancelAnimationFrame(raf)
   raf = 0
+  const el = container.value
+  el?.removeEventListener('pointerenter', onPointerEnter)
+  el?.removeEventListener('pointermove', onPointerMove)
+  el?.removeEventListener('pointerdown', onPointerDown)
+  el?.removeEventListener('click', onClick as EventListener)
+  el?.removeEventListener('pointerleave', onPointerLeave)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  districtHoverCarousel = null
+  pointerInsideMap = false
   clearDistrictBarOverlay()
   districtBarOverlayFailureWarned = false
   ro?.disconnect()
@@ -956,6 +1019,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   regionMeshes.length = 0
   regionVisuals.length = 0
   visualByMesh.clear()
+  visualByName.clear()
   hoveredVisual = null
   barAnimationStartedAt = 0
   frames = 0
@@ -970,6 +1034,7 @@ onBeforeUnmount(() => {
   pendingInitCleanup = null
   stopEffectWatch()
   stopHudWatch()
+  stopDistrictCarouselWatch()
   cleanupScene()
 })
 </script>

@@ -17,6 +17,7 @@ export interface MapDistrictBarBadgeOverlayConfig {
   shadowColor: string
   shadowBlur: number
   shadowOpacity: number
+  hoverInactiveOpacity: number
   decimals: number
   thousandsSeparator: boolean
   hideOnHover: boolean
@@ -131,6 +132,7 @@ export const MAP_DISTRICT_BAR_OVERLAY_NUMBER_CONSTRAINTS = {
     fontWeight: { min: 100, max: 900, step: 100 },
     shadowBlur: { min: 0, max: 40, step: 1 },
     shadowOpacity: { min: 0, max: 1, step: 0.01 },
+    hoverInactiveOpacity: { min: 0, max: 1, step: 0.01 },
     decimals: { min: 0, max: 4, step: 1 },
     enterDelayMs: { min: 0, max: 1000, step: 10 },
     enterMs: { min: 0, max: 1000, step: 10 },
@@ -210,6 +212,7 @@ export const MAP_DISTRICT_BAR_OVERLAY_DEFAULTS = freezeOverlayDefaults({
     shadowColor: '#ffffff',
     shadowBlur: 16,
     shadowOpacity: 0.24,
+    hoverInactiveOpacity: 0.5,
     decimals: 0,
     thousandsSeparator: false,
     hideOnHover: true,
@@ -340,6 +343,7 @@ export function normalizeDistrictBarOverlayConfig(value: unknown): MapDistrictBa
       shadowColor: color(badge.shadowColor, defaults.badge.shadowColor),
       shadowBlur: badgeNumber('shadowBlur'),
       shadowOpacity: badgeNumber('shadowOpacity'),
+      hoverInactiveOpacity: badgeNumber('hoverInactiveOpacity'),
       decimals: Math.round(badgeNumber('decimals')),
       thousandsSeparator: bool(badge.thousandsSeparator, defaults.badge.thousandsSeparator),
       hideOnHover: bool(badge.hideOnHover, defaults.badge.hideOnHover),

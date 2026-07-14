@@ -59,6 +59,7 @@ const EXPECTED_NUMBER_METADATA: Record<string, readonly [number, number, number]
   'badge.fontWeight': [100, 900, 100],
   'badge.shadowBlur': [0, 40, 1],
   'badge.shadowOpacity': [0, 1, 0.01],
+  'badge.hoverInactiveOpacity': [0, 1, 0.01],
   'badge.decimals': [0, 4, 1],
   'badge.enterDelayMs': [0, 1000, 10],
   'badge.enterMs': [0, 1000, 10],

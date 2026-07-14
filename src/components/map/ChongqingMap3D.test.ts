@@ -38,11 +38,16 @@ const mapDebugMocks = vi.hoisted(() => ({
   updateEffectRuntimeStatus: vi.fn(),
   updateDistrictBarRuntimeStatus: vi.fn()
 }))
+const carouselMocks = vi.hoisted(() => ({
+  enabled: null as import('vue').Ref<boolean> | null,
+  toggle: vi.fn()
+}))
 const districtBarMocks = vi.hoisted(() => ({
   create: vi.fn(),
   applyConfig: vi.fn(),
   update: vi.fn(),
   getSnapshots: vi.fn(),
+  setFocus: vi.fn(),
   setHoverProgress: vi.fn(),
   dispose: vi.fn(),
   layer: null as {
@@ -106,6 +111,7 @@ vi.mock('./mapDistrictBarLayer', () => ({
   applyDistrictBarConfig: districtBarMocks.applyConfig,
   updateDistrictBarLayer: districtBarMocks.update,
   getDistrictBarTopSnapshots: districtBarMocks.getSnapshots,
+  setDistrictBarFocus: districtBarMocks.setFocus,
   setDistrictBarHoverProgress: districtBarMocks.setHoverProgress,
   disposeDistrictBarLayer: districtBarMocks.dispose
 }))
@@ -183,6 +189,14 @@ vi.mock('@/composables/useMapDebug', () => ({
     }
   }
 }))
+vi.mock('@/composables/useMapDistrictCarousel', async () => {
+  const { ref } = await import('vue')
+  const enabled = ref(false)
+  carouselMocks.enabled = enabled
+  return {
+    useMapDistrictCarousel: () => ({ enabled, toggle: carouselMocks.toggle })
+  }
+})
 
 afterEach(() => {
   watchMapEffectConfig.mockClear()
@@ -210,6 +224,8 @@ afterEach(() => {
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
   mapDebugMocks.effectRuntimeStatus = null
+  if (carouselMocks.enabled) carouselMocks.enabled.value = false
+  carouselMocks.toggle.mockReset()
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -274,7 +290,10 @@ function nonEmptyOverlayLayout(name = '测试区0') {
   }
 }
 
-async function mountInitializedMap(regionCount = 1) {
+async function mountInitializedMap(
+  regionCount = 1,
+  afterMount?: (root: HTMLElement) => void
+) {
   let resizeCallback: ResizeObserverCallback = () => undefined
   let frameCallback: FrameRequestCallback = () => undefined
   let pixelRatio = 2
@@ -322,6 +341,7 @@ async function mountInitializedMap(regionCount = 1) {
   const root = document.createElement('div')
   const app = createApp(ChongqingMap3D)
   app.mount(root)
+  afterMount?.(root)
   await vi.waitFor(() => expect(requestAnimationFrame).toHaveBeenCalled())
   return {
     app,
@@ -1358,6 +1378,98 @@ describe('ChongqingMap3D effect wiring', () => {
 })
 
 describe('ChongqingMap3D district bar DOM overlay wiring', () => {
+  it('keeps automatic hover paused when the pointer entered before async map setup completed', async () => {
+    const { useMapDistrictCarousel } = await import('@/composables/useMapDistrictCarousel')
+    useMapDistrictCarousel().enabled.value = true
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+
+    const mounted = await mountInitializedMap(2, (root) => {
+      root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerenter'))
+    })
+    mounted.runFrame(0)
+
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    mounted.app.unmount()
+  })
+
+  it('cycles automatic hover, suspends inside the map, and resumes ten seconds after leaving', async () => {
+    const { useMapDistrictCarousel } = await import('@/composables/useMapDistrictCarousel')
+    useMapDistrictCarousel().enabled.value = true
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    let currentNow = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => currentNow)
+    const mounted = await mountInitializedMap(3)
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    const map = mounted.root.querySelector('.cq-map3d')!
+
+    mounted.runFrame(0)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区0')
+    mounted.runFrame(4_999)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+    mounted.runFrame(5_000)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
+
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([{ object: regionMeshes[2] } as THREE.Intersection])
+    currentNow = 5_100
+    map.dispatchEvent(new PointerEvent('pointerenter'))
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
+    mounted.runFrame(5_100)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, null)
+
+    currentNow = 5_200
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
+    mounted.runFrame(5_200)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区2')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区2')
+
+    currentNow = 6_000
+    map.dispatchEvent(new PointerEvent('pointerleave'))
+    mounted.runFrame(15_999)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    mounted.runFrame(16_000)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+
+    mounted.app.unmount()
+  })
+
+  it('turns off only automatic hover while keeping real pointer hover available', async () => {
+    const { useMapDistrictCarousel } = await import('@/composables/useMapDistrictCarousel')
+    const carouselState = useMapDistrictCarousel()
+    carouselState.enabled.value = true
+    districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const mounted = await mountInitializedMap(2)
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    const map = mounted.root.querySelector('.cq-map3d')!
+
+    mounted.runFrame(0)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+
+    carouselState.enabled.value = false
+    await nextTick()
+    mounted.runFrame(16)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[1] } as THREE.Intersection
+    ])
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
+    mounted.runFrame(32)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
+
+    carouselState.enabled.value = true
+    await nextTick()
+    mounted.runFrame(48)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
+    mounted.app.unmount()
+  })
+
   it('projects the same eight bar snapshots after controls and bar animation but before rendering', async () => {
     const snapshots = districtBarSnapshots()
     const mounted = await mountInitializedMap()

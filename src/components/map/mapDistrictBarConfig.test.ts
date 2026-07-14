@@ -18,7 +18,7 @@ describe('mapDistrictBarConfig', () => {
       pulseOuterOpacity: 0.08, pulseInnerOpacity: 0.7,
       pulseDurationMs: 1800, pulseStaggerMs: 120,
       enterMs: 760, staggerMs: 90,
-      hoverEmissiveIntensity: 0.8, hoverLift: 1.1,
+      hoverEmissiveIntensity: 0.8, hoverLift: 1.1, hoverInactiveOpacity: 0.5,
       overlay: MAP_DISTRICT_BAR_OVERLAY_DEFAULTS
     })
   })
@@ -40,14 +40,14 @@ describe('mapDistrictBarConfig', () => {
       baseRingOpacity: 9, enterMs: 9999, staggerMs: -1,
       pulseWidth: 9, pulseOuterRadiusRatio: -1, pulseInnerRadiusRatio: 9,
       pulseOuterOpacity: -1, pulseInnerOpacity: 9, pulseDurationMs: 99, pulseStaggerMs: 9999,
-      hoverEmissiveIntensity: 9, hoverLift: -1
+      hoverEmissiveIntensity: 9, hoverLift: -1, hoverInactiveOpacity: 9
     })).toMatchObject({
       opacity: 1, width: 8, anchorOffsetX: -20, anchorOffsetY: 20, baseOffset: -2, minHeight: 0, maxHeight: 24,
       sqrtExponent: 0.25, glowStrength: 2, baseRingRadius: 0,
       baseRingOpacity: 1, enterMs: 3000, staggerMs: 0,
       pulseWidth: 0.5, pulseOuterRadiusRatio: 5, pulseInnerRadiusRatio: 0.05,
       pulseOuterOpacity: 0, pulseInnerOpacity: 1, pulseDurationMs: 200, pulseStaggerMs: 1000,
-      hoverEmissiveIntensity: 3, hoverLift: 0
+      hoverEmissiveIntensity: 3, hoverLift: 0, hoverInactiveOpacity: 1
     })
   })
 
