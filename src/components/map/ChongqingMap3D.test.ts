@@ -880,8 +880,8 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.runFrame()
     const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
 
-    expect(camera.position.toArray()).toEqual([0, 155, 165])
-    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(0, 0, 0)
+    expect(camera.position.toArray()).toEqual([-89.4, 117.0, 56.4])
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(2.7, -2.9, 7.0)
 
     mounted.app.unmount()
   })
