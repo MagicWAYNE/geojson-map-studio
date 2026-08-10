@@ -3,12 +3,11 @@ import { onMounted, ref } from 'vue'
 import NumberFlop from '@/components/common/NumberFlop.vue'
 import { useECharts } from '@/composables/useECharts'
 import { buildMultiLineOption } from '@/utils/chartOptions'
-import { getDxData, getDxmonthList } from '@/api'
+import { getServiceDemandData, getServiceDemandTrend } from '@/api'
+import { SERVICE_TREND_COLORS } from '@/utils/entrepreneurshipTheme'
 import type { DxData } from '@/types'
 import iconInquiry from '@/assets/images/icon-inquiry.png'
 import iconSmall1 from '@/assets/images/icon-small-1.png'
-
-const LINE_COLORS: Record<string, string> = { 询问: '#2e82db', 转办: '#edd892', 有责: '#44ffa2' }
 
 interface Mini {
   key: keyof DxData
@@ -17,11 +16,11 @@ interface Mini {
   y: number
 }
 const MINIS: Mini[] = [
-  { key: 'dx_zx_xw', title: '普通电询', x: 255, y: 10 },
-  { key: 'dx_zx_ts', title: '无责投诉', x: 340, y: 10 },
-  { key: 'dx_zx_yz', title: '有效投诉', x: 418, y: 10 },
-  { key: 'dx_yn_yz', title: '有效', x: 255, y: 93 },
-  { key: 'dx_yn_wz', title: '无责', x: 340, y: 93 }
+  { key: 'dx_zx_xw', title: '政策咨询', x: 255, y: 10 },
+  { key: 'dx_zx_ts', title: '服务建议', x: 340, y: 10 },
+  { key: 'dx_zx_yz', title: '有效需求', x: 418, y: 10 },
+  { key: 'dx_yn_yz', title: '已跟进', x: 255, y: 93 },
+  { key: 'dx_yn_wz', title: '待跟进', x: 340, y: 93 }
 ]
 
 const data = ref<DxData | null>(null)
@@ -31,9 +30,9 @@ const { setOption } = useECharts(chartEl)
 
 onMounted(async () => {
   try {
-    const [dx, month] = await Promise.all([getDxData(), getDxmonthList()])
+    const [dx, month] = await Promise.all([getServiceDemandData(), getServiceDemandTrend()])
     data.value = dx
-    setOption(buildMultiLineOption(month, LINE_COLORS, { areaSeries: '询问' }))
+    setOption(buildMultiLineOption(month, SERVICE_TREND_COLORS, { areaSeries: '咨询' }))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -49,7 +48,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
       <div class="big" style="top: 10px">
         <img :src="iconInquiry" alt="" />
         <div>
-          <div class="title">累计电询数量</div>
+          <div class="title">累计服务咨询</div>
           <div class="value">
             <NumberFlop :value="num(data?.dx_zx_year)" :font-size="30" />
             <span class="unit">件</span>
@@ -59,7 +58,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
       <div class="big" style="top: 93px">
         <img class="icon-dense" :src="iconSmall1" alt="" />
         <div>
-          <div class="title">累计转办</div>
+          <div class="title">累计需求跟进</div>
           <div class="value">
             <NumberFlop :value="num(data?.dx_yn_year)" :font-size="30" />
             <span class="unit">件</span>

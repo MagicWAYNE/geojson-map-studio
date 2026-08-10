@@ -4,7 +4,7 @@ import NumberFlop from '@/components/common/NumberFlop.vue'
 import SubTitle from '@/components/layout/SubTitle.vue'
 import { useECharts } from '@/composables/useECharts'
 import { buildDoubleBarOption } from '@/utils/chartOptions'
-import { getHuankuanList, getTjzxData } from '@/api'
+import { getSupportModeSeries, getSupportOutcomeData } from '@/api'
 import type { TjzxData } from '@/types'
 import icon1 from '@/assets/images/icon-quality-1.png'
 import icon2 from '@/assets/images/icon-quality-2.png'
@@ -22,10 +22,10 @@ interface Card {
 }
 
 const CARDS: Card[] = [
-  { key: 'tjzx_qe', title: '全额还款', unit: '件', decimals: 0, icon: icon1, x: 29, y: 44 },
-  { key: 'tjzx_fq', title: '分期还款', unit: '件', decimals: 0, icon: icon2, x: 255, y: 44 },
-  { key: 'tjzx_ss', title: '示范调判', unit: '件', decimals: 0, icon: icon3, x: 29, y: 124 },
-  { key: 'tjzx_qr', title: '减少诉讼', unit: '万件', decimals: 2, icon: icon4, x: 255, y: 124 }
+  { key: 'tjzx_qe', title: '场地支持', unit: '家', decimals: 0, icon: icon1, x: 29, y: 44 },
+  { key: 'tjzx_fq', title: '资源对接', unit: '家', decimals: 0, icon: icon2, x: 255, y: 44 },
+  { key: 'tjzx_ss', title: '示范项目', unit: '个', decimals: 0, icon: icon3, x: 29, y: 124 },
+  { key: 'tjzx_qr', title: '带动就业', unit: '万人', decimals: 2, icon: icon4, x: 255, y: 124 }
 ]
 
 const data = ref<TjzxData | null>(null)
@@ -35,7 +35,7 @@ const { setOption } = useECharts(chartEl)
 
 onMounted(async () => {
   try {
-    const [tjzx, list] = await Promise.all([getTjzxData(), getHuankuanList()])
+    const [tjzx, list] = await Promise.all([getSupportOutcomeData(), getSupportModeSeries()])
     data.value = tjzx
     setOption(buildDoubleBarOption(list, { xLabelInterval: 5 }))
   } catch (e) {
@@ -48,7 +48,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 
 <template>
   <div class="quality-panel">
-    <SubTitle title="调解质效" extra="（累计）" />
+    <SubTitle title="扶持成效" extra="（累计）" />
     <div v-if="error" class="err">{{ error }}</div>
     <template v-else>
       <div v-for="c in CARDS" :key="c.key" class="card" :style="{ left: c.x + 'px', top: c.y + 'px' }">

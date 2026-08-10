@@ -69,9 +69,9 @@ function buildOption(data: DistrictMapItem[]): EChartsOption {
         if (!q.data) return q.name
         return [
           `<b style="font-size:15px">${q.name}</b>`,
-          `案件量：<span style="color:#00DEFF;font-family:Bebas">${q.data.value.toLocaleString()}</span> 件`,
-          `在调金额：<span style="color:#edd892;font-family:Bebas">${q.data.ztje.toLocaleString()}</span> 万元`,
-          `调解组织：<span style="color:#44ffa2;font-family:Bebas">${q.data.zzs}</span> 家`
+          `扶持企业：<span style="color:#00DEFF;font-family:Bebas">${q.data.value.toLocaleString()}</span> 家`,
+          `服务资源：<span style="color:#edd892;font-family:Bebas">${q.data.ztje.toLocaleString()}</span> 项`,
+          `服务机构：<span style="color:#44ffa2;font-family:Bebas">${q.data.zzs}</span> 家`
         ].join('<br/>')
       }
     },

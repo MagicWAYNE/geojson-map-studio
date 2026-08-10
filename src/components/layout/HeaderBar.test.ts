@@ -23,6 +23,13 @@ afterEach(() => {
 })
 
 describe('HeaderBar map district carousel control', () => {
+  it('uses the entrepreneurship support title', () => {
+    const mounted = mountHeader(false)
+
+    expect(mounted.host.querySelector('.title')?.textContent).toBe('重庆创业扶持服务平台')
+    mounted.unmount()
+  })
+
   it('places the enabled carousel switch between the timer and map debug controls', async () => {
     const mounted = mountHeader(true)
     const controls = [...mounted.host.querySelector('.controls')!.children]

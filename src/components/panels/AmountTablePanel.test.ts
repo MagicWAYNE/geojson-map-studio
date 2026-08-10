@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type App } from 'vue'
 
 vi.mock('@/api', () => ({
-  getJeFenbuList: vi.fn().mockResolvedValue([])
+  getEnterpriseResourceDistribution: vi.fn().mockResolvedValue([])
 }))
 
 async function mountPanel(): Promise<{ app: App; root: HTMLDivElement }> {

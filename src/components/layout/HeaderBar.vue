@@ -48,7 +48,7 @@ async function toggleFs() {
 <template>
   <header class="header">
     <img class="layer" :src="headerImg" alt="" />
-    <h1 class="title">重庆金融调解中心</h1>
+    <h1 class="title">重庆创业扶持服务平台</h1>
     <div class="scan" aria-hidden="true"></div>
     <div class="controls">
       <span class="timer">{{ now }}</span>

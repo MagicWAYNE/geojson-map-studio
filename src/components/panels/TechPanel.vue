@@ -2,18 +2,16 @@
 import { computed, onMounted, ref } from 'vue'
 import NumberFlop from '@/components/common/NumberFlop.vue'
 import SubTitle from '@/components/layout/SubTitle.vue'
-import { getKejifunengData } from '@/api'
+import { getServiceTechnologyData } from '@/api'
 import type { KejifunengItem } from '@/types'
 import iconTech from '@/assets/images/icon-tech.png'
-
-const LABEL: Record<string, string> = { 外呼: '服务外呼' }
 
 const list = ref<KejifunengItem[]>([])
 const active = ref(0)
 const error = ref('')
 onMounted(async () => {
   try {
-    list.value = await getKejifunengData()
+    list.value = await getServiceTechnologyData()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -32,7 +30,7 @@ const cur = computed(() => list.value[active.value] ?? null)
         class="tab"
         :class="{ active: i === active }"
         @click="active = i"
-      >{{ LABEL[it.content] ?? it.content }}</span>
+      >{{ it.content }}</span>
     </div>
     <div v-if="error" class="err">{{ error }}</div>
     <div v-else-if="cur" class="body">

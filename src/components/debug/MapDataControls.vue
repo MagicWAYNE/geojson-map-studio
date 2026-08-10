@@ -104,7 +104,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="data-controls">
     <section class="data-group">
-      <h3>区级案件量柱状图</h3>
+      <h3>区级扶持企业柱状图</h3>
       <p class="hint">柱体主体固定为不透明；稳定底环与向内收缩的脉冲环可独立调节。</p>
       <MapDistrictBarControls
         :model-value="effect.bars"

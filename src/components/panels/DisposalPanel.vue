@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, type Component } from 'vue'
 import {
-  Ban, FileText, MessageCircleQuestion, MessageSquareWarning,
-  PhoneMissed, PhoneOff, Scale, ShieldQuestion, VolumeX
+  Building2, CalendarCheck, FileCheck2, FileText, GraduationCap,
+  Lightbulb, MapPinHouse, MessageCircleQuestion, UserRoundCheck
 } from 'lucide-vue-next'
 import SubTitle from '@/components/layout/SubTitle.vue'
-import { getChuzhiList } from '@/api'
+import { getServiceRequests } from '@/api'
 import type { ChuzhiItem } from '@/types'
 
 /** 事由是 API 自由文本，按关键词匹配图标，未命中兜底 FileText */
 const ICON_RULES: [RegExp, Component][] = [
-  [/投诉/, MessageSquareWarning],
-  [/身份/, ShieldQuestion],
-  [/管辖/, Scale],
-  [/打不通|回电/, PhoneMissed],
-  [/电话错误|非被告|本人/, PhoneOff],
-  [/不接受|拒绝/, Ban],
-  [/不说话|骂人|表达不清/, VolumeX],
-  [/询问|咨询/, MessageCircleQuestion]
+  [/政策|申报/, FileCheck2],
+  [/导师/, GraduationCap],
+  [/场地|办公/, MapPinHouse],
+  [/路演|报名/, CalendarCheck],
+  [/企业信息|联系人/, UserRoundCheck],
+  [/暂停/, Building2],
+  [/建议|反馈/, Lightbulb],
+  [/查询|咨询/, MessageCircleQuestion]
 ]
 const iconFor = (lx: string) => ICON_RULES.find(([re]) => re.test(lx))?.[1] ?? FileText
 
@@ -28,7 +28,7 @@ const list = ref<ChuzhiItem[]>([])
 const error = ref('')
 onMounted(async () => {
   try {
-    list.value = await getChuzhiList()
+    list.value = await getServiceRequests()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -45,7 +45,7 @@ const scrollStyle = computed(() =>
 
 <template>
   <div class="disposal-panel">
-    <SubTitle title="处置结果" />
+    <SubTitle title="服务诉求" />
     <div v-if="error" class="err">{{ error }}</div>
     <div v-else class="body">
       <div class="items" :class="{ scrolling: needScroll }" :style="scrollStyle">
@@ -54,9 +54,9 @@ const scrollStyle = computed(() =>
             <component :is="iconFor(it.lx)" :size="20" :stroke-width="1.8" />
           </div>
           <div class="content">
-            <div class="line1">事由/诉求：<b>{{ it.lx }}</b></div>
-            <div class="line2">电询数量：<em>{{ it.sl }}</em></div>
-            <div class="line3">处置措施：{{ it.czjg }}</div>
+            <div class="line1">服务事项：<b>{{ it.lx }}</b></div>
+            <div class="line2">咨询数量：<em>{{ it.sl }}</em></div>
+            <div class="line3">跟进措施：{{ it.czjg }}</div>
           </div>
         </div>
       </div>

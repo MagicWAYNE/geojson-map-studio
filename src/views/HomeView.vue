@@ -34,21 +34,24 @@ const { layout: mapLayout } = useMapDebug()
         height: mapLayout.height + 'px'
       }"
     />
-    <KpiPanel class="pos-kpi" />
-    <AmountTablePanel class="pos-amount" />
 
-    <SectionTitle class="pos-quality-title" title="质效分析" />
-    <QualityPanel class="pos-quality" />
-    <TechPanel class="pos-tech" />
-    <OrgPanel class="pos-org" />
-    <SocialPanel class="pos-social" />
+    <aside class="side-rail left-rail" aria-label="创业扶持核心数据">
+      <KpiPanel />
+      <SectionTitle title="扶持成效分析" />
+      <QualityPanel />
+      <TechPanel />
+      <OrgPanel />
+      <DisposalPanel />
+    </aside>
 
-    <SectionTitle class="pos-inquiry-title" title="电询转办分析" />
-    <InquiryPanel class="pos-inquiry" />
-    <DisposalPanel class="pos-disposal" />
-    <TrainingPanel class="pos-training" />
+    <aside class="side-rail right-rail" aria-label="创业服务运营数据">
+      <SectionTitle title="创业服务分析" />
+      <InquiryPanel />
+      <SocialPanel />
+      <TrainingPanel />
+      <AmountTablePanel class="right-amount" />
+    </aside>
 
-    <div class="footer">指导监督单位：南岸区人民法院 南岸区司法局</div>
     <MapDebugDrawer />
   </div>
 </template>
@@ -58,24 +61,14 @@ const { layout: mapLayout } = useMapDebug()
 .bg-main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
 
-/* —— 面板定位槽（后续任务直接使用这些 class）—— */
-.pos-map { position: absolute; left: 0px; top: 96px; width: 1000px; height: 1000px; }
-.pos-kpi { position: absolute; left: 36px; top: 143px; }
-.pos-amount { position: absolute; left: 36px; top: 812px; }
-.pos-quality-title { position: absolute; left: 868px; top: 129px; }
-.pos-quality { position: absolute; left: 868px; top: 195px; }
-.pos-tech { position: absolute; left: 868px; top: 580px; }
-.pos-org { position: absolute; left: 868px; top: 684px; }
-.pos-social { position: absolute; left: 868px; top: 776px; }
-.pos-inquiry-title { position: absolute; left: 1394px; top: 129px; }
-.pos-inquiry { position: absolute; left: 1394px; top: 195px; }
-.pos-disposal { position: absolute; left: 1394px; top: 555px; }
-.pos-training { position: absolute; left: 1394px; top: 871px; }
-
-.footer {
-  position: absolute; left: 0; top: 1052px; width: 1920px; text-align: center;
-  font-family: 'YouSheBiaoTiHei'; font-size: 20px; letter-spacing: 2px;
-  background: linear-gradient(180deg, #b8eaff, #ffffff);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+/* 地图容器与相机目标都以画布中心为基准，左右轨道仅承载数据面板。 */
+.pos-map { position: absolute; z-index: 1; left: 400px; top: 82px; width: 1120px; height: 998px; }
+.side-rail {
+  position: absolute; top: 112px; z-index: 10; width: 492px;
+  display: flex; flex-direction: column; gap: 8px;
+  transform: scale(0.82); transform-origin: left top;
 }
+.left-rail { left: 24px; }
+.right-rail { left: 1493px; }
+.right-amount { align-self: flex-end; }
 </style>

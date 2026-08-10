@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import barImg from '@/assets/images/b571ad71f533861c910b290f714bd65f-1dc3fda187.png'
-
 defineProps<{ title: string }>()
 </script>
 
 <template>
   <div class="section-title">
-    <img class="title-bg" :src="barImg" alt="" />
+    <div class="title-bg" aria-hidden="true" />
     <span>{{ title }}</span>
   </div>
 </template>
@@ -19,15 +17,19 @@ defineProps<{ title: string }>()
   overflow: hidden;
 }
 .title-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: left center;
+  position: absolute; left: 0; top: 5px; width: 100%; height: 44px;
+  background:
+    linear-gradient(90deg, rgba(36, 131, 255, 0.34), rgba(36, 131, 255, 0.04) 56%, transparent 82%),
+    linear-gradient(90deg, rgba(0, 222, 255, 0.8), rgba(36, 131, 255, 0.25) 48%, transparent 90%) left bottom / 100% 1px no-repeat;
+  clip-path: polygon(0 0, 46% 0, 51% 50%, 46% 100%, 0 100%, 3% 50%);
+}
+.title-bg::before {
+  content: ''; position: absolute; left: 8px; top: 15px; width: 10px; height: 10px;
+  background: #67c9ff; box-shadow: 0 0 12px rgba(0, 222, 255, 0.9);
+  transform: rotate(45deg);
 }
 .section-title span {
-  position: absolute; left: 43px; top: 4px;
+  position: absolute; left: 36px; top: 4px;
   font-family: 'YouSheBiaoTiHei'; font-size: 28px; letter-spacing: 2px;
   background: linear-gradient(180deg, #b0dbfa, #ffffff);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;

@@ -3,21 +3,21 @@ import { onMounted, ref } from 'vue'
 import ScrollTable from '@/components/common/ScrollTable.vue'
 import type { ScrollColumn } from '@/types'
 import SubTitle from '@/components/layout/SubTitle.vue'
-import { getJeFenbuList } from '@/api'
+import { getEnterpriseResourceDistribution } from '@/api'
 
 const PANEL_WIDTH = 288
 
 const columns: ScrollColumn[] = [
   { key: 'city', title: '省份', width: '26.25%' },
-  { key: 'aj', title: '案件（件）', width: '26.25%', align: 'center', numeric: true },
-  { key: 'ztje', title: '在调金额（万元）', width: '47.5%', align: 'right', color: '#edd892', numeric: true }
+  { key: 'aj', title: '企业（家）', width: '26.25%', align: 'center', numeric: true },
+  { key: 'ztje', title: '服务资源（项）', width: '47.5%', align: 'right', color: '#edd892', numeric: true }
 ]
 
 const rows = ref<Record<string, unknown>[]>([])
 const error = ref('')
 onMounted(async () => {
   try {
-    rows.value = (await getJeFenbuList()) as unknown as Record<string, unknown>[]
+    rows.value = (await getEnterpriseResourceDistribution()) as unknown as Record<string, unknown>[]
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -26,7 +26,7 @@ onMounted(async () => {
 
 <template>
   <div class="amount-panel" :style="{ width: PANEL_WIDTH + 'px' }">
-    <SubTitle title="案件 / 在调金额分布" :width="PANEL_WIDTH" />
+    <SubTitle title="企业 / 服务资源分布" :width="PANEL_WIDTH" />
     <div v-if="error" class="err">{{ error }}</div>
     <ScrollTable v-else class="table" :columns="columns" :rows="rows" :height="192" :row-height="38" />
   </div>

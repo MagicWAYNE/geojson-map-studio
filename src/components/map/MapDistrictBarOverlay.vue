@@ -303,10 +303,10 @@ function panelStyle(): StyleWithVariables {
         >
         <span class="district-bar-panel-title-text">{{ layout.panel.titleText }}</span>
         <div class="district-bar-panel-row">
-          <span class="district-bar-panel-label">案件量：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit"> 件</span>
+          <span class="district-bar-panel-label">扶持企业：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit"> 家</span>
         </div>
         <div class="district-bar-panel-row">
-          <span class="district-bar-panel-label">在调金额：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit"> 万元</span>
+          <span class="district-bar-panel-label">服务资源：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit"> 项</span>
         </div>
       </section>
     </Transition>

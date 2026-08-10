@@ -215,13 +215,13 @@ describe('MapDistrictBarOverlay', () => {
     expect(rows).toHaveLength(2)
     expect(rows.map((row) =>
       row.querySelector<HTMLElement>('.district-bar-panel-label')?.textContent
-    )).toEqual(['案件量：', '在调金额：'])
+    )).toEqual(['扶持企业：', '服务资源：'])
     expect(rows.map((row) => row.textContent)).toEqual([
-      '案件量：123 件',
-      '在调金额：45.67 万元'
+      '扶持企业：123 家',
+      '服务资源：45.67 项'
     ])
-    expect(root.textContent).toContain('案件量：123 件')
-    expect(root.textContent).toContain('在调金额：45.67 万元')
+    expect(root.textContent).toContain('扶持企业：123 家')
+    expect(root.textContent).toContain('服务资源：45.67 项')
     expect(root.textContent).not.toContain('zzs')
     expect(overlay.getAttribute('aria-hidden')).toBe('true')
     const computedOverlay = getComputedStyle(overlay)

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
 import ScrollTable from '@/components/common/ScrollTable.vue'
 import type { ScrollColumn } from '@/types'
-import { getHgpxList } from '@/api'
+import { getEntrepreneurshipTraining } from '@/api'
 
 const columns: ScrollColumn[] = [
   { key: 'idx', title: '序号', width: '10%', align: 'center', numeric: true },
@@ -16,7 +16,7 @@ const raw = ref<{ zt: string; rs: number; rq: string }[]>([])
 const error = ref('')
 onMounted(async () => {
   try {
-    raw.value = await getHgpxList()
+    raw.value = await getEntrepreneurshipTraining()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -29,7 +29,7 @@ const rows = computed(() =>
 
 <template>
   <div class="training-panel">
-    <SectionTitle title="合规培训&走访抽查" />
+    <SectionTitle title="创业培训与企业走访" />
     <div v-if="error" class="err">{{ error }}</div>
     <ScrollTable v-else class="table" :columns="columns" :rows="rows" :height="98" :row-height="32" />
   </div>

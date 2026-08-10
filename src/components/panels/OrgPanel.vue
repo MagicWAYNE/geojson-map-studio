@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import NumberFlop from '@/components/common/NumberFlop.vue'
 import SubTitle from '@/components/layout/SubTitle.vue'
-import { getZzglData } from '@/api'
+import { getServiceOrganizationOverview } from '@/api'
 import type { ZzglData } from '@/types'
 import iconOrg from '@/assets/images/icon-org.png'
 
@@ -10,7 +10,7 @@ const data = ref<ZzglData | null>(null)
 const error = ref('')
 onMounted(async () => {
   try {
-    data.value = await getZzglData()
+    data.value = await getServiceOrganizationOverview()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -26,14 +26,14 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
     <div v-else class="body">
       <img :src="iconOrg" alt="" />
       <div class="group">
-        <div class="title">特邀调解组织</div>
+        <div class="title">合作服务机构</div>
         <div class="value">
           <NumberFlop :value="num(data?.zzgl_zz)" :font-size="28" />
           <span class="unit">家</span>
         </div>
       </div>
       <div class="group" style="left: 240px">
-        <div class="title">调解人员</div>
+        <div class="title">创业导师</div>
         <div class="value">
           <NumberFlop :value="num(data?.zzgl_ry)" :font-size="28" color="#edd892" />
           <span class="unit">人</span>

@@ -146,7 +146,7 @@ watch(() => props.modelValue, () => {
     <div class="bar-runtime-status" role="status" aria-live="polite">
       <span>运行状态</span>
       <span>有效柱体：{{ runtimeStatus.renderedCount }}</span>
-      <span>案件量范围：{{ dataRange }}</span>
+      <span>扶持企业范围：{{ dataRange }}</span>
       <span>柱体主体：不透明</span>
       <span>脉冲环：{{ modelValue.pulseEnabled ? '启用' : '已关闭' }}</span>
       <span>柱体层：{{ runtimeStatus.degraded ? '已降级关闭' : '正常' }}</span>

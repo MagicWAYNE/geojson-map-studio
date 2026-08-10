@@ -15,6 +15,15 @@ import hgpxRaw from '@/mocks/hgpx_list.json'
 import jeFenbuRaw from '@/mocks/je_fenbu_list.json'
 import districtMapRaw from '@/mocks/district_map.json'
 import districtDetailRaw from '@/mocks/district_detail.json'
+import {
+  toEntrepreneurshipDistrictDetail,
+  toEntrepreneurshipOrganizations,
+  toEntrepreneurshipRequests,
+  toEntrepreneurshipTech,
+  toEntrepreneurshipTraining,
+  toServiceTrendSeries,
+  toSupportSeries
+} from '@/utils/entrepreneurshipTheme'
 
 /** 模拟网络延迟，保持异步接口形态与真实后端一致 */
 const delay = (ms = 120) => new Promise<void>((r) => setTimeout(r, ms))
@@ -25,57 +34,59 @@ function unwrap<T>(raw: unknown): T {
   return env.data
 }
 
+// 现有 mock 数值只用于开源演示版的视觉与交互展示；适配器统一提供创业扶持语义。
+
 export async function getDashboardData(): Promise<DashboardData> {
   await delay()
   return unwrap<DashboardData>(dashboardRaw)
 }
 
-export async function getTjzxData(): Promise<TjzxData> {
+export async function getSupportOutcomeData(): Promise<TjzxData> {
   await delay()
   return unwrap<TjzxData>(tjzxRaw)
 }
 
-export async function getHuankuanList(): Promise<XYItem[]> {
+export async function getSupportModeSeries(): Promise<XYItem[]> {
   await delay()
-  return unwrap<XYItem[]>(huankuanRaw)
+  return toSupportSeries(unwrap<XYItem[]>(huankuanRaw))
 }
 
-export async function getKejifunengData(): Promise<KejifunengItem[]> {
+export async function getServiceTechnologyData(): Promise<KejifunengItem[]> {
   await delay()
-  return unwrap<KejifunengItem[]>(kejifunengRaw)
+  return toEntrepreneurshipTech(unwrap<KejifunengItem[]>(kejifunengRaw))
 }
 
-export async function getZzglData(): Promise<ZzglData> {
+export async function getServiceOrganizationOverview(): Promise<ZzglData> {
   await delay()
   return unwrap<ZzglData>(zzglRaw)
 }
 
-export async function getZuzhizhixiaoList(): Promise<ZuzhizhixiaoItem[]> {
+export async function getServiceOrganizationPerformance(): Promise<ZuzhizhixiaoItem[]> {
   await delay()
-  return unwrap<ZuzhizhixiaoItem[]>(zuzhizhixiaoRaw)
+  return toEntrepreneurshipOrganizations(unwrap<ZuzhizhixiaoItem[]>(zuzhizhixiaoRaw))
 }
 
-export async function getDxData(): Promise<DxData> {
+export async function getServiceDemandData(): Promise<DxData> {
   await delay()
   return unwrap<DxData>(dxRaw)
 }
 
-export async function getDxmonthList(): Promise<XYItem[]> {
+export async function getServiceDemandTrend(): Promise<XYItem[]> {
   await delay()
-  return unwrap<XYItem[]>(dxmonthRaw)
+  return toServiceTrendSeries(unwrap<XYItem[]>(dxmonthRaw))
 }
 
-export async function getChuzhiList(): Promise<ChuzhiItem[]> {
+export async function getServiceRequests(): Promise<ChuzhiItem[]> {
   await delay()
-  return unwrap<ChuzhiItem[]>(chuzhiRaw)
+  return toEntrepreneurshipRequests(unwrap<ChuzhiItem[]>(chuzhiRaw))
 }
 
-export async function getHgpxList(): Promise<HgpxItem[]> {
+export async function getEntrepreneurshipTraining(): Promise<HgpxItem[]> {
   await delay()
-  return unwrap<HgpxItem[]>(hgpxRaw)
+  return toEntrepreneurshipTraining(unwrap<HgpxItem[]>(hgpxRaw))
 }
 
-export async function getJeFenbuList(): Promise<JeFenbuItem[]> {
+export async function getEnterpriseResourceDistribution(): Promise<JeFenbuItem[]> {
   await delay()
   return unwrap<JeFenbuItem[]>(jeFenbuRaw)
 }
@@ -88,5 +99,5 @@ export async function getDistrictMapData(): Promise<DistrictMapItem[]> {
 export async function getDistrictDetail(name: string): Promise<DistrictDetail | null> {
   await delay()
   const all = districtDetailRaw as unknown as Record<string, DistrictDetail>
-  return Object.hasOwn(all, name) ? all[name] : null
+  return Object.hasOwn(all, name) ? toEntrepreneurshipDistrictDetail(all[name], name) : null
 }

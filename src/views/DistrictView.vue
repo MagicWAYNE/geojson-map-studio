@@ -10,6 +10,7 @@ import ChongqingMap from '@/components/map/ChongqingMap.vue'
 import { useECharts } from '@/composables/useECharts'
 import { buildDoubleBarOption, buildMultiLineOption } from '@/utils/chartOptions'
 import { getDistrictDetail } from '@/api'
+import { SERVICE_TREND_COLORS } from '@/utils/entrepreneurshipTheme'
 import type { DistrictDetail, DistrictKpi } from '@/types'
 import bgMain from '@/assets/images/bg-main.png'
 
@@ -25,27 +26,25 @@ const lineEl = ref<HTMLElement | null>(null)
 const { setOption: setBar } = useECharts(barEl)
 const { setOption: setLine } = useECharts(lineEl)
 
-const LINE_COLORS: Record<string, string> = { 询问: '#2e82db', 转办: '#edd892', 有责: '#44ffa2' }
-
 interface KpiCard {
   key: keyof DistrictKpi
   title: string
   suffix: string
 }
 const KPI_CARDS: KpiCard[] = [
-  { key: 'tj', title: '累计调解案件', suffix: '万件' },
-  { key: 'kl', title: '当事人可联案件', suffix: '万件' },
-  { key: 'tc', title: '实际调成案件', suffix: '万件' },
-  { key: 'month_tj', title: '当月调解案件', suffix: '万件' },
-  { key: 'yx', title: '累计履行金额', suffix: '万元' },
-  { key: 'month_yx', title: '及时履行金额', suffix: '万元' }
+  { key: 'tj', title: '累计扶持企业', suffix: '万家' },
+  { key: 'kl', title: '活跃服务企业', suffix: '万家' },
+  { key: 'tc', title: '成功孵化企业', suffix: '万家' },
+  { key: 'month_tj', title: '当月新增企业', suffix: '万家' },
+  { key: 'yx', title: '累计服务资源', suffix: '万项' },
+  { key: 'month_yx', title: '当月对接资源', suffix: '项' }
 ]
 
 const ORG_COLUMNS: ScrollColumn[] = [
-  { key: 'lx', title: '调解组织', width: '40%' },
+  { key: 'lx', title: '服务机构', width: '40%' },
   { key: 'rs', title: '人员', width: '15%', align: 'center', numeric: true },
-  { key: 'dx', title: '电询', width: '15%', align: 'center', color: '#edd892', numeric: true },
-  { key: 'bwt', title: '被委托案', width: '30%', align: 'center', numeric: true }
+  { key: 'dx', title: '咨询', width: '15%', align: 'center', color: '#edd892', numeric: true },
+  { key: 'bwt', title: '服务企业', width: '30%', align: 'center', numeric: true }
 ]
 
 async function load() {
@@ -58,7 +57,7 @@ async function load() {
       return
     }
     setBar(buildDoubleBarOption(detail.value.huankuan), true)
-    setLine(buildMultiLineOption(detail.value.trend, LINE_COLORS, { areaSeries: '询问' }), true)
+    setLine(buildMultiLineOption(detail.value.trend, SERVICE_TREND_COLORS, { areaSeries: '咨询' }), true)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -84,7 +83,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
       <button @click="router.push('/')">返回主屏</button>
     </div>
     <template v-else-if="detail">
-      <h2 class="district-name">{{ name }} · 调解态势</h2>
+      <h2 class="district-name">{{ name }} · 创业扶持态势</h2>
 
       <div class="kpi-grid">
         <div v-for="c in KPI_CARDS" :key="c.key" class="kpi-card">
@@ -99,11 +98,11 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
       <ChongqingMap class="pos-map" :focus="name" :show-lines="false" />
 
       <div class="right-col">
-        <SubTitle title="还款结构（近6月）" :width="460" />
+        <SubTitle title="扶持方式（近6月）" :width="460" />
         <div ref="barEl" class="chart" />
-        <SubTitle title="电询转办月度趋势" :width="460" />
+        <SubTitle title="服务需求月度趋势" :width="460" />
         <div ref="lineEl" class="chart" />
-        <SubTitle title="调解组织" :width="460" />
+        <SubTitle title="创业服务机构" :width="460" />
         <ScrollTable :columns="ORG_COLUMNS" :rows="(detail.orgs as unknown as Record<string, unknown>[])" :height="200" :row-height="36" />
       </div>
     </template>

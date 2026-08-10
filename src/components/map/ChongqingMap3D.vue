@@ -79,8 +79,8 @@ withDefaults(defineProps<{ focus?: string; showLines?: boolean }>(), {
 
 const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比例等比
 const DEPTH = 4 // 挤出厚度
-const INITIAL_CAMERA_POSITION = [-46.6, 155.9, 154.6] as const
-const INITIAL_CAMERA_TARGET = [10.1, -2.4, 9.1] as const
+const INITIAL_CAMERA_POSITION = [0, 155, 165] as const
+const INITIAL_CAMERA_TARGET = [0, 0, 0] as const
 
 const container = ref<HTMLElement | null>(null)
 const error = ref('')

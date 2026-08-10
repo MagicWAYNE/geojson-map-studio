@@ -49,7 +49,7 @@ describe('MapDataControls', () => {
     useMapDebug().updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
     await nextTick()
 
-    expect(root.textContent).toContain('区级案件量柱状图')
+    expect(root.textContent).toContain('区级扶持企业柱状图')
     expect(root.textContent).toContain('有效柱体：8')
     expect(root.textContent).toContain('柱体主体：不透明')
     expect(root.querySelector('#effect-bars-width-number')).not.toBeNull()

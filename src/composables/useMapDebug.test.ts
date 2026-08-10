@@ -34,7 +34,7 @@ describe('useMapDebug layout defaults', () => {
       setItem
     })
     const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
-    const expected = { left: 0, top: 96, width: 1000, height: 1000 }
+    const expected = { left: 400, top: 82, width: 1120, height: 998 }
     const debug = useMapDebug()
 
     expect(MAP_LAYOUT_DEFAULT).toEqual(expected)
