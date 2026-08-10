@@ -35,7 +35,7 @@ export interface MapDistrictBarRuntimeStatus {
 }
 
 /** 刷新后固定恢复为 HomeView 中 .pos-map 的源码布局。 */
-export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 400, top: 82, width: 1120, height: 998 }
+export const MAP_LAYOUT_DEFAULT: MapLayout = { left: 400, top: 132, width: 1120, height: 948 }
 export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetWidth: 1,
   targetHeight: 1,

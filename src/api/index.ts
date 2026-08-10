@@ -22,7 +22,8 @@ import {
   toEntrepreneurshipTech,
   toEntrepreneurshipTraining,
   toServiceTrendSeries,
-  toSupportSeries
+  toSupportSeries,
+  toDemoWeeklySupportSeries
 } from '@/utils/entrepreneurshipTheme'
 
 /** 模拟网络延迟，保持异步接口形态与真实后端一致 */
@@ -48,7 +49,7 @@ export async function getSupportOutcomeData(): Promise<TjzxData> {
 
 export async function getSupportModeSeries(): Promise<XYItem[]> {
   await delay()
-  return toSupportSeries(unwrap<XYItem[]>(huankuanRaw))
+  return toDemoWeeklySupportSeries(unwrap<XYItem[]>(huankuanRaw))
 }
 
 export async function getServiceTechnologyData(): Promise<KejifunengItem[]> {

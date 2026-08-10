@@ -59,8 +59,8 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 .group { position: absolute; left: 82px; top: 0; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 4px; }
 .value { display: flex; align-items: baseline; gap: 5px; }
-.unit { font-family: 'OPPOSans-R'; font-size: 13px; color: #90a3c8; }
+.unit { font-family: 'OPPOSans-R'; font-size: 15px; color: #90a3c8; }
 .mini { position: absolute; left: 361px; display: flex; align-items: baseline; gap: 6px; }
-.mini span { font-family: 'OPPOSans-R'; font-size: 13px; color: #90a3c8; }
+.mini span { font-family: 'OPPOSans-R'; font-size: 15px; color: #90a3c8; }
 .err { color: #ff7d57; font-size: 14px; padding-top: 20px; }
 </style>

@@ -3,7 +3,6 @@ import ChongqingMap3D from '@/components/map/ChongqingMap3D.vue'
 import HeaderBar from '@/components/layout/HeaderBar.vue'
 import SectionTitle from '@/components/layout/SectionTitle.vue'
 import KpiPanel from '@/components/panels/KpiPanel.vue'
-import AmountTablePanel from '@/components/panels/AmountTablePanel.vue'
 import QualityPanel from '@/components/panels/QualityPanel.vue'
 import TechPanel from '@/components/panels/TechPanel.vue'
 import OrgPanel from '@/components/panels/OrgPanel.vue'
@@ -35,8 +34,9 @@ const { layout: mapLayout } = useMapDebug()
       }"
     />
 
+    <KpiPanel class="hero-kpi" />
+
     <aside class="side-rail left-rail" aria-label="创业扶持核心数据">
-      <KpiPanel />
       <SectionTitle title="扶持成效分析" />
       <QualityPanel />
       <TechPanel />
@@ -49,7 +49,6 @@ const { layout: mapLayout } = useMapDebug()
       <InquiryPanel />
       <SocialPanel />
       <TrainingPanel />
-      <AmountTablePanel class="right-amount" />
     </aside>
 
     <MapDebugDrawer />
@@ -62,13 +61,13 @@ const { layout: mapLayout } = useMapDebug()
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
 
 /* 地图容器与相机目标都以画布中心为基准，左右轨道仅承载数据面板。 */
-.pos-map { position: absolute; z-index: 1; left: 400px; top: 82px; width: 1120px; height: 998px; }
+.pos-map { position: absolute; z-index: 1; left: 400px; top: 132px; width: 1120px; height: 948px; }
+.hero-kpi { position: absolute; left: 530px; top: 108px; z-index: 12; }
 .side-rail {
-  position: absolute; top: 112px; z-index: 10; width: 492px;
-  display: flex; flex-direction: column; gap: 8px;
-  transform: scale(0.82); transform-origin: left top;
+  position: absolute; top: 116px; z-index: 10; width: 492px;
+  display: flex; flex-direction: column; gap: 16px;
+  transform: scale(0.88); transform-origin: left top;
 }
 .left-rail { left: 24px; }
-.right-rail { left: 1493px; }
-.right-amount { align-self: flex-end; }
+.right-rail { left: 1463px; }
 </style>

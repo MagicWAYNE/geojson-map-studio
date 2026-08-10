@@ -86,7 +86,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 .mini { position: absolute; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 5px; }
 .value { display: flex; align-items: baseline; gap: 5px; }
-.unit { font-family: 'OPPOSans-R'; font-size: 13px; color: #90a3c8; }
+.unit { font-family: 'OPPOSans-R'; font-size: 15px; color: #90a3c8; }
 .chart { position: absolute; left: 0; top: 170px; width: 492px; height: 190px; }
 .err { color: #ff7d57; font-size: 14px; padding-top: 30px; }
 </style>

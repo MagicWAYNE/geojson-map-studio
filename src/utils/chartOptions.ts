@@ -2,9 +2,9 @@ import * as echarts from 'echarts'
 import type { EChartsOption } from 'echarts'
 import type { XYItem } from '@/types'
 
-const AXIS_LABEL = { color: '#90a3c8', fontSize: 12, fontFamily: 'OPPOSans-R' }
+const AXIS_LABEL = { color: '#90a3c8', fontSize: 14, fontFamily: 'OPPOSans-R' }
 /** 数值轴刻度用 Bebas（类目轴是月份/省份等文字，保持 OPPOSans） */
-const VALUE_AXIS_LABEL = { color: '#90a3c8', fontSize: 12, fontFamily: 'Bebas' }
+const VALUE_AXIS_LABEL = { color: '#90a3c8', fontSize: 14, fontFamily: 'Bebas' }
 const SPLIT_LINE = { lineStyle: { color: 'rgba(144,163,200,0.15)' } }
 
 /** axis 触发的 tooltip：数值部分用 Bebas 渲染 */
@@ -35,7 +35,10 @@ function seriesData(list: XYItem[], name: string, cats: string[]): number[] {
 }
 
 /** 蓝/金双系列柱状图（质效分析·还款结构） */
-export function buildDoubleBarOption(list: XYItem[], opts: { xLabelInterval?: number } = {}): EChartsOption {
+export function buildDoubleBarOption(
+  list: XYItem[],
+  opts: { xLabelInterval?: number; xLabelFormatter?: (value: string) => string; barWidth?: number } = {}
+): EChartsOption {
   const cats = categories(list)
   const names = seriesNames(list)
   const gradients: [string, string][] = [
@@ -45,24 +48,28 @@ export function buildDoubleBarOption(list: XYItem[], opts: { xLabelInterval?: nu
   return {
     legend: {
       top: 0, right: 8, itemWidth: 10, itemHeight: 10, itemGap: 18,
-      textStyle: { color: '#a5bde5', fontSize: 12, fontFamily: 'OPPOSans-R' }
+      textStyle: { color: '#a5bde5', fontSize: 14, fontFamily: 'OPPOSans-R' }
     },
     grid: { left: 8, right: 8, top: 30, bottom: 2, containLabel: true },
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(6,18,40,0.92)', borderColor: '#2483FF',
-      textStyle: { color: '#fff', fontSize: 12 },
+      textStyle: { color: '#fff', fontSize: 14 },
       formatter: axisTooltipFormatter
     },
     xAxis: {
       type: 'category', data: cats,
-      axisLabel: { ...AXIS_LABEL, interval: opts.xLabelInterval ?? 0 },
+      axisLabel: {
+        ...AXIS_LABEL,
+        interval: opts.xLabelInterval ?? 0,
+        ...(opts.xLabelFormatter ? { formatter: opts.xLabelFormatter } : {})
+      },
       axisLine: { lineStyle: { color: 'rgba(144,163,200,0.3)' } },
       axisTick: { show: false }
     },
     yAxis: { type: 'value', axisLabel: VALUE_AXIS_LABEL, splitLine: SPLIT_LINE },
     series: names.map((nm, idx) => ({
-      name: nm, type: 'bar' as const, barWidth: 5, barGap: '60%',
+      name: nm, type: 'bar' as const, barWidth: opts.barWidth ?? 5, barGap: '60%',
       data: seriesData(list, nm, cats),
       itemStyle: {
         borderRadius: [2, 2, 0, 0],
@@ -86,13 +93,13 @@ export function buildMultiLineOption(
   return {
     legend: {
       top: 0, right: 8, icon: 'circle', itemWidth: 8, itemHeight: 8, itemGap: 18,
-      textStyle: { color: '#a5bde5', fontSize: 12, fontFamily: 'OPPOSans-R' }
+      textStyle: { color: '#a5bde5', fontSize: 14, fontFamily: 'OPPOSans-R' }
     },
     grid: { left: 8, right: 12, top: 30, bottom: 2, containLabel: true },
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(6,18,40,0.92)', borderColor: '#2483FF',
-      textStyle: { color: '#fff', fontSize: 12 },
+      textStyle: { color: '#fff', fontSize: 14 },
       formatter: axisTooltipFormatter
     },
     xAxis: {

@@ -56,7 +56,7 @@ const scrollStyle = computed(() =>
 .scroll-table { width: 100%; overflow: hidden; }
 .thead {
   display: flex; height: 30px; line-height: 30px;
-  font-size: 12px; color: #90a3c8; font-family: 'OPPOSans-R';
+  font-size: 14px; color: #90a3c8; font-family: 'OPPOSans-R';
   background: rgba(36, 131, 255, 0.12);
 }
 .thead span, .row span {
@@ -64,7 +64,7 @@ const scrollStyle = computed(() =>
 }
 .tbody { overflow: hidden; }
 .rows.scrolling { animation: scroll-up linear infinite; }
-.row { display: flex; align-items: center; font-size: 13px; color: #fff; font-family: 'OPPOSans-R'; }
+.row { display: flex; align-items: center; font-size: 14px; color: #fff; font-family: 'OPPOSans-R'; }
 .row span.num { font-family: Bebas, 'OPPOSans-R', sans-serif; }
 .row:nth-child(odd) { background: rgba(36, 131, 255, 0.06); }
 @keyframes scroll-up {

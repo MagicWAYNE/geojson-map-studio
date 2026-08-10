@@ -83,7 +83,7 @@ const scrollStyle = computed(() =>
 .line2 { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin: 4px 0; }
 .line2 em { font-style: normal; font-family: Bebas, sans-serif; font-size: 18px; color: #edd892; }
 .line3 {
-  font-family: 'OPPOSans-R'; font-size: 12px; color: #90a3c8;
+  font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .err { color: #ff7d57; font-size: 14px; padding-top: 30px; }

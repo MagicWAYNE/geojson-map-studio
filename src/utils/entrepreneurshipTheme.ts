@@ -44,6 +44,12 @@ const TRAINING_TOPICS: Record<string, string> = {
   '2026-05-18': '孵化载体运营经验交流会'
 }
 
+const EXTRA_TRAINING_SESSIONS: HgpxItem[] = [
+  { zt: '创业项目路演表达训练', rs: 22, rq: '2026-07-04 14:00:00' },
+  { zt: '企业用工与团队建设走访', rs: 18, rq: '2026-07-18 09:30:00' },
+  { zt: '孵化空间运营实务交流', rs: 26, rq: '2026-08-02 15:00:00' }
+]
+
 const SERVICE_REQUESTS: Record<number, { lx: string; czjg: string }> = {
   1: { lx: '政策申报材料咨询', czjg: '提供申报清单，安排专员协助完善材料' },
   2: { lx: '创业导师预约', czjg: '完成需求登记，匹配对应领域创业导师' },
@@ -61,6 +67,29 @@ export function toSupportSeries(list: XYItem[]): XYItem[] {
     ...item,
     colorField: SUPPORT_SERIES[item.colorField] ?? item.colorField
   }))
+}
+
+/**
+ * The bundled API fixture has district totals rather than a dated time series.
+ * Expand those demo values into the weekly cadence required by the dashboard.
+ */
+export function toDemoWeeklySupportSeries(list: XYItem[]): XYItem[] {
+  const totalsByArea = new Map<string, number>()
+  for (const item of list) {
+    totalsByArea.set(item.x, (totalsByArea.get(item.x) ?? 0) + item.y)
+  }
+  const sourceValues = [...totalsByArea.values()]
+  if (!sourceValues.length) return []
+  return Array.from({ length: 24 }, (_, index) => ({
+    x: `${Math.floor(index / 4) + 1}月·第${index % 4 + 1}周`,
+    y: Math.round(sourceValues[index % sourceValues.length]),
+    colorField: '周扶持企业'
+  }))
+}
+
+export function formatWeeklyMonthLabel(value: string): string {
+  const [month, week] = value.split('·')
+  return week === '第1周' ? month : ''
 }
 
 export function toServiceTrendSeries(list: XYItem[]): XYItem[] {
@@ -107,10 +136,11 @@ export function toEntrepreneurshipRequests(list: ChuzhiItem[]): ChuzhiItem[] {
 }
 
 export function toEntrepreneurshipTraining(list: HgpxItem[]): HgpxItem[] {
-  return list.map((item) => ({
+  const themed = list.map((item) => ({
     ...item,
     zt: TRAINING_TOPICS[item.rq.slice(0, 10)] ?? '创业服务能力提升培训'
   }))
+  return [...themed, ...EXTRA_TRAINING_SESSIONS]
 }
 
 export function toEntrepreneurshipDistrictDetail(

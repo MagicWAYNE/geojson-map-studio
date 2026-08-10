@@ -31,12 +31,12 @@ const rows = computed(() =>
   <div class="training-panel">
     <SectionTitle title="创业培训与企业走访" />
     <div v-if="error" class="err">{{ error }}</div>
-    <ScrollTable v-else class="table" :columns="columns" :rows="rows" :height="98" :row-height="32" />
+    <ScrollTable v-else class="table" :columns="columns" :rows="rows" :height="246" :row-height="36" />
   </div>
 </template>
 
 <style scoped>
-.training-panel { position: relative; width: 492px; height: 171px; }
+.training-panel { position: relative; width: 492px; height: 319px; }
 .table { margin-top: 13px; }
 .err { color: #ff7d57; font-size: 14px; padding-top: 30px; }
 </style>

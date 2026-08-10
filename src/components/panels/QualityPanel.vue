@@ -5,6 +5,7 @@ import SubTitle from '@/components/layout/SubTitle.vue'
 import { useECharts } from '@/composables/useECharts'
 import { buildDoubleBarOption } from '@/utils/chartOptions'
 import { getSupportModeSeries, getSupportOutcomeData } from '@/api'
+import { formatWeeklyMonthLabel } from '@/utils/entrepreneurshipTheme'
 import type { TjzxData } from '@/types'
 import icon1 from '@/assets/images/icon-quality-1.png'
 import icon2 from '@/assets/images/icon-quality-2.png'
@@ -37,7 +38,11 @@ onMounted(async () => {
   try {
     const [tjzx, list] = await Promise.all([getSupportOutcomeData(), getSupportModeSeries()])
     data.value = tjzx
-    setOption(buildDoubleBarOption(list, { xLabelInterval: 5 }))
+    setOption(buildDoubleBarOption(list, {
+      xLabelInterval: 0,
+      xLabelFormatter: formatWeeklyMonthLabel,
+      barWidth: 8
+    }))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -72,7 +77,7 @@ const num = (v: string | undefined) => (v ? parseFloat(v) : 0)
 .card img { width: 48px; height: 48px; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 4px; }
 .value { display: flex; align-items: baseline; gap: 5px; }
-.unit { font-family: 'OPPOSans-R'; font-size: 13px; color: #90a3c8; }
+.unit { font-family: 'OPPOSans-R'; font-size: 15px; color: #90a3c8; }
 .chart { position: absolute; left: 0; top: 198px; width: 492px; height: 180px; }
 .err { color: #ff7d57; font-size: 14px; padding-top: 30px; }
 </style>

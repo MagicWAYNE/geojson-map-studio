@@ -57,7 +57,7 @@ const cur = computed(() => list.value[active.value] ?? null)
 .tech-panel { position: relative; width: 492px; height: 100px; }
 .tabs { position: absolute; right: 0; top: -2px; display: flex; gap: 4px; }
 .tab {
-  padding: 3px 10px; font-family: 'OPPOSans-R'; font-size: 12px; color: #a5bde5;
+  padding: 3px 10px; font-family: 'OPPOSans-R'; font-size: 14px; color: #a5bde5;
   background: linear-gradient(180deg, #1f335e, #111c2e);
   border: 1px solid rgba(165, 189, 229, 0.1); border-radius: 2px; cursor: pointer;
 }
@@ -67,6 +67,6 @@ const cur = computed(() => list.value[active.value] ?? null)
 .group { position: absolute; left: 82px; top: 0; }
 .title { font-family: 'OPPOSans-R'; font-size: 14px; color: #90a3c8; margin-bottom: 4px; }
 .value { display: flex; align-items: baseline; gap: 5px; }
-.unit { font-family: 'OPPOSans-R'; font-size: 13px; color: #90a3c8; }
+.unit { font-family: 'OPPOSans-R'; font-size: 15px; color: #90a3c8; }
 .err { color: #ff7d57; font-size: 14px; padding-top: 20px; }
 </style>
