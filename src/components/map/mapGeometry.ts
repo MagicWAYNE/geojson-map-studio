@@ -102,6 +102,25 @@ function regionAreaWeightedMean(rings: Ring[]): Point2 | null {
     : [weightedX / totalArea, weightedY / totalArea]
 }
 
+function pointBounds(points: Point2[]): {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+} {
+  let minX = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (const [x, y] of points) {
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  return { minX, maxX, minY, maxY }
+}
+
 /**
  * Finds a deterministic point usable for labels or map-local resources.  A
  * concave polygon's centroid and bounds centre can both be outside the region,
@@ -114,12 +133,7 @@ export function findRegionInteriorPoint(region: Region): Point2 | null {
 
   const points = outerRings.flat()
   if (!points.length) return null
-  const xs = points.map(([x]) => x)
-  const ys = points.map(([, y]) => y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
+  const { minX, maxX, minY, maxY } = pointBounds(points)
   candidates.push([(minX + maxX) / 2, (minY + maxY) / 2])
 
   for (let row = 0; row < 9; row++) {
@@ -158,12 +172,7 @@ export function projectRegions(regions: Region[], planeMax: number): ProjectionR
   )
   if (!points.length) throw new Error('地图轮廓为空')
 
-  const xs = points.map(([x]) => x)
-  const ys = points.map(([, y]) => y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
+  const { minX, maxX, minY, maxY } = pointBounds(points)
   const scale = planeMax / Math.max(maxX - minX, maxY - minY)
   const center: Point2 = [(minX + maxX) / 2, (minY + maxY) / 2]
   const project = ([x, y]: Point2): Point2 => [

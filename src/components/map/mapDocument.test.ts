@@ -127,6 +127,31 @@ describe('mapDocument', () => {
     expect(prepared.persisted.metricsText).toBe(metricsText)
   })
 
+  it('业务数据名称与 GeoJSON 区域名称使用未经修剪的精确匹配', () => {
+    const geometryText = validMixedGeoJson.replace('区域 A', '区域 A ')
+    const metricsText = JSON.stringify({
+      version: 1,
+      primaryMetric: { label: '企业', unit: '家' },
+      secondaryMetric: { label: '资源', unit: '项' },
+      regions: [{ name: '区域 A', primary: 1, secondary: 2 }]
+    })
+
+    const prepared = prepareGeoJsonMapPackage({
+      geometryText,
+      geometryFileName: 'exact.geojson',
+      nameProperty: 'name',
+      metricsText
+    })
+
+    expect(prepared.document.geometry.regions[0].name).toBe('区域 A ')
+    expect(prepared.document.metrics.size).toBe(0)
+    expect(prepared.summary.metrics).toEqual({
+      matchedNames: [],
+      missingNames: ['区域 A ', '区域 B'],
+      extraNames: ['区域 A']
+    })
+  })
+
   it.each([
     {
       name: '非 FeatureCollection',
@@ -295,5 +320,32 @@ describe('mapDocument', () => {
     expect(() => inspectGeoJsonMap(tooManyPositions)).toThrowError(
       expect.objectContaining({ code: 'too-many-positions', path: 'features' })
     )
+  })
+
+  it('在总位置数恰好达到上限时仍完成投影而不触发引擎参数上限', () => {
+    const positions = [
+      [106, 29],
+      [107, 29],
+      ...Array.from({ length: GEOJSON_MAX_POSITIONS - 4 }, () => [107, 30]),
+      [106, 30],
+      [106, 29]
+    ]
+    const geometryText = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        properties: { name: '上限区域' },
+        geometry: { type: 'Polygon', coordinates: [positions] }
+      }]
+    })
+
+    const prepared = prepareGeoJsonMapPackage({
+      geometryText,
+      geometryFileName: 'limit.geojson',
+      nameProperty: 'name'
+    })
+
+    expect(prepared.summary.totalPositionCount).toBe(GEOJSON_MAX_POSITIONS)
+    expect(prepared.document.geometry.scale).toBeGreaterThan(0)
   })
 })

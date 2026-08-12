@@ -16,6 +16,7 @@ const router = useRouter()
 const geometryText = ref<string>()
 const geometryFileName = ref('')
 const metricsText = ref<string>()
+const metricsFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
@@ -27,9 +28,22 @@ let metricsReadGeneration = 0
 
 const canApply = computed(() => prepared.value !== undefined && !busy.value)
 
-function errorMessage(cause: unknown): string {
-  if (cause instanceof MapImportError) return `${cause.userMessage}（${cause.path}）`
-  return cause instanceof Error && cause.message ? cause.message : String(cause)
+function errorMessage(cause: unknown, fileName = ''): string {
+  const message = cause instanceof MapImportError
+    ? `${cause.userMessage}（${cause.path}）`
+    : cause instanceof Error && cause.message ? cause.message : String(cause)
+  return fileName ? `${fileName}：${message}` : message
+}
+
+function validationFileName(cause: unknown): string {
+  if (
+    cause instanceof MapImportError &&
+    (
+      cause.code === 'invalid-metrics' ||
+      (metricsText.value !== undefined && ['invalid-json', 'file-too-large'].includes(cause.code))
+    )
+  ) return metricsFileName.value
+  return geometryFileName.value
 }
 
 function validatePackage(): void {
@@ -48,7 +62,7 @@ function validatePackage(): void {
       ...(metricsText.value === undefined ? {} : { metricsText: metricsText.value })
     })
   } catch (cause) {
-    validationError.value = errorMessage(cause)
+    validationError.value = errorMessage(cause, validationFileName(cause))
   }
 }
 
@@ -62,19 +76,19 @@ async function handleGeometryFile(event: Event): Promise<void> {
   prepared.value = undefined
   validationError.value = ''
   if (!file) return
+  geometryFileName.value = file.name
   try {
     const text = await file.text()
     if (generation !== geometryReadGeneration) return
     const nextInspection = inspectGeoJsonMap(text)
     geometryText.value = text
-    geometryFileName.value = file.name
     inspection.value = nextInspection
     nameProperty.value = nextInspection.usableNameProperties.includes('name')
       ? 'name'
       : nextInspection.usableNameProperties[0] ?? ''
     validatePackage()
   } catch (cause) {
-    if (generation === geometryReadGeneration) validationError.value = errorMessage(cause)
+    if (generation === geometryReadGeneration) validationError.value = errorMessage(cause, file.name)
   }
 }
 
@@ -82,6 +96,9 @@ async function handleMetricsFile(event: Event): Promise<void> {
   const generation = ++metricsReadGeneration
   const file = (event.target as HTMLInputElement).files?.[0]
   metricsText.value = undefined
+  metricsFileName.value = file?.name ?? ''
+  prepared.value = undefined
+  validationError.value = ''
   if (!file) {
     validatePackage()
     return
@@ -92,7 +109,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
     metricsText.value = text
     validatePackage()
   } catch (cause) {
-    if (generation === metricsReadGeneration) validationError.value = errorMessage(cause)
+    if (generation === metricsReadGeneration) validationError.value = errorMessage(cause, file.name)
   }
 }
 

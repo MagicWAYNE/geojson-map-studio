@@ -104,4 +104,37 @@ describe('MapLoaderView', () => {
     expect(routerMocks.push).toHaveBeenCalledWith('/')
     app.unmount()
   })
+
+  it('读取新业务文件期间立即禁用旧准备结果，并在失败时显示文件与 feature 上下文', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(false)
+    })
+
+    let resolveMetrics!: (text: string) => void
+    const metricsText = new Promise<string>((resolve) => { resolveMetrics = resolve })
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#metrics-file')!,
+      { name: 'slow-invalid-metrics.json', text: () => metricsText } as File
+    )
+    await nextTick()
+    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    resolveMetrics('{')
+    await vi.waitFor(() => expect(root.textContent).toContain('slow-invalid-metrics.json'))
+    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('invalid-coordinate.geojson')], 'invalid-coordinate.geojson')
+    )
+    await vi.waitFor(() => expect(root.textContent).toContain('invalid-coordinate.geojson'))
+    expect(root.textContent).toContain('features[0]')
+    expect(root.textContent).toContain('越界区域')
+    expect(sourceMocks.activate).not.toHaveBeenCalled()
+    app.unmount()
+  })
 })

@@ -151,8 +151,7 @@ function parseJson(text: string, maxBytes: number, fileLabel: string): unknown {
 
 function primitiveName(value: unknown): string | null {
   if (typeof value === 'string') {
-    const name = value.trim()
-    return name ? name : null
+    return value.trim() ? value : null
   }
   return typeof value === 'number' && Number.isFinite(value) ? String(value) : null
 }
@@ -260,30 +259,39 @@ function parseGeoJson(text: string): ParsedGeoJson {
       fail('unsupported-geometry', `${featurePath}.geometry`, `${featurePath} 缺少受支持的 geometry`)
     }
     const coordinatePath = `${featurePath}.geometry.coordinates`
-    if (candidate.geometry.type === 'Polygon') {
-      polygonCount += 1
-      return {
-        properties: candidate.properties,
-        regionOuters: [readPolygon(candidate.geometry.coordinates, coordinatePath, incrementPositionCount)]
+    try {
+      if (candidate.geometry.type === 'Polygon') {
+        polygonCount += 1
+        return {
+          properties: candidate.properties,
+          regionOuters: [readPolygon(candidate.geometry.coordinates, coordinatePath, incrementPositionCount)]
+        }
       }
+      if (candidate.geometry.type === 'MultiPolygon') {
+        multiPolygonCount += 1
+        if (!Array.isArray(candidate.geometry.coordinates) || candidate.geometry.coordinates.length === 0) {
+          fail('invalid-ring', coordinatePath, `${coordinatePath} 必须包含至少一个 Polygon`)
+        }
+        return {
+          properties: candidate.properties,
+          regionOuters: candidate.geometry.coordinates.map((polygon, polygonIndex) =>
+            readPolygon(polygon, `${coordinatePath}[${polygonIndex}]`, incrementPositionCount)
+          )
+        }
+      }
+      fail(
+        'unsupported-geometry',
+        `${featurePath}.geometry.type`,
+        `${featurePath} 只支持 Polygon 或 MultiPolygon`
+      )
+    } catch (cause) {
+      if (cause instanceof MapImportError) {
+        const name = primitiveName(candidate.properties.name)
+        const featureLabel = name === null ? featurePath : `${featurePath}（${name}）`
+        throw new MapImportError(cause.code, cause.path, `${featureLabel}：${cause.userMessage}`)
+      }
+      throw cause
     }
-    if (candidate.geometry.type === 'MultiPolygon') {
-      multiPolygonCount += 1
-      if (!Array.isArray(candidate.geometry.coordinates) || candidate.geometry.coordinates.length === 0) {
-        fail('invalid-ring', coordinatePath, `${coordinatePath} 必须包含至少一个 Polygon`)
-      }
-      return {
-        properties: candidate.properties,
-        regionOuters: candidate.geometry.coordinates.map((polygon, polygonIndex) =>
-          readPolygon(polygon, `${coordinatePath}[${polygonIndex}]`, incrementPositionCount)
-        )
-      }
-    }
-    fail(
-      'unsupported-geometry',
-      `${featurePath}.geometry.type`,
-      `${featurePath} 只支持 Polygon 或 MultiPolygon`
-    )
   })
 
   return {
@@ -390,7 +398,7 @@ function parseMetrics(text: string): ParsedMetrics {
     if (!isRecord(candidate) || typeof candidate.name !== 'string' || !candidate.name.trim()) {
       fail('invalid-metrics', `${path}.name`, `${path}.name 必须是非空文本`)
     }
-    const name = candidate.name.trim()
+    const name = candidate.name
     if (byName.has(name)) fail('invalid-metrics', `${path}.name`, `业务数据区域名称 ${name} 重复`)
     byName.set(name, {
       name,
