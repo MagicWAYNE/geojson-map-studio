@@ -13,10 +13,12 @@ import type {
   DistrictBarOverlayLayout,
   DistrictBarOverlayMeasuredSizes
 } from './mapDistrictBarOverlayLayout'
+import type { MapMetricLabels } from './mapDocument'
 
 const props = defineProps<{
   layout: Readonly<DistrictBarOverlayLayout>
   config: Readonly<MapDistrictBarOverlayConfig>
+  metricLabels: Readonly<MapMetricLabels>
 }>()
 
 const emit = defineEmits<{
@@ -303,10 +305,10 @@ function panelStyle(): StyleWithVariables {
         >
         <span class="district-bar-panel-title-text">{{ layout.panel.titleText }}</span>
         <div class="district-bar-panel-row">
-          <span class="district-bar-panel-label">扶持企业：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit"> 家</span>
+          <span class="district-bar-panel-label">{{ metricLabels.primary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.primary.unit}` }}</span>
         </div>
         <div class="district-bar-panel-row">
-          <span class="district-bar-panel-label">服务资源：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit"> 项</span>
+          <span class="district-bar-panel-label">{{ metricLabels.secondary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.secondary.unit}` }}</span>
         </div>
       </section>
     </Transition>

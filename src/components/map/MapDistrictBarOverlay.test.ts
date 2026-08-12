@@ -16,6 +16,12 @@ import type {
   DistrictBarPanelOverlayLayout
 } from './mapDistrictBarOverlayLayout'
 import MapDistrictBarOverlay from './MapDistrictBarOverlay.vue'
+import type { MapMetricLabels } from './mapDocument'
+
+const defaultMetricLabels: MapMetricLabels = {
+  primary: { label: '扶持企业', unit: '家' },
+  secondary: { label: '服务资源', unit: '项' }
+}
 
 interface MountedOverlay {
   app: App
@@ -158,7 +164,8 @@ function panel(
 
 async function mountOverlay(
   layout: DistrictBarOverlayLayout,
-  config = cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS)
+  config = cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS),
+  metricLabels: MapMetricLabels = defaultMetricLabels
 ): Promise<MountedOverlay> {
   installOverlayStyles()
   const state = reactive({ layout, config })
@@ -169,6 +176,7 @@ async function mountOverlay(
     render: () => h(MapDistrictBarOverlay, {
       layout: state.layout,
       config: state.config,
+      metricLabels,
       onSizesChange: (sizes: DistrictBarOverlayMeasuredSizes) => measured.push(sizes)
     })
   })
@@ -185,6 +193,23 @@ afterEach(() => {
 })
 
 describe('MapDistrictBarOverlay', () => {
+  it('renders uploaded metric labels and units as plain text', async () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const { app, root } = await mountOverlay(
+      { badges: [], panel: panel('区域 A') },
+      cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS),
+      {
+        primary: { label: '<企业数>', unit: '户' },
+        secondary: { label: '服务包', unit: '份' }
+      }
+    )
+
+    expect(root.querySelectorAll('script')).toHaveLength(0)
+    expect(root.textContent).toContain('<企业数>：123 户')
+    expect(root.textContent).toContain('服务包：45.67 份')
+    app.unmount()
+  })
+
   it('pins the exact formal title SVG bytes', () => {
     const asset = readFileSync(resolve(
       process.cwd(),

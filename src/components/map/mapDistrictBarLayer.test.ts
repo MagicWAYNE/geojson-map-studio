@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import type { DistrictMapItem } from '@/types'
+import type { MapRegionMetrics } from './mapDocument'
 import type { Region } from './mapGeometry'
 import { MAP_DISTRICT_BAR_DEFAULTS } from './mapDistrictBarConfig'
 import {
@@ -67,11 +67,33 @@ const regions: Region[] = [
   { name: 'B', outers: [{ ring: [[5, 0], [9, 0], [9, 4], [5, 4]], holes: [] }] }
 ]
 
-function items(entries: [string, number, number?][]): ReadonlyMap<string, DistrictMapItem> {
-  return new Map(entries.map(([name, aj, ztje = 0]) => [name, { name, aj, ztje, zzs: 0 }]))
+function items(entries: [string, number, number?][]): ReadonlyMap<string, MapRegionMetrics> {
+  return new Map(entries.map(([name, primary, secondary = 0]) => [
+    name,
+    { name, primary, secondary }
+  ]))
 }
 
 describe('mapDistrictBarLayer', () => {
+  it('通过通用 primary 指标创建柱体并公开 primary/secondary 快照', () => {
+    const metrics: ReadonlyMap<string, MapRegionMetrics> = new Map([
+      ['A', { name: 'A', primary: 25, secondary: 120.5 }]
+    ])
+    const layer = createDistrictBarLayer(
+      [regions[0]],
+      metrics,
+      { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 },
+      4
+    )
+    updateDistrictBarLayer(layer, MAP_DISTRICT_BAR_DEFAULTS, 1_000)
+
+    expect(getDistrictBarTopSnapshots(layer).map((snapshot) => ({
+      name: snapshot.name,
+      primary: snapshot.primary,
+      secondary: snapshot.secondary
+    }))).toEqual([{ name: 'A', primary: 25, secondary: 120.5 }])
+  })
+
   it('按平方根范围映射案件量高度', () => {
     expect(mapDistrictBarHeight(0, 3, 20, 0.5, 100)).toBe(3)
     expect(mapDistrictBarHeight(25, 3, 20, 0.5, 100)).toBeCloseTo(11.5)
@@ -93,12 +115,12 @@ describe('mapDistrictBarLayer', () => {
 
     expect(getDistrictBarTopSnapshots(layer).map((snapshot) => ({
       name: snapshot.name,
-      caseCount: snapshot.caseCount,
-      amount: snapshot.amount,
+      primary: snapshot.primary,
+      secondary: snapshot.secondary,
       order: snapshot.order
     }))).toEqual([
-      { name: 'B', caseCount: 100, amount: 980.25, order: 0 },
-      { name: 'A', caseCount: 25, amount: 120.5, order: 1 }
+      { name: 'B', primary: 100, secondary: 980.25, order: 0 },
+      { name: 'A', primary: 25, secondary: 120.5, order: 1 }
     ])
   })
 
@@ -197,15 +219,15 @@ describe('mapDistrictBarLayer', () => {
   it('只为有有效案件量且存在锚点的区块创建柱体与光环', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const layer = createDistrictBarLayer(regions, new Map([
-      ['A', { name: 'A', aj: 100, ztje: 0, zzs: 0 }],
-      ['B', { name: 'B', aj: Number.NaN, ztje: 0, zzs: 0 }]
+      ['A', { name: 'A', primary: 100, secondary: 0 }],
+      ['B', { name: 'B', primary: Number.NaN, secondary: 0 }]
     ]), MAP_DISTRICT_BAR_DEFAULTS, 4)
 
     expect(layer.group.children).toHaveLength(3)
     expect(layer.byName.has('A')).toBe(true)
     expect(layer.byName.has('B')).toBe(false)
     expect(layer.range).toEqual({ min: 100, max: 100 })
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('无效或缺失 aj'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('无效 primary'))
     warn.mockRestore()
   })
 
@@ -286,7 +308,7 @@ describe('mapDistrictBarLayer', () => {
     warn.mockRestore()
   })
 
-  it('对无效或缺失 aj 发出一次包含区县和原因的诊断，并继续渲染其他区县', () => {
+  it('只对非法 primary 发出一次诊断，缺失数据作为正常状态静默跳过', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const invalidRegions: Region[] = [
       regions[0],
@@ -300,9 +322,9 @@ describe('mapDistrictBarLayer', () => {
 
     expect(first.byName.has('A')).toBe(true)
     expect(second.byName.has('A')).toBe(true)
-    expect(warn).toHaveBeenCalledTimes(2)
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('InvalidAJ（无效或缺失 aj）'))
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('MissingAJ（无效或缺失 aj）'))
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('InvalidAJ（无效 primary）'))
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('MissingAJ'))
     warn.mockRestore()
   })
 

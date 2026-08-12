@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { DistrictMapItem } from '@/types'
 import type { MapDistrictBarConfig } from './mapDistrictBarConfig'
+import type { MapRegionMetrics } from './mapDocument'
 import { findRegionInteriorPoint, type Region } from './mapGeometry'
 
 export interface DistrictBarRange {
@@ -31,8 +31,8 @@ export interface DistrictBarLayer {
 
 export interface DistrictBarTopSnapshot {
   readonly name: string
-  readonly caseCount: number
-  readonly amount: number
+  readonly primary: number
+  readonly secondary: number
   readonly order: number
   readonly visible: boolean
   readonly hoverProgress: number
@@ -40,8 +40,8 @@ export interface DistrictBarTopSnapshot {
 }
 
 interface LayerDatum {
-  aj: number
-  ztje: number
+  primary: number
+  secondary: number
 }
 
 interface LayerState {
@@ -63,7 +63,7 @@ function warnDistrictBarIssue(name: string, reason: string, cause?: unknown): vo
   const key = `${name}\u0000${reason}`
   if (warnedDistrictBarIssues.has(key)) return
   warnedDistrictBarIssues.add(key)
-  const message = `区县柱体跳过：${name}（${reason}）`
+  const message = `区域柱体跳过：${name}（${reason}）`
   if (cause === undefined) console.warn(message)
   else console.warn(message, cause)
 }
@@ -193,7 +193,7 @@ export function mapDistrictBarHeight(
 
 export function createDistrictBarLayer(
   regions: Region[],
-  dataByName: ReadonlyMap<string, DistrictMapItem>,
+  dataByName: ReadonlyMap<string, MapRegionMetrics>,
   config: Readonly<MapDistrictBarConfig>,
   depth: number
 ): DistrictBarLayer {
@@ -202,18 +202,19 @@ export function createDistrictBarLayer(
   const state: LayerState = { depth, elapsedMs: 0, dataByName: new Map(), focusedName: null }
   layerStates.set(layer, state)
 
-  const validItems: [Region, DistrictMapItem][] = []
+  const validItems: [Region, MapRegionMetrics][] = []
   for (const region of regions) {
     const item = dataByName.get(region.name)
-    if (!item || !Number.isFinite(item.aj) || item.aj < 0) {
-      warnDistrictBarIssue(region.name, '无效或缺失 aj')
+    if (!item) continue
+    if (!Number.isFinite(item.primary) || item.primary < 0) {
+      warnDistrictBarIssue(region.name, '无效 primary')
       continue
     }
     validItems.push([region, item])
   }
   if (!validItems.length) return layer
 
-  const values = validItems.map(([, item]) => item.aj)
+  const values = validItems.map(([, item]) => item.primary)
   const range = Object.freeze({ min: Math.min(...values), max: Math.max(...values) })
   layer.range = range
 
@@ -225,7 +226,7 @@ export function createDistrictBarLayer(
       continue
     }
     const baseHeight = mapDistrictBarHeight(
-      item.aj,
+      item.primary,
       config.minHeight,
       config.maxHeight,
       config.sqrtExponent,
@@ -286,7 +287,10 @@ export function createDistrictBarLayer(
         surfaceLift: 0
       }
       layer.byName.set(region.name, visual)
-      state.dataByName.set(region.name, { aj: item.aj, ztje: item.ztje })
+      state.dataByName.set(region.name, {
+        primary: item.primary,
+        secondary: item.secondary
+      })
       group.add(column, ring, pulseRing)
     } catch (cause) {
       disposePartialVisual(
@@ -316,7 +320,7 @@ export function applyDistrictBarConfig(
     const datum = state.dataByName.get(visual.name)
     if (datum && layer.range) {
       visual.baseHeight = mapDistrictBarHeight(
-        datum.aj,
+        datum.primary,
         config.minHeight,
         config.maxHeight,
         config.sqrtExponent,
@@ -370,8 +374,8 @@ export function getDistrictBarTopSnapshots(layer: DistrictBarLayer): DistrictBar
       const worldTop = new THREE.Vector3(0, 0.5, 0).applyMatrix4(visual.column.matrixWorld)
       return [{
         name: visual.name,
-        caseCount: datum.aj,
-        amount: datum.ztje,
+        primary: datum.primary,
+        secondary: datum.secondary,
         order: visual.order,
         visible: sceneGraphVisible(visual.column),
         hoverProgress: clampProgress(visual.hoverProgress),

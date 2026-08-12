@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "primaryMetric": { "label": "扶持企业", "unit": "家" },
+  "secondaryMetric": { "label": "服务资源", "unit": "项" },
+  "regions": [
+    { "name": "区域 A", "primary": 120, "secondary": 45.6 },
+    { "name": "区域 B", "primary": 80, "secondary": 30 },
+    { "name": "区域 D", "primary": 10, "secondary": 2 }
+  ]
+}

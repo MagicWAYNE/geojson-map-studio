@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import { cloneMapEffectConfig, MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { MAP_HUD_DEFAULTS, type MapHudConfig } from './mapHudConfig'
+import type { MapDocument } from './mapDocument'
 
-const apiMocks = vi.hoisted(() => ({ getDistrictMapData: vi.fn() }))
-const geometryMocks = vi.hoisted(() => ({ parseSvgRegions: vi.fn() }))
+const routerMocks = vi.hoisted(() => ({ push: vi.fn() }))
 const sceneSetupMocks = vi.hoisted(() => ({
   controlsDispose: vi.fn(),
   controlsUpdate: vi.fn(),
@@ -58,7 +58,7 @@ const districtBarMocks = vi.hoisted(() => ({
 }))
 const overlayLayoutMocks = vi.hoisted(() => ({ calculate: vi.fn() }))
 const overlayComponentMocks = vi.hoisted(() => ({
-  props: null as null | { layout: unknown, config: unknown },
+  props: null as null | { layout: unknown, config: unknown, metricLabels: unknown },
   emitSizes: null as null | ((sizes: unknown) => void),
   layoutOnUnmount: null as unknown
 }))
@@ -123,7 +123,7 @@ vi.mock('./MapDistrictBarOverlay.vue', async () => {
   return {
     default: defineComponent({
       name: 'MapDistrictBarOverlayStub',
-      props: ['layout', 'config'],
+      props: ['layout', 'config', 'metricLabels'],
       emits: ['sizes-change'],
       setup(props, { emit }) {
         const parentSetupState = (
@@ -143,7 +143,6 @@ vi.mock('./MapDistrictBarOverlay.vue', async () => {
 vi.mock('./mapMosaicParticles', () => ({
   createMapMosaicParticles: mosaicMocks.create
 }))
-vi.mock('@/api', () => ({ getDistrictMapData: apiMocks.getDistrictMapData }))
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
   OrbitControls: class {
     target = { x: 0, y: 0, z: 0, set: sceneSetupMocks.controlsTargetSet }
@@ -154,11 +153,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
     dispose = sceneSetupMocks.controlsDispose
   }
 }))
-vi.mock('./mapGeometry', async (importOriginal) => ({
-  ...await importOriginal<typeof import('./mapGeometry')>(),
-  parseSvgRegions: geometryMocks.parseSvgRegions
-}))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerMocks.push }) }))
 vi.mock('@/composables/useMapDebug', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: districtBarRuntimeStatusDefault,
@@ -226,13 +221,13 @@ afterEach(() => {
   mapDebugMocks.effectRuntimeStatus = null
   if (carouselMocks.enabled) carouselMocks.enabled.value = false
   carouselMocks.toggle.mockReset()
+  routerMocks.push.mockReset()
   document.body.replaceChildren()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
   mosaicMocks.create.mockReturnValue(mosaicMocks.instance)
@@ -246,8 +241,6 @@ beforeEach(() => {
     baseInwardState: 'active',
     hoverInwardState: 'ready'
   })
-  apiMocks.getDistrictMapData.mockImplementation(() => new Promise(() => {}))
-  geometryMocks.parseSvgRegions.mockReturnValue([])
   vi.spyOn(THREE.TextureLoader.prototype, 'loadAsync').mockImplementation(() => new Promise(() => {}))
   const group = new THREE.Group()
   group.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))
@@ -271,11 +264,45 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+function createTestMapDocument(
+  regionCount = 1,
+  overrides: Partial<MapDocument> = {}
+): MapDocument {
+  const regions = Array.from({ length: regionCount }, (_, index) => ({
+    name: `测试区${index}`,
+    outers: [{
+      ring: [
+        [index * 120, 0],
+        [index * 120 + 100, 0],
+        [index * 120, 100]
+      ] as [number, number][],
+      holes: []
+    }]
+  }))
+  return {
+    version: 1,
+    source: { kind: 'builtin', displayName: '测试地图' },
+    geometry: { regions, scale: 1, center: [0, 0] },
+    metrics: new Map(regions.map((region, index) => [region.name, {
+      name: region.name,
+      primary: 20 + index,
+      secondary: 2 + index
+    }])),
+    metricLabels: {
+      primary: { label: '扶持企业', unit: '家' },
+      secondary: { label: '服务资源', unit: '项' }
+    },
+    appearance: { kind: 'terrain-texture', textureUrl: '/maps/test-terrain.png' },
+    drilldown: true,
+    ...overrides
+  }
+}
+
 function districtBarSnapshots() {
   return Array.from({ length: 8 }, (_, order) => ({
     name: `测试区${order}`,
-    caseCount: 10 + order,
-    amount: 1 + order,
+    primary: 10 + order,
+    secondary: 1 + order,
     order,
     visible: true,
     hoverProgress: 0,
@@ -292,7 +319,8 @@ function nonEmptyOverlayLayout(name = '测试区0') {
 
 async function mountInitializedMap(
   regionCount = 1,
-  afterMount?: (root: HTMLElement) => void
+  afterMount?: (root: HTMLElement) => void,
+  mapDocument = createTestMapDocument(regionCount)
 ) {
   let resizeCallback: ResizeObserverCallback = () => undefined
   let frameCallback: FrameRequestCallback = () => undefined
@@ -319,19 +347,6 @@ async function mountInitializedMap(
   }
   threeMocks.createRenderer.mockReturnValue(renderer)
   pipelineMocks.create.mockReturnValue(pipelineMocks.instance)
-  vi.mocked(fetch).mockResolvedValue({
-    ok: true,
-    status: 200,
-    text: vi.fn().mockResolvedValue('<svg/>')
-  } as unknown as Response)
-  apiMocks.getDistrictMapData.mockResolvedValue([
-    { name: '江北区', aj: 20, ztje: 2, zzs: 3 },
-    { name: '渝北区', aj: 50, ztje: 5, zzs: 7 }
-  ])
-  geometryMocks.parseSvgRegions.mockReturnValue(Array.from({ length: regionCount }, (_, index) => ({
-    name: `测试区${index}`,
-    outers: [{ ring: [[index * 120, 0], [index * 120 + 100, 0], [index * 120, 100]], holes: [] }]
-  })))
   const texture = new THREE.Texture(document.createElement('img'))
   texture.image.width = 100
   texture.image.height = 100
@@ -339,7 +354,7 @@ async function mountInitializedMap(
 
   const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
   const root = document.createElement('div')
-  const app = createApp(ChongqingMap3D)
+  const app = createApp(ChongqingMap3D, { document: mapDocument })
   app.mount(root)
   afterMount?.(root)
   await vi.waitFor(() => expect(requestAnimationFrame).toHaveBeenCalled())
@@ -385,7 +400,11 @@ describe('ChongqingMap3D effect wiring', () => {
       4
     )
     const [, dataByName] = districtBarMocks.create.mock.calls[0]
-    expect(dataByName.get('两江新区')).toEqual({ name: '两江新区', aj: 70, ztje: 7, zzs: 10 })
+    expect(dataByName.get('测试区0')).toEqual({
+      name: '测试区0',
+      primary: 20,
+      secondary: 2
+    })
     expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 2,
       dataMin: 20,
@@ -1175,7 +1194,7 @@ describe('ChongqingMap3D effect wiring', () => {
   it('routes watcher callbacks to the effect runtime and stops the watcher on unmount', async () => {
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
+    const app = createApp(ChongqingMap3D, { document: createTestMapDocument() })
 
     app.mount(root)
     await nextTick()
@@ -1197,124 +1216,114 @@ describe('ChongqingMap3D effect wiring', () => {
   })
 
   it('does not continue async initialization and disposes a texture resolved after unmount', async () => {
-    const fetchResult = deferred<Response>()
-    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
     const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
-    const response = {
-      ok: true,
-      status: 200,
-      text: vi.fn().mockResolvedValue('<svg xmlns="http://www.w3.org/2000/svg"/>')
-    } as unknown as Response
     const texture = new THREE.Texture(document.createElement('img'))
     const disposeTexture = vi.spyOn(texture, 'dispose')
-    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
-    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
     vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
 
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
+    const app = createApp(ChongqingMap3D, { document: createTestMapDocument() })
     app.mount(root)
     await nextTick()
     app.unmount()
 
-    fetchResult.resolve(response)
-    dataResult.resolve([])
     textureResult.resolve(texture)
     await Promise.resolve()
     await Promise.resolve()
     await nextTick()
 
-    expect(response.text).not.toHaveBeenCalled()
-    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
     expect(requestAnimationFrame).not.toHaveBeenCalled()
     expect(disposeTexture).toHaveBeenCalledTimes(1)
   })
 
-  it('disposes a texture that resolves before another initialization request rejects', async () => {
-    const fetchResult = deferred<Response>()
-    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
+  it('reports terrain texture load failure without starting the render loop', async () => {
     const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
-    const texture = new THREE.Texture(document.createElement('img'))
-    const disposeTexture = vi.spyOn(texture, 'dispose')
-    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
-    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
     vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
 
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
+    const app = createApp(ChongqingMap3D, { document: createTestMapDocument() })
     app.mount(root)
     await nextTick()
 
-    textureResult.resolve(texture)
-    await Promise.resolve()
-    dataResult.reject(new Error('district data failed'))
-    await Promise.resolve()
-    await Promise.resolve()
+    textureResult.reject(new Error('terrain texture failed'))
+    await vi.waitFor(() => expect(root.textContent).toContain('terrain texture failed'))
 
-    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
     expect(requestAnimationFrame).not.toHaveBeenCalled()
-    expect(disposeTexture).toHaveBeenCalledTimes(1)
-
     app.unmount()
-    expect(disposeTexture).toHaveBeenCalledTimes(1)
   })
 
-  it('disposes a texture that resolves after another initialization request rejects', async () => {
-    const fetchResult = deferred<Response>()
-    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
-    const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
-    const texture = new THREE.Texture(document.createElement('img'))
-    const disposeTexture = vi.spyOn(texture, 'dispose')
-    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
-    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
-    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
+  it('uses tech-blue materials without loading the terrain texture', async () => {
+    const mapDocument = createTestMapDocument(1, {
+      source: { kind: 'geojson', displayName: 'custom.geojson' },
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
+    const mounted = await mountInitializedMap(1, undefined, mapDocument)
+    const terrainCalls = vi.mocked(THREE.TextureLoader.prototype.loadAsync).mock.calls
+      .filter(([url]) => url === '/maps/test-terrain.png')
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    const topMaterial = (regionMeshes[0] as THREE.Mesh).material as THREE.MeshStandardMaterial[]
 
-    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
-    const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
-    app.mount(root)
-    await nextTick()
-
-    fetchResult.reject(new Error('map request failed'))
-    await Promise.resolve()
-    await Promise.resolve()
-    textureResult.resolve(texture)
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
-    expect(requestAnimationFrame).not.toHaveBeenCalled()
-    expect(disposeTexture).toHaveBeenCalledTimes(1)
-
-    app.unmount()
-    expect(disposeTexture).toHaveBeenCalledTimes(1)
+    expect(terrainCalls).toHaveLength(0)
+    expect(topMaterial[0].map).toBeNull()
+    expect(topMaterial[0].color.getHex()).toBe(0x173f78)
+    expect(topMaterial[1].color.getHex()).toBe(0x05173a)
+    mounted.app.unmount()
   })
 
-  it('disposes a resolved texture immediately when initialization siblings are still pending on unmount', async () => {
-    const fetchResult = deferred<Response>()
-    const dataResult = deferred<Awaited<ReturnType<typeof apiMocks.getDistrictMapData>>>()
-    const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
-    const texture = new THREE.Texture(document.createElement('img'))
-    const disposeTexture = vi.spyOn(texture, 'dispose')
-    vi.mocked(fetch).mockReturnValue(fetchResult.promise)
-    apiMocks.getDistrictMapData.mockReturnValue(dataResult.promise)
-    vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockReturnValue(textureResult.promise)
+  it('keeps effects but omits bars and overlay when a custom map has no business data', async () => {
+    const mapDocument = createTestMapDocument(3, {
+      source: { kind: 'geojson', displayName: 'geometry-only.geojson' },
+      metrics: new Map(),
+      metricLabels: null,
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
 
-    const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
-    const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
-    app.mount(root)
-    await nextTick()
+    const mounted = await mountInitializedMap(3, undefined, mapDocument)
 
-    textureResult.resolve(texture)
-    await Promise.resolve()
-    app.unmount()
+    expect(pipelineMocks.create).toHaveBeenCalledWith(expect.anything(), expect.any(Array))
+    expect(mosaicMocks.create).toHaveBeenCalledWith(expect.anything(), expect.any(Array))
+    expect(districtBarMocks.create).not.toHaveBeenCalled()
+    expect(mounted.root.querySelector('.map-district-bar-overlay-stub')).toBeNull()
+    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+      renderedCount: 0,
+      dataMin: null,
+      dataMax: null,
+      degraded: false
+    })
+    mounted.app.unmount()
+  })
 
-    expect(geometryMocks.parseSvgRegions).not.toHaveBeenCalled()
-    expect(requestAnimationFrame).not.toHaveBeenCalled()
-    expect(disposeTexture).toHaveBeenCalledTimes(1)
+  it('only allows built-in documents to navigate to district details', async () => {
+    const customDocument = createTestMapDocument(1, {
+      source: { kind: 'geojson', displayName: 'custom.geojson' },
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
+    const custom = await mountInitializedMap(1, undefined, customDocument)
+    let [, regionMeshes] = pipelineMocks.create.mock.calls.at(-1)!
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[0] } as THREE.Intersection
+    ])
+    const customElement = custom.root.querySelector('.cq-map3d')!
+    customElement.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10 }))
+    customElement.dispatchEvent(new PointerEvent('click', { clientX: 10, clientY: 10 }))
+    expect(routerMocks.push).not.toHaveBeenCalled()
+    custom.app.unmount()
+
+    const builtin = await mountInitializedMap()
+    ;[, regionMeshes] = pipelineMocks.create.mock.calls.at(-1)!
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([
+      { object: regionMeshes[0] } as THREE.Intersection
+    ])
+    const builtinElement = builtin.root.querySelector('.cq-map3d')!
+    builtinElement.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10 }))
+    builtinElement.dispatchEvent(new PointerEvent('click', { clientX: 10, clientY: 10 }))
+    expect(routerMocks.push).toHaveBeenCalledWith('/district/%E6%B5%8B%E8%AF%95%E5%8C%BA0')
+    builtin.app.unmount()
   })
 
   it('cleans up a partially published scene when ResizeObserver setup fails', async () => {
@@ -1338,20 +1347,11 @@ describe('ChongqingMap3D effect wiring', () => {
       render: vi.fn(),
       dispose: rendererDispose
     })
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      text: vi.fn().mockResolvedValue('<svg xmlns="http://www.w3.org/2000/svg"/>')
-    } as unknown as Response)
-    apiMocks.getDistrictMapData.mockResolvedValue([])
     vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockResolvedValue(texture)
-    geometryMocks.parseSvgRegions.mockReturnValue([{
-      name: '渝中区',
-      outers: [{ ring: [[0, 0], [100, 0], [0, 100]], holes: [] }]
-    }])
 
     const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
     const root = document.createElement('div')
-    const app = createApp(ChongqingMap3D)
+    const app = createApp(ChongqingMap3D, { document: createTestMapDocument() })
     app.mount(root)
 
     await vi.waitFor(() => expect(root.textContent).toContain('resize observer failed'))

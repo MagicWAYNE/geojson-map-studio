@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "越界区域" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[106, 29], [181, 29], [107, 30], [106, 29]]]
+      }
+    }
+  ]
+}

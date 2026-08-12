@@ -210,7 +210,7 @@ export function calculateDistrictBarOverlayLayout(
         !(input.config.badge.hideOnHover && snapshot.name === input.hoveredName),
       dimmed: input.hoveredName !== null && snapshot.name !== input.hoveredName,
       text: formatNumber(
-        snapshot.caseCount,
+        snapshot.primary,
         input.config.badge.decimals,
         input.config.badge.thousandsSeparator
       ),
@@ -316,12 +316,12 @@ export function calculateDistrictBarOverlayLayout(
       viewportOverflow: minX > maxX || minTop > maxTop,
       titleText: hovered.snapshot.name,
       caseText: formatNumber(
-        hovered.snapshot.caseCount,
+        hovered.snapshot.primary,
         panelConfig.caseDecimals,
         panelConfig.thousandsSeparator
       ),
       amountText: formatNumber(
-        hovered.snapshot.amount,
+        hovered.snapshot.secondary,
         panelConfig.amountDecimals,
         panelConfig.thousandsSeparator
       )

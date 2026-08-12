@@ -3,7 +3,6 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useRouter } from 'vue-router'
-import { getDistrictMapData } from '@/api'
 import hudStaticUrl from '@/assets/images/map-hud/hud-disc-c5k377sv75.png'
 import hudRotatingUrl from '@/assets/images/map-hud/hud-disc-v3809z30i-rotating.png'
 import {
@@ -12,16 +11,13 @@ import {
   useMapDebug
 } from '@/composables/useMapDebug'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
-import type { DistrictMapItem } from '@/types'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
 import { watchMapEffectConfig } from './mapEffectWatcher'
 import {
-  classifyBoundarySegments,
-  parseSvgRegions,
-  projectRegions,
-  type ProjectionResult
+  classifyBoundarySegments
 } from './mapGeometry'
+import type { MapDocument } from './mapDocument'
 import {
   applyDistrictBarConfig,
   createDistrictBarLayer,
@@ -67,17 +63,18 @@ import {
 } from './mapHud'
 
 /**
- * POC：Three.js 挤出版重庆主城区地图（渝中/两江新区/南岸/九龙坡/沙坪坝/大渡口/北碚/巴南）。
- * 数据源为 public/maps/chongqing-selected-districts-tianditu-imagery-z12.svg（path 的
- * data-name 为板块名，坐标即天地图影像图 tianditu-imagery-z12.png 的像素坐标，顶面据此贴图）。
- * 对外契约与 ChongqingMap.vue 一致；focus / showLines 暂未实现（正式阶段补齐）。
+ * Three.js 挤出地图渲染器。几何、业务指标、外观和下钻能力均由 MapDocument 提供；
+ * 组件本身不读取 GeoJSON、SVG、业务 API 或持久化存储。
  */
-withDefaults(defineProps<{ focus?: string; showLines?: boolean }>(), {
+const props = withDefaults(defineProps<{
+  document: MapDocument
+  focus?: string
+  showLines?: boolean
+}>(), {
   focus: '',
   showLines: true
 })
 
-const PLANE_MAX = 110 // 地图最长边的 world 尺寸，另一边按轮廓比例等比
 const DEPTH = 4 // 挤出厚度
 const INITIAL_CAMERA_POSITION = [-89.4, 117.0, 56.4] as const
 const INITIAL_CAMERA_TARGET = [2.7, -2.9, 7.0] as const
@@ -343,9 +340,10 @@ function advanceMosaicParticles(deltaMs: number): void {
 }
 
 // 顶面贴地形纹理，color 作为染色系数：偏冷的亮色保留地形细节又不脱离深蓝主色
-const TOP_COLOR = 0xcfe0ff
+const TERRAIN_TOP_COLOR = 0xcfe0ff
+const TECH_BLUE_TOP_COLOR = 0x173f78
 const TOP_EMISSIVE = 0x0a2a66
-const baseTopColor = new THREE.Color(TOP_COLOR)
+const baseTopColor = new THREE.Color(TERRAIN_TOP_COLOR)
 const baseTopEmissive = new THREE.Color(TOP_EMISSIVE)
 const hoverSurfaceTarget = new THREE.Color(effect.hover.surfaceColor)
 const hoverEmissiveTarget = new THREE.Color(effect.hover.emissiveColor)
@@ -441,18 +439,27 @@ function updateDistrictBarOverlay(layer: DistrictBarLayer): void {
 }
 
 function buildRegions(
-  projected: ProjectionResult,
-  byName: Map<string, DistrictMapItem>,
-  terrainTex: THREE.Texture
+  document: MapDocument,
+  terrainTex: THREE.Texture | null
 ) {
+  const projected = document.geometry
+  const byName = document.metrics
   const [cx, cy] = projected.center
   const scale = projected.scale
 
-  // 顶面 UV 是 shape 平面坐标（ExtrudeGeometry 默认），用纹理变换把它映射回地形图像素：
-  // world = ((px-cx)·s, (cy-py)·s)，目标 u = px/W、v = 1 - py/H（flipY）
-  const texImg = terrainTex.image as { width: number; height: number }
-  terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
-  terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
+  if (document.appearance.kind === 'terrain-texture') {
+    if (!terrainTex) throw new Error('内置地图纹理未加载')
+    // 顶面 UV 是 shape 平面坐标（ExtrudeGeometry 默认），用纹理变换把它映射回地形图像素。
+    const texImg = terrainTex.image as { width: number; height: number }
+    terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
+    terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
+  }
+
+  const topColor = document.appearance.kind === 'tech-blue'
+    ? TECH_BLUE_TOP_COLOR
+    : TERRAIN_TOP_COLOR
+  baseTopColor.set(topColor)
+  baseTopEmissive.set(TOP_EMISSIVE)
 
   const group = new THREE.Group()
   const sideMat = new THREE.MeshStandardMaterial({ color: 0x05173a, roughness: 0.68, metalness: 0.3 })
@@ -473,7 +480,7 @@ function buildRegions(
     const geometry = new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: false })
     const topMat = new THREE.MeshStandardMaterial({
       map: terrainTex,
-      color: TOP_COLOR,
+      color: topColor,
       roughness: 0.42,
       metalness: 0.35,
       emissive: TOP_EMISSIVE,
@@ -741,7 +748,7 @@ function onClick(e: PointerEvent) {
   // 区分拖拽旋转与点击
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return
   const name = pick(e)?.name
-  if (name) router.push(`/district/${encodeURIComponent(name)}`)
+  if (name && props.document.drilldown) router.push(`/district/${encodeURIComponent(name)}`)
 }
 
 function onPointerLeave() {
@@ -849,48 +856,35 @@ async function init(generation: number) {
     }
   }
   pendingInitCleanup = cleanupPendingTexture
-  const terrainTexturePromise = new THREE.TextureLoader()
-    .loadAsync(`${import.meta.env.BASE_URL}maps/tianditu-imagery-z12.png`)
-    .then((texture) => {
-      terrainTex = texture
-      if (textureCleanupRequested) cleanupPendingTexture()
-      return texture
-    })
+  const terrainTexturePromise = props.document.appearance.kind === 'terrain-texture'
+    ? new THREE.TextureLoader()
+        .loadAsync(props.document.appearance.textureUrl)
+        .then((texture) => {
+          terrainTex = texture
+          if (textureCleanupRequested) cleanupPendingTexture()
+          return texture
+        })
+    : Promise.resolve(null)
   try {
-    const [svgRes, data, loadedTerrainTex] = await Promise.all([
-      fetch(`${import.meta.env.BASE_URL}maps/chongqing-selected-districts-tianditu-imagery-z12.svg`),
-      getDistrictMapData(),
-      terrainTexturePromise
-    ])
+    const loadedTerrainTex = await terrainTexturePromise
     terrainTex = loadedTerrainTex
     if (!isCurrentInit(generation)) return
-    if (!svgRes.ok) throw new Error(`地图加载失败: HTTP ${svgRes.status}`)
-    terrainTex.colorSpace = THREE.SRGBColorSpace
-    const svgText = await svgRes.text()
-    if (!isCurrentInit(generation)) return
-    const regions = parseSvgRegions(svgText)
-    const byName = new Map(data.map((d) => [d.name, d]))
-    // 两江新区是国家级新区（≈江北区+渝北区），行政区划数据里没有条目，取两区之和
-    const jb = byName.get('江北区')
-    const yb = byName.get('渝北区')
-    if (jb && yb) {
-      byName.set('两江新区', {
-        name: '两江新区',
-        aj: jb.aj + yb.aj,
-        ztje: jb.ztje + yb.ztje,
-        zzs: jb.zzs + yb.zzs
-      })
-    }
-
-    const projected = projectRegions(regions, PLANE_MAX)
-    const mapGroup = buildRegions(projected, byName, terrainTex)
-    try {
-      districtBars = createDistrictBarLayer(projected.regions, byName, effect.bars, DEPTH)
-      mapGroup.add(districtBars.group)
-      barAnimationStartedAt = performance.now()
-      publishDistrictBarRuntimeStatus(districtBars)
-    } catch (cause) {
-      handleDistrictBarFailure(cause, '初始化')
+    if (terrainTex) terrainTex.colorSpace = THREE.SRGBColorSpace
+    const mapGroup = buildRegions(props.document, terrainTex)
+    if (props.document.metrics.size > 0) {
+      try {
+        districtBars = createDistrictBarLayer(
+          props.document.geometry.regions,
+          props.document.metrics,
+          effect.bars,
+          DEPTH
+        )
+        mapGroup.add(districtBars.group)
+        barAnimationStartedAt = performance.now()
+        publishDistrictBarRuntimeStatus(districtBars)
+      } catch (cause) {
+        handleDistrictBarFailure(cause, '初始化')
+      }
     }
     mapGroup.rotation.x = -Math.PI / 2 // 放平到 XZ 平面，挤出方向朝上
     if (!isCurrentInit(generation)) {
@@ -898,7 +892,7 @@ async function init(generation: number) {
       textureDisposed = true
       return
     }
-    textureOwnedByScene = true
+    textureOwnedByScene = terrainTex !== null
     setupScene(mapGroup)
     if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
     applyEffectConfig()
@@ -1042,8 +1036,10 @@ onBeforeUnmount(() => {
 <template>
   <div ref="container" class="cq-map3d">
     <MapDistrictBarOverlay
+      v-if="document.metricLabels"
       :layout="districtBarOverlayLayout"
       :config="effect.bars.overlay"
+      :metric-labels="document.metricLabels"
       @sizes-change="handleDistrictBarOverlaySizesChange"
     />
     <div class="hud">{{ fps }} FPS</div>

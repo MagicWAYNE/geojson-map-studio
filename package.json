@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "d3-geo": "^3.1.1",
     "echarts": "^5.6.0",
     "lucide-vue-next": "^1.0.0",
     "three": "^0.185.1",
@@ -26,7 +27,7 @@
     "@types/d3-geo": "^3.1.0",
     "@types/three": "^0.185.1",
     "@vitejs/plugin-vue": "^5.2.1",
-    "d3-geo": "^3.1.1",
+    "fake-indexeddb": "^6.2.5",
     "happy-dom": "20.10.6",
     "typescript": "~5.7.2",
     "vite": "^6.0.7",

@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "点区域" },
+      "geometry": { "type": "Point", "coordinates": [106.5, 29.5] }
+    }
+  ]
+}

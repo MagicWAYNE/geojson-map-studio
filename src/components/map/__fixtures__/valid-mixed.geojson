@@ -1,0 +1,35 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "区域 A", "code": "A" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[106, 29], [106.8, 29], [106.8, 29.8], [106, 29.8], [106, 29]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "区域 B", "code": "B" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[107, 29], [107.8, 29], [107.8, 29.8], [107, 29.8], [107, 29]],
+          [[107.2, 29.2], [107.4, 29.2], [107.4, 29.4], [107.2, 29.4], [107.2, 29.2]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "区域 C", "code": "C" },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [[[108, 29], [108.3, 29], [108.3, 29.3], [108, 29.3], [108, 29]]],
+          [[[108.5, 29.5], [108.8, 29.5], [108.8, 29.8], [108.5, 29.8], [108.5, 29.5]]]
+        ]
+      }
+    }
+  ]
+}

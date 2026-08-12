@@ -27,10 +27,10 @@ function snapshot(
   worldPosition: readonly [number, number, number],
   order = 0,
   visible = true,
-  caseCount = 100,
-  amount = 200
+  primary = 100,
+  secondary = 200
 ) {
-  return { name, caseCount, amount, order, visible, hoverProgress: 0, worldPosition }
+  return { name, primary, secondary, order, visible, hoverProgress: 0, worldPosition }
 }
 
 function input(snapshots: ReturnType<typeof snapshot>[]) {
