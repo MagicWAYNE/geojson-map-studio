@@ -16,8 +16,8 @@
 /goal Complete GeoJSON 地图导入 V1 in /Users/fei/cqbigscreen/.claude/worktrees/open-source-prep without stopping until a user can upload a valid GeoJSON on /#/map-loader, optionally attach the V1 business metrics JSON, activate it, see the new centered Three.js boundaries with the existing HUD/glow/hover/mosaic/carousel effects and default tech-blue material, refresh and retain the active custom map from IndexedDB, reject invalid imports without replacing the current map, and reset back to the unchanged built-in Chongqing map; all acceptance checks, full tests, typecheck, production build, browser QA, two-axis code review, and scoped commits must pass.
 
 Read these first and treat them as the contract:
-1. docs/superpowers/specs/2026-08-12-geojson-map-import-v1-design.md
-2. docs/superpowers/plans/2026-08-12-geojson-map-import-v1.md
+1. .scratch/geojson-map-import-v1/spec.md
+2. .scratch/geojson-map-import-v1/issues/01-map-document.md through 07-browser-acceptance.md
 3. src/components/map/ChongqingMap3D.vue
 4. src/components/map/mapGeometry.ts
 5. src/components/map/mapDistrictBarLayer.ts
@@ -28,7 +28,7 @@ Read these first and treat them as the contract:
 
 Work checkpoint by checkpoint with red-green-refactor at the declared seams. Keep a compact progress log naming the current checkpoint, evidence passed, remaining work, and blockers. Preserve the current map-only home composition, fixed camera/layout, built-in SVG/terrain path, session-only effect defaults, and unrelated worktree changes. Do not implement SVG upload, online tiles, custom raster textures, backend storage, cross-device sync, CSV, custom-region detail pages, deployment, push, main merge, or worktree deletion.
 
-Use the exact completion and stop conditions in the plan. Do not mark complete from unit tests alone: exercise the import, refresh persistence, invalid rollback, no-metrics behavior, metrics behavior, and reset flow in a real 1920x1080 browser session. Never weaken tests or fabricate business data to make acceptance pass.
+Use the exact completion and stop conditions in the seven tickets. Do not mark complete from unit tests alone: exercise the import, refresh persistence, invalid rollback, no-metrics behavior, metrics behavior, and reset flow in a real 1920x1080 browser session. Never weaken tests or fabricate business data to make acceptance pass.
 ```
 
 ## Goal 状态检查模板
