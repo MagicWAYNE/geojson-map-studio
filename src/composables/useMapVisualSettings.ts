@@ -69,6 +69,19 @@ export interface MapLayout {
   height: number
 }
 
+export interface MapLayoutFieldBounds {
+  rangeMin: number
+  rangeMax: number
+  safetyMin?: number
+}
+
+export const MAP_LAYOUT_FIELD_BOUNDS: Readonly<Record<keyof MapLayout, MapLayoutFieldBounds>> = {
+  left: { rangeMin: -1920, rangeMax: 1920 },
+  top: { rangeMin: -1080, rangeMax: 1080 },
+  width: { rangeMin: 200, rangeMax: 1920, safetyMin: 200 },
+  height: { rangeMin: 200, rangeMax: 1080, safetyMin: 200 }
+}
+
 export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
   mosaicState: 'disabled' | 'ready' | 'active' | 'degraded'
   degraded: boolean
@@ -401,9 +414,10 @@ function numericField(id: VisualNumericFieldId): VisualNumericField {
 }
 
 function commitLayoutField(key: keyof MapLayout, raw: string): number {
-  const constraint: VisualNumericConstraint = key === 'width' || key === 'height'
-    ? { min: 200, step: 1 }
-    : { step: 1 }
+  const constraint: VisualNumericConstraint = {
+    min: MAP_LAYOUT_FIELD_BOUNDS[key].safetyMin,
+    step: 1
+  }
   const result = numericField(`layout.${key}`).commit(raw, layout[key], constraint)
   if (result.changed) layout[key] = result.value
   return result.value

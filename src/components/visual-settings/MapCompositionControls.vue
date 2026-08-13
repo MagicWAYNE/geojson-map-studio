@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useMapVisualSettings, type MapLayout } from '@/composables/useMapVisualSettings'
+import {
+  MAP_LAYOUT_FIELD_BOUNDS,
+  useMapVisualSettings,
+  type MapLayout
+} from '@/composables/useMapVisualSettings'
 
 const session = useMapVisualSettings()
 const FIELDS: ReadonlyArray<{
   key: keyof MapLayout
   label: string
-  min: number
-  max: number
 }> = [
-  { key: 'left', label: '水平位置 X', min: -1920, max: 1920 },
-  { key: 'top', label: '垂直位置 Y', min: -1080, max: 1080 },
-  { key: 'width', label: '地图宽度 W', min: 200, max: 1920 },
-  { key: 'height', label: '地图高度 H', min: 200, max: 1080 }
+  { key: 'left', label: '水平位置 X' },
+  { key: 'top', label: '垂直位置 Y' },
+  { key: 'width', label: '地图宽度 W' },
+  { key: 'height', label: '地图高度 H' }
 ]
 
 function rawValue(key: keyof MapLayout): string {
@@ -34,11 +36,11 @@ function updateRange(key: keyof MapLayout, event: Event): void {
 }
 
 function rangeMin(field: typeof FIELDS[number]): number {
-  return Math.min(field.min, session.layout[field.key])
+  return Math.min(MAP_LAYOUT_FIELD_BOUNDS[field.key].rangeMin, session.layout[field.key])
 }
 
 function rangeMax(field: typeof FIELDS[number]): number {
-  return Math.max(field.max, session.layout[field.key])
+  return Math.max(MAP_LAYOUT_FIELD_BOUNDS[field.key].rangeMax, session.layout[field.key])
 }
 
 onMounted(() => {
@@ -59,8 +61,8 @@ onMounted(() => {
             class="number-input"
             type="number"
             :value="rawValue(field.key)"
-            :min="field.min"
-            :max="field.max"
+            :min="MAP_LAYOUT_FIELD_BOUNDS[field.key].rangeMin"
+            :max="MAP_LAYOUT_FIELD_BOUNDS[field.key].rangeMax"
             step="1"
             @input="editField(field.key, $event)"
             @change="commitField(field.key, $event)"
