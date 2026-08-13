@@ -18,6 +18,8 @@ import {
   type MapAuthoringCommitResult,
   type MapAuthoringSnapshot,
 } from '@/components/map/mapAuthoringWorkspace'
+import { useMapVisualSettings, type VisualWorkspaceMode } from '@/composables/useMapVisualSettings'
+import VisualSettingsPanel from '@/components/visual-settings/VisualSettingsPanel.vue'
 
 const emit = defineEmits<{
   mapActivated: [document: MapDocument]
@@ -26,6 +28,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   initialLoad: ActiveMapLoadResult
 }>()
+const visualSettings = useMapVisualSettings()
 const authoringSession = createMapAuthoringSession(props.initialLoad, {
   activateGeometry(nextPrepared, options) {
     return activeMapSource.activate(nextPrepared, undefined, options)
@@ -53,6 +56,10 @@ const metricsReading = ref(false)
 let geometryReadGeneration = 0
 let metricsReadGeneration = 0
 let activationGeneration = 0
+
+function switchWorkspace(mode: VisualWorkspaceMode): void {
+  visualSettings.workspaceMode.value = mode
+}
 
 const enabledRegionCount = computed(() =>
   visualization.value?.regions.filter((region) => region.enabled).length ?? 0
@@ -318,6 +325,32 @@ onMounted(() => {
 <template>
   <aside class="map-loader" aria-label="GeoJSON 地图创作面板">
     <section class="map-loader__card" aria-labelledby="map-loader-title">
+      <nav class="map-loader__workspace-nav" aria-label="创作工作区功能">
+        <button
+          type="button"
+          data-workspace-mode="data"
+          :class="{ active: visualSettings.workspaceMode.value === 'data' }"
+          :aria-current="visualSettings.workspaceMode.value === 'data' ? 'page' : undefined"
+          @click="switchWorkspace('data')"
+        >
+          数据配置
+        </button>
+        <button
+          type="button"
+          data-workspace-mode="visual"
+          :class="{ active: visualSettings.workspaceMode.value === 'visual' }"
+          :aria-current="visualSettings.workspaceMode.value === 'visual' ? 'page' : undefined"
+          @click="switchWorkspace('visual')"
+        >
+          视觉样式
+        </button>
+      </nav>
+
+      <div
+        v-show="visualSettings.workspaceMode.value === 'data'"
+        class="map-loader__page map-loader__data-page"
+        data-workspace-page="data"
+      >
       <header>
         <p class="map-loader__eyebrow">LOCAL MAP PACKAGE</p>
         <h1 id="map-loader-title">导入 GeoJSON 地图</h1>
@@ -540,6 +573,9 @@ onMounted(() => {
           全部更新
         </button>
       </footer>
+      </div>
+
+      <VisualSettingsPanel v-show="visualSettings.workspaceMode.value === 'visual'" />
     </section>
   </aside>
 </template>
@@ -553,7 +589,7 @@ onMounted(() => {
   bottom: 24px;
   box-sizing: border-box;
   width: 720px;
-  overflow: auto;
+  overflow: hidden;
   color: #dcecff;
   overscroll-behavior: contain;
 }
@@ -562,12 +598,47 @@ onMounted(() => {
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 24px 26px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   background: linear-gradient(145deg, rgba(8, 28, 63, 0.96), rgba(5, 18, 44, 0.94));
   border: 1px solid rgba(63, 169, 255, 0.62);
   border-radius: 10px;
   box-shadow: 0 0 56px rgba(25, 119, 229, 0.32), inset 0 0 40px rgba(17, 87, 171, 0.16);
+}
+
+.map-loader__workspace-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.map-loader__workspace-nav button {
+  min-height: 46px;
+  color: #7fa8d9;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(36, 131, 255, 0.08);
+  border: 1px solid rgba(36, 131, 255, 0.35);
+  border-radius: 5px;
+}
+
+.map-loader__workspace-nav button.active {
+  color: #00deff;
+  background: rgba(0, 222, 255, 0.1);
+  border-color: #00deff;
+}
+
+.map-loader__page {
+  flex: 1;
+  min-height: 0;
+  padding-right: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .map-loader__card h1 { margin: 4px 0 8px; color: #fff; font-size: 32px; }

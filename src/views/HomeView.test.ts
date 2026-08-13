@@ -46,9 +46,11 @@ vi.mock('@/views/MapLoaderView.vue', () => ({
 }))
 
 import HomeView from './HomeView.vue'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 afterEach(() => {
   sourceMocks.load.mockReset()
+  useMapVisualSettings().resetVisualSession()
   document.body.replaceChildren()
 })
 
@@ -61,9 +63,32 @@ describe('HomeView same-page map authoring', () => {
     expect(homeViewSource).not.toContain('<HeaderBar')
     expect(homeViewSource).not.toContain('<KpiPanel')
     expect(homeViewSource).not.toContain('<MapDebugDrawer')
-    expect(homeViewSource).toContain('left: 24px')
-    expect(homeViewSource).toContain('width: 1120px')
-    expect(homeViewSource).toContain('height: 948px')
+    expect(homeViewSource).toContain('useMapVisualSettings')
+    expect(homeViewSource).toContain(':style="mapStyle"')
+    expect(homeViewSource).not.toContain('left: 400px')
+  })
+
+  it('uses the visual session composition as the single live map layout', async () => {
+    sourceMocks.load.mockResolvedValue({
+      document: { source: { kind: 'builtin', displayName: '内置地图' } },
+      warnings: []
+    })
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+    const root = document.createElement('div')
+    const app = createApp(HomeView)
+    app.mount(root)
+    await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
+
+    const map = root.querySelector<HTMLElement>('.map-stub')!
+    expect(map.style.left).toBe('24px')
+    expect(map.style.top).toBe('132px')
+    session.layout.left = 81
+    session.layout.width = 1000
+    await nextTick()
+    expect(map.style.left).toBe('81px')
+    expect(map.style.width).toBe('1000px')
+    app.unmount()
   })
 
   it('异步加载当前地图文档并同时呈现固定创作面板', async () => {

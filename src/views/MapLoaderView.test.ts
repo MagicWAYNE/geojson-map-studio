@@ -78,6 +78,37 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
+  it('在同一右侧栏切换数据与视觉功能时保留区域编辑草稿和焦点', async () => {
+    const onAuthoringFocus = vi.fn()
+    const { app, root } = await mountView({ onAuthoringFocus })
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    const row = regionRow(root, '区域 A')
+    row.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enter(row.querySelector<HTMLInputElement>('[data-field="primary"]')!, '41')
+    row.querySelector<HTMLInputElement>('[data-field="primary"]')!
+      .dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    await nextTick()
+
+    root.querySelector<HTMLButtonElement>('[data-workspace-mode="visual"]')!.click()
+    await nextTick()
+    expect(root.querySelector('[data-workspace-page="visual"]')).not.toBeNull()
+    expect(root.textContent).toContain('构图与视角')
+    expect(root.querySelectorAll('canvas')).toHaveLength(0)
+
+    root.querySelector<HTMLButtonElement>('[data-workspace-mode="data"]')!.click()
+    await nextTick()
+    const restored = regionRow(root, '区域 A')
+    expect(restored.dataset.dirty).toBe('true')
+    expect(restored.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('41')
+    expect(onAuthoringFocus).toHaveBeenCalledWith('区域 A')
+    app.unmount()
+  })
+
   it('有效 GeoJSON 校验后直接激活并把新文档交给同页地图', async () => {
     const onMapActivated = vi.fn()
     const { app, root } = await mountView({ onMapActivated })
