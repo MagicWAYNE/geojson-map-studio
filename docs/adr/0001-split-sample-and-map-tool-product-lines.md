@@ -2,7 +2,7 @@
 
 Status: accepted
 
-The original `main` line remains a fixed Chongqing entrepreneurship data-big-screen portfolio sample, while `codex/geojson-map-studio` becomes the reusable GeoJSON map-authoring product line. Keeping the split in one history preserves the proven Three.js visual work and its provenance, but new product decisions must favor region-agnostic authoring over adding fixed industry dashboard panels; the local `data-bigscreen-sample-v1` tag records the sample snapshot at the split.
+The original repository's `main` line remains a fixed Chongqing entrepreneurship data-big-screen portfolio sample, while the new standalone repository's `main` becomes the reusable GeoJSON map-authoring product line. Keeping the split in one history preserves the proven Three.js visual work and its provenance, but new product decisions must favor region-agnostic authoring over adding fixed industry dashboard panels; the `data-bigscreen-sample-v1` tag records the sample snapshot at the split.
 
 ## Consequences
 
