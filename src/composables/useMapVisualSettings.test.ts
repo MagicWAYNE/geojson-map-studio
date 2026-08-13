@@ -46,6 +46,11 @@ describe('visual-settings session', () => {
     session.commitLayoutField('left', '2500')
     expect(session.layout.left).toBe(2500)
     expect(session.numericField('layout.left').read(session.layout.left)).toBe('2500')
+
+    session.commitLayoutField('width', '0')
+    session.commitLayoutField('height', '-100')
+    expect(session.layout.width).toBe(200)
+    expect(session.layout.height).toBe(200)
   })
 
   it('shares one effect draft with live preview, apply and discard intentions', async () => {

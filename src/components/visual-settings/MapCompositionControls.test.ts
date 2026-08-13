@@ -43,7 +43,17 @@ describe('MapCompositionControls', () => {
     await nextTick()
     expect(session.layout.left).toBe(2500)
     expect(number.value).toBe('2500')
+    expect(range.value).toBe('2500')
+    expect(range.max).toBe('2500')
     expect(root.textContent).toContain('地图超出 1920×1080 设计视口')
+
+    const width = root.querySelector<HTMLInputElement>('#composition-width-number')!
+    width.value = '0'
+    width.dispatchEvent(new Event('input', { bubbles: true }))
+    width.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(session.layout.width).toBe(200)
+    expect(width.value).toBe('200')
 
     root.querySelector<HTMLButtonElement>('[data-action="reset-composition"]')!.click()
     await nextTick()

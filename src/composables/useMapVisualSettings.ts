@@ -401,7 +401,10 @@ function numericField(id: VisualNumericFieldId): VisualNumericField {
 }
 
 function commitLayoutField(key: keyof MapLayout, raw: string): number {
-  const result = numericField(`layout.${key}`).commit(raw, layout[key], { step: 1 })
+  const constraint: VisualNumericConstraint = key === 'width' || key === 'height'
+    ? { min: 200, step: 1 }
+    : { step: 1 }
+  const result = numericField(`layout.${key}`).commit(raw, layout[key], constraint)
   if (result.changed) layout[key] = result.value
   return result.value
 }

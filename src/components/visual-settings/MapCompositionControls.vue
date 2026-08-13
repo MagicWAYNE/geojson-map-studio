@@ -33,6 +33,14 @@ function updateRange(key: keyof MapLayout, event: Event): void {
   session.commitLayoutField(key, input.value)
 }
 
+function rangeMin(field: typeof FIELDS[number]): number {
+  return Math.min(field.min, session.layout[field.key])
+}
+
+function rangeMax(field: typeof FIELDS[number]): number {
+  return Math.max(field.max, session.layout[field.key])
+}
+
 onMounted(() => {
   for (const field of FIELDS) session.numericField(`layout.${field.key}`).sync(session.layout[field.key])
 })
@@ -63,9 +71,9 @@ onMounted(() => {
           :id="`composition-${field.key}-range`"
           class="range-input"
           type="range"
+          :min="rangeMin(field)"
+          :max="rangeMax(field)"
           :value="session.layout[field.key]"
-          :min="field.min"
-          :max="field.max"
           step="1"
           :aria-label="`${field.label}滑杆`"
           @input="updateRange(field.key, $event)"
