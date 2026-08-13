@@ -1,6 +1,6 @@
 # 工程视觉设置 V1
 
-Status: ready-for-agent
+Status: ready-for-human
 
 ## Problem Statement
 

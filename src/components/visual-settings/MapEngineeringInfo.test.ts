@@ -31,7 +31,7 @@ describe('MapEngineeringInfo', () => {
       mosaicState: 'active',
       degraded: false
     })
-    session.updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 12, dataMax: 90, degraded: false })
+    session.updateRegionBarRuntimeStatus({ renderedCount: 8, dataMin: 12, dataMax: 90, degraded: false })
     const root = document.createElement('div')
     const app = createApp(MapEngineeringInfo)
     app.mount(root)

@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { watch } from 'vue'
+import type { MapHudConfig } from '@/components/map/mapHudConfig'
 import {
-  MAP_HUD_DEFAULTS,
-  assignMapHudConfig,
-  type MapHudConfig
-} from '@/components/map/mapHudConfig'
-import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
+  useMapVisualSettings,
+  type VisualNumericFieldId
+} from '@/composables/useMapVisualSettings'
 
 type Section = 'anchor' | 'static' | 'rotating'
 type Field = {
@@ -57,11 +56,8 @@ const GROUPS: readonly Group[] = [
 
 const visualSettings = useMapVisualSettings()
 const {
-  hud,
-  hudDraft: draft,
   hudEditTarget: editTarget,
-  hudLivePreview: livePreview,
-  resetHud
+  hudLivePreview: livePreview
 } = visualSettings
 
 function fieldId(field: Field, control: 'checkbox' | 'number' | 'range'): string {
@@ -70,6 +66,10 @@ function fieldId(field: Field, control: 'checkbox' | 'number' | 'range'): string
 
 function fieldName(field: Field): string {
   return `${field.section}-${field.key}`
+}
+
+function draftKey(field: Field): VisualNumericFieldId {
+  return `hud.${field.section}.${field.key}` as VisualNumericFieldId
 }
 
 function valueOf(field: Field): number | boolean {
@@ -81,16 +81,6 @@ function valueOf(field: Field): number | boolean {
 function hudValue(source: object, key: string): number | boolean {
   const value = (source as Record<string, unknown>)[key]
   return typeof value === 'number' || typeof value === 'boolean' ? value : 0
-}
-
-function writeValue(target: MapHudConfig, field: Field, value: number | boolean): void {
-  if (field.section === 'anchor') {
-    target.anchor[field.key as keyof MapHudConfig['anchor']] = value as never
-  } else if (field.section === 'static') {
-    target.static[field.key as keyof MapHudConfig['static']] = value as never
-  } else {
-    target.rotating[field.key as keyof MapHudConfig['rotating']] = value as never
-  }
 }
 
 function changeLivePreview(event: Event): void {
@@ -106,37 +96,21 @@ function discardDraft(): void {
 }
 
 function numberDraft(field: Field): string {
-  return visualSettings.readNumericDraft(`hud.${fieldName(field)}`, Number(valueOf(field)))
+  return visualSettings.numericField(draftKey(field)).read(Number(valueOf(field)))
 }
 
 function updateNumberDraft(field: Field, event: Event): void {
-  visualSettings.editNumericDraft(
-    `hud.${fieldName(field)}`,
-    (event.target as HTMLInputElement).value
-  )
-}
-
-function normalizedNumber(field: Field, raw: string): number {
-  const current = valueOf(field)
-  const parsed = raw.trim() === '' ? current : Number(raw)
-  const finite = typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : current
-  const min = field.min ?? 0
-  const max = field.max ?? 1
-  const step = field.step ?? 1
-  const clamped = Math.min(max, Math.max(min, finite as number))
-  const precision = (String(step).split('.')[1] ?? '').length
-  return Number((Math.round(clamped / step) * step).toFixed(precision))
+  visualSettings.numericField(draftKey(field)).edit((event.target as HTMLInputElement).value)
 }
 
 function commitNumber(field: Field, event: Event): void {
   const current = Number(valueOf(field))
-  const result = visualSettings.commitNumericDraft(
-    `hud.${fieldName(field)}`,
+  const result = visualSettings.numericField(draftKey(field)).commit(
     (event.target as HTMLInputElement).value,
     current,
-    (value) => normalizedNumber(field, String(value))
+    field
   )
-  if (result.changed) writeValue(editTarget.value, field, result.value)
+  if (result.changed) visualSettings.setHudField(field.section, field.key, result.value)
 }
 
 function updateRange(field: Field, event: Event): void {
@@ -144,15 +118,11 @@ function updateRange(field: Field, event: Event): void {
 }
 
 function updateBoolean(field: Field, event: Event): void {
-  writeValue(editTarget.value, field, (event.target as HTMLInputElement).checked)
+  visualSettings.setHudField(field.section, field.key, (event.target as HTMLInputElement).checked)
 }
 
 function resetCurrentTarget(): void {
-  if (editTarget.value === hud) {
-    resetHud()
-  } else {
-    assignMapHudConfig(draft, MAP_HUD_DEFAULTS)
-  }
+  visualSettings.resetEditableHud()
 }
 
 const editableJson = visualSettings.editableHudJson
@@ -169,7 +139,7 @@ watch(editTarget, () => {
   for (const group of GROUPS) {
     for (const field of group.fields) {
       if (field.kind !== 'number') continue
-      visualSettings.syncNumericDraft(`hud.${fieldName(field)}`, Number(valueOf(field)))
+      visualSettings.numericField(draftKey(field)).sync(Number(valueOf(field)))
     }
   }
 }, { deep: true, immediate: true })

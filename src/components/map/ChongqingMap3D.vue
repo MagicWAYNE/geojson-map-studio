@@ -7,7 +7,7 @@ import hudStaticUrl from '@/assets/images/map-hud/hud-disc-c5k377sv75.png'
 import hudRotatingUrl from '@/assets/images/map-hud/hud-disc-v3809z30i-rotating.png'
 import {
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
-  DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS,
+  DEFAULT_REGION_BAR_RUNTIME_STATUS,
   useMapVisualSettings
 } from '@/composables/useMapVisualSettings'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
@@ -89,7 +89,7 @@ const {
   hud: hudConfig,
   effectRuntimeStatus,
   updateEffectRuntimeStatus,
-  updateDistrictBarRuntimeStatus,
+  updateRegionBarRuntimeStatus,
   updateCameraView,
   updateFps
 } = useMapVisualSettings()
@@ -392,7 +392,7 @@ const stopAuthoringFocusWatch = watch(() => props.focus, (focus) => {
 })
 
 function publishDistrictBarRuntimeStatus(layer: DistrictBarLayer, degraded = false): void {
-  updateDistrictBarRuntimeStatus({
+  updateRegionBarRuntimeStatus({
     renderedCount: layer.byName.size,
     dataMin: layer.range?.min ?? null,
     dataMax: layer.range?.max ?? null,
@@ -411,7 +411,7 @@ function handleDistrictBarFailure(cause: unknown, phase: '初始化' | '更新')
       // The base map must remain available even if bar resource cleanup fails.
     }
   }
-  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS, degraded: true })
+  updateRegionBarRuntimeStatus({ ...DEFAULT_REGION_BAR_RUNTIME_STATUS, degraded: true })
   if (districtBarFailureWarned) return
   districtBarFailureWarned = true
   console.warn(`区县柱体${phase}失败，保留地图底图`, cause)
@@ -812,7 +812,7 @@ function loop(now: number) {
         barAnimationStartedAt = now
       }
       if (districtBars) publishDistrictBarRuntimeStatus(districtBars)
-      else updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
+      else updateRegionBarRuntimeStatus({ ...DEFAULT_REGION_BAR_RUNTIME_STATUS })
     } catch (cause) {
       handleDistrictBarFailure(cause, '更新')
     }
@@ -975,7 +975,7 @@ function startScene(): void {
   districtBarFailureWarned = false
   districtBarOverlayFailureWarned = false
   updateEffectRuntimeStatus({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS, degraded: false })
-  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
+  updateRegionBarRuntimeStatus({ ...DEFAULT_REGION_BAR_RUNTIME_STATUS })
   const el = container.value
   el?.addEventListener('pointerenter', onPointerEnter)
   el?.addEventListener('pointermove', onPointerMove)
@@ -1052,7 +1052,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   const bars = districtBars
   districtBars = null
   if (bars) disposeDistrictBarLayer(bars)
-  updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
+  updateRegionBarRuntimeStatus({ ...DEFAULT_REGION_BAR_RUNTIME_STATUS })
   const particles = mosaicParticles
   mosaicParticles = null
   try {

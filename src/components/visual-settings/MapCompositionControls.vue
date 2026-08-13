@@ -16,11 +16,11 @@ const FIELDS: ReadonlyArray<{
 ]
 
 function rawValue(key: keyof MapLayout): string {
-  return session.readNumericDraft(`layout.${key}`, session.layout[key])
+  return session.numericField(`layout.${key}`).read(session.layout[key])
 }
 
 function editField(key: keyof MapLayout, event: Event): void {
-  session.editNumericDraft(`layout.${key}`, (event.target as HTMLInputElement).value)
+  session.numericField(`layout.${key}`).edit((event.target as HTMLInputElement).value)
 }
 
 function commitField(key: keyof MapLayout, event: Event): void {
@@ -34,7 +34,7 @@ function updateRange(key: keyof MapLayout, event: Event): void {
 }
 
 onMounted(() => {
-  for (const field of FIELDS) session.syncNumericDraft(`layout.${field.key}`, session.layout[field.key])
+  for (const field of FIELDS) session.numericField(`layout.${field.key}`).sync(session.layout[field.key])
 })
 </script>
 

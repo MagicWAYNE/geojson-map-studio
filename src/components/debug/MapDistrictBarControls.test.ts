@@ -6,7 +6,7 @@ import {
   cloneDistrictBarConfig,
   type MapDistrictBarConfig
 } from '@/components/map/mapDistrictBarConfig'
-import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapVisualSettings'
+import type { RegionBarRuntimeStatus } from '@/composables/useMapVisualSettings'
 import MapDistrictBarControls from './MapDistrictBarControls.vue'
 
 interface MountedControls {
@@ -19,7 +19,7 @@ interface MountedControls {
 async function mountControls(): Promise<MountedControls> {
   const state = reactive({ value: cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS) })
   const updates: MapDistrictBarConfig[] = []
-  const runtimeStatus: MapDistrictBarRuntimeStatus = {
+  const runtimeStatus: RegionBarRuntimeStatus = {
     renderedCount: 8,
     dataMin: 10,
     dataMax: 80,

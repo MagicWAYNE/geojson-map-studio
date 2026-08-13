@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import {
-  BASE_INWARD_GLOW_DEFAULTS,
-  HOVER_INWARD_GLOW_DEFAULTS,
   cloneInwardGlowConfig,
   type MapInwardGlowConfig
 } from '@/components/map/mapInwardGlowConfig'
-import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
+import {
+  useMapVisualSettings,
+  type VisualNumericFieldId
+} from '@/composables/useMapVisualSettings'
 
 type Channel = 'base' | 'hover'
 type NumberKey = Exclude<keyof MapInwardGlowConfig, 'enabled' | 'color'>
@@ -47,7 +48,7 @@ const FIELDS: readonly NumberField[] = [
 const HEX = /^#[0-9a-f]{6}$/i
 const visualSettings = useMapVisualSettings()
 
-function draftKey(field: NumberField): string {
+function draftKey(field: NumberField): VisualNumericFieldId {
   return `effect.${props.channel}.inwardGlow.${field.key}`
 }
 
@@ -76,28 +77,18 @@ function updateColor(event: Event): void {
 }
 
 function numberDraft(field: NumberField): string {
-  return visualSettings.readNumericDraft(draftKey(field), props.modelValue[field.key])
+  return visualSettings.numericField(draftKey(field)).read(props.modelValue[field.key])
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
-}
-
-function normalizedNumber(field: NumberField, raw: string): number {
-  const current = props.modelValue[field.key]
-  const parsed = raw.trim() === '' ? current : Number(raw)
-  const finite = Number.isFinite(parsed) ? parsed : current
-  const clamped = Math.min(field.max, Math.max(field.min, finite))
-  const precision = (String(field.step).split('.')[1] ?? '').length
-  return Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+  visualSettings.numericField(draftKey(field)).edit((event.target as HTMLInputElement).value)
 }
 
 function writeNumber(field: NumberField, raw: string): void {
-  const result = visualSettings.commitNumericDraft(
-    draftKey(field),
+  const result = visualSettings.numericField(draftKey(field)).commit(
     raw,
     props.modelValue[field.key],
-    (value) => normalizedNumber(field, String(value))
+    field
   )
   if (result.changed) emitClone((next) => (next[field.key] = result.value))
 }
@@ -110,21 +101,17 @@ function updateRange(field: NumberField, event: Event): void {
   writeNumber(field, (event.target as HTMLInputElement).value)
 }
 
-function defaults(): Readonly<MapInwardGlowConfig> {
-  return props.channel === 'base' ? BASE_INWARD_GLOW_DEFAULTS : HOVER_INWARD_GLOW_DEFAULTS
-}
-
 function applyB1Preset(): void {
-  emit('update:modelValue', cloneInwardGlowConfig(defaults()))
+  visualSettings.applyEffectInwardPreset(props.channel)
 }
 
 function resetGroup(): void {
-  emit('update:modelValue', cloneInwardGlowConfig(defaults()))
+  visualSettings.applyEffectInwardPreset(props.channel)
 }
 
 watch(() => props.modelValue, () => {
   for (const field of FIELDS) {
-    visualSettings.syncNumericDraft(draftKey(field), props.modelValue[field.key])
+    visualSettings.numericField(draftKey(field)).sync(props.modelValue[field.key])
   }
 }, { deep: true, immediate: true })
 </script>

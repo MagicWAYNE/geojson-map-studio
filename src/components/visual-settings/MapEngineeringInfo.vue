@@ -1,26 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { normalizeDistrictBarConfig } from '@/components/map/mapDistrictBarConfig'
-import { normalizeDistrictBarOverlayConfig } from '@/components/map/mapDistrictBarOverlayConfig'
 import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
 
 const session = useMapVisualSettings()
 const carousel = useMapDistrictCarousel()
-const barJson = computed(() => JSON.stringify(normalizeDistrictBarConfig(session.effect.bars), null, 2))
-const overlayJson = computed(() => JSON.stringify(
-  normalizeDistrictBarOverlayConfig(session.effect.bars.overlay),
-  null,
-  2
-))
 const dataRange = computed(() => {
-  const { dataMin, dataMax } = session.districtBarRuntimeStatus
+  const { dataMin, dataMax } = session.regionBarRuntimeStatus
   return dataMin === null || dataMax === null ? '—' : `${dataMin}–${dataMax}`
 })
 const configSections = computed(() => [
   { key: 'effect' as const, label: '完整效果参数', value: session.effectJson.value },
-  { key: 'bars' as const, label: '区域数据柱体参数', value: barJson.value },
-  { key: 'overlay' as const, label: '数值标签与指标浮层参数', value: overlayJson.value },
+  { key: 'bars' as const, label: '区域数据柱体参数', value: session.regionBarJson.value },
+  { key: 'overlay' as const, label: '数值标签与指标浮层参数', value: session.regionOverlayJson.value },
   { key: 'hud' as const, label: 'HUD 参数', value: session.hudJson.value }
 ])
 
@@ -42,10 +34,10 @@ function updateCarousel(event: Event): void {
         <div><dt>常态内光</dt><dd>{{ session.effectRuntimeStatus.baseInwardState }}</dd></div>
         <div><dt>Hover 内光</dt><dd>{{ session.effectRuntimeStatus.hoverInwardState }}</dd></div>
         <div><dt>马赛克</dt><dd>{{ session.effectRuntimeStatus.mosaicState }}</dd></div>
-        <div><dt>柱体数量</dt><dd>{{ session.districtBarRuntimeStatus.renderedCount }}</dd></div>
+        <div><dt>柱体数量</dt><dd>{{ session.regionBarRuntimeStatus.renderedCount }}</dd></div>
         <div><dt>区域数值范围</dt><dd>{{ dataRange }}</dd></div>
         <div><dt>效果降级</dt><dd>{{ session.effectRuntimeStatus.degraded ? '是' : '否' }}</dd></div>
-        <div><dt>柱体降级</dt><dd>{{ session.districtBarRuntimeStatus.degraded ? '是' : '否' }}</dd></div>
+        <div><dt>柱体降级</dt><dd>{{ session.regionBarRuntimeStatus.degraded ? '是' : '否' }}</dd></div>
       </dl>
       <label class="carousel-switch" for="engineering-carousel">
         <span>自动区域轮播</span>

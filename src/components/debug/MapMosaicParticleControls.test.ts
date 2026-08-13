@@ -9,6 +9,7 @@ import {
   type MapMosaicParticleConfig
 } from '@/components/map/mapMosaicParticleConfig'
 import MapMosaicParticleControls from './MapMosaicParticleControls.vue'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 interface MountedControls {
   app: App
@@ -196,32 +197,33 @@ describe('MapMosaicParticleControls', () => {
     app.unmount()
   })
 
-  it('applies the blue-purple preset, generates a random seed, and resets to tuned defaults', async () => {
+  it('routes preset, randomize, and reset intentions through the visual session owner', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.4321)
     const { app, root, state, updates } = await mountControls()
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
     state.value.primaryColor = '#111111'
     state.value.seed = 99
+    session.replaceEffectMosaicParticles(state.value)
     await nextTick()
 
     button(root, '应用蓝紫参考预设').click()
     await nextTick()
-    const preset = updates.at(-1)!
-    expect(preset).toEqual(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
-    expect(preset).not.toBe(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
+    expect(session.effect.hover.mosaicParticles).toEqual(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
+    expect(updates).toHaveLength(0)
 
     button(root, '随机种子').click()
     await nextTick()
-    const randomized = updates.at(-1)!
-    expect(randomized.seed).toBe(4321)
-    expect(randomized.primaryColor).toBe(HOVER_MOSAIC_PARTICLE_DEFAULTS.primaryColor)
+    expect(session.effect.hover.mosaicParticles.seed).toBe(4321)
+    expect(session.effect.hover.mosaicParticles.primaryColor).toBe(
+      HOVER_MOSAIC_PARTICLE_DEFAULTS.primaryColor
+    )
 
-    state.value.accentColor = '#222222'
+    session.effect.hover.mosaicParticles.accentColor = '#222222'
     await nextTick()
     button(root, '恢复固化默认').click()
     await nextTick()
-    const reset = updates.at(-1)!
-    expect(reset).toEqual(HOVER_MOSAIC_PARTICLE_DEFAULTS)
-    expect(reset).not.toBe(preset)
+    expect(session.effect.hover.mosaicParticles).toEqual(HOVER_MOSAIC_PARTICLE_DEFAULTS)
 
     app.unmount()
   })

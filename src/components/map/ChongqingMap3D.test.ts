@@ -25,7 +25,7 @@ const runtimeStatusDefault = vi.hoisted(() => ({
   mosaicState: 'ready' as const,
   degraded: false
 }))
-const districtBarRuntimeStatusDefault = vi.hoisted(() => ({
+const regionBarRuntimeStatusDefault = vi.hoisted(() => ({
   renderedCount: 0,
   dataMin: null,
   dataMax: null,
@@ -36,7 +36,7 @@ const mapDebugMocks = vi.hoisted(() => ({
   hud: null as MapHudConfig | null,
   effectRuntimeStatus: null as typeof runtimeStatusDefault | null,
   updateEffectRuntimeStatus: vi.fn(),
-  updateDistrictBarRuntimeStatus: vi.fn(),
+  updateRegionBarRuntimeStatus: vi.fn(),
   updateCameraView: vi.fn(),
   updateFps: vi.fn()
 }))
@@ -160,7 +160,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerMocks.push }) }))
 vi.mock('@/composables/useMapVisualSettings', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
-  DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: districtBarRuntimeStatusDefault,
+  DEFAULT_REGION_BAR_RUNTIME_STATUS: regionBarRuntimeStatusDefault,
   useMapVisualSettings: () => {
     const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
     mapDebugMocks.effect = effect
@@ -183,8 +183,8 @@ vi.mock('@/composables/useMapVisualSettings', () => ({
       hud,
       effectRuntimeStatus,
       updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus,
-      districtBarRuntimeStatus: { renderedCount: 0, dataMin: null, dataMax: null, degraded: false },
-      updateDistrictBarRuntimeStatus: mapDebugMocks.updateDistrictBarRuntimeStatus,
+      regionBarRuntimeStatus: { renderedCount: 0, dataMin: null, dataMax: null, degraded: false },
+      updateRegionBarRuntimeStatus: mapDebugMocks.updateRegionBarRuntimeStatus,
       updateCameraView: mapDebugMocks.updateCameraView,
       updateFps: mapDebugMocks.updateFps
     }
@@ -213,7 +213,7 @@ afterEach(() => {
   mosaicMocks.create.mockReset()
   Object.values(mosaicMocks.instance).forEach((mock) => mock.mockReset())
   mapDebugMocks.updateEffectRuntimeStatus.mockReset()
-  mapDebugMocks.updateDistrictBarRuntimeStatus.mockReset()
+  mapDebugMocks.updateRegionBarRuntimeStatus.mockReset()
   Object.values(districtBarMocks).forEach((value) => {
     if (typeof value === 'function' && 'mockReset' in value) value.mockReset()
   })
@@ -525,7 +525,7 @@ describe('ChongqingMap3D effect wiring', () => {
       primary: 20,
       secondary: 2
     })
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 2,
       dataMin: 20,
       dataMax: 70,
@@ -568,7 +568,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
     mounted.app.unmount()
     expect(districtBarMocks.dispose).toHaveBeenCalledWith(layer)
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenLastCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenLastCalledWith({
       renderedCount: 0,
       dataMin: null,
       dataMax: null,
@@ -589,7 +589,7 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(warn).toHaveBeenCalledWith('区县柱体初始化失败，保留地图底图', expect.any(Error))
     expect(warn.mock.calls.filter(([message]) => message === '区县柱体初始化失败，保留地图底图'))
       .toHaveLength(1)
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 0,
       dataMin: null,
       dataMax: null,
@@ -622,7 +622,7 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
     expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
       .toHaveLength(1)
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 0,
       dataMin: null,
       dataMax: null,
@@ -657,7 +657,7 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
     expect(warn.mock.calls.filter(([message]) => message === '区县柱体更新失败，保留地图底图'))
       .toHaveLength(1)
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 0,
       dataMin: null,
       dataMax: null,
@@ -1335,6 +1335,39 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(stopEffectWatch).toHaveBeenCalledTimes(1)
   })
 
+  it('hot-applies effect and HUD changes without recreating renderer, scene resources, camera, or controls', async () => {
+    const mounted = await mountInitializedMap(2)
+    const canvas = mounted.root.querySelector('canvas')
+    const pipelineArguments = pipelineMocks.create.mock.calls[0]
+    const rendererCreateCount = threeMocks.createRenderer.mock.calls.length
+    const pipelineCreateCount = pipelineMocks.create.mock.calls.length
+    const mosaicCreateCount = mosaicMocks.create.mock.calls.length
+    const barCreateCount = districtBarMocks.create.mock.calls.length
+    const cameraTargetSetCount = sceneSetupMocks.controlsTargetSet.mock.calls.length
+    const [, apply] = watchMapEffectConfig.mock.calls[0]
+
+    mapDebugMocks.effect!.base.outerGlowWidth = 123
+    apply()
+    mapDebugMocks.hud!.anchor.x = 12
+    await nextTick()
+
+    expect(applyMapEffectConfig).toHaveBeenLastCalledWith(
+      mapDebugMocks.effect,
+      expect.objectContaining({ staticGlow: expect.any(Object), hoverGlows: expect.any(Array) })
+    )
+    expect(threeMocks.createRenderer).toHaveBeenCalledTimes(rendererCreateCount)
+    expect(pipelineMocks.create).toHaveBeenCalledTimes(pipelineCreateCount)
+    expect(pipelineMocks.create.mock.calls[0]).toBe(pipelineArguments)
+    expect(mosaicMocks.create).toHaveBeenCalledTimes(mosaicCreateCount)
+    expect(districtBarMocks.create).toHaveBeenCalledTimes(barCreateCount)
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledTimes(cameraTargetSetCount)
+    expect(mounted.renderer.dispose).not.toHaveBeenCalled()
+    expect(mounted.root.querySelectorAll('canvas')).toHaveLength(1)
+    expect(mounted.root.querySelector('canvas')).toBe(canvas)
+
+    mounted.app.unmount()
+  })
+
   it('does not continue async initialization and disposes a texture resolved after unmount', async () => {
     const textureResult = deferred<THREE.Texture<HTMLImageElement>>()
     const texture = new THREE.Texture(document.createElement('img'))
@@ -1412,7 +1445,7 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(mosaicMocks.create).toHaveBeenCalledWith(expect.anything(), expect.any(Array))
     expect(districtBarMocks.create).not.toHaveBeenCalled()
     expect(mounted.root.querySelector('.map-district-bar-overlay-stub')).toBeNull()
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith({
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith({
       renderedCount: 0,
       dataMin: null,
       dataMax: null,
@@ -1689,7 +1722,7 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
     expect(districtBarMocks.getSnapshots).not.toHaveBeenCalled()
     expect(overlayLayoutMocks.calculate).not.toHaveBeenCalled()
     expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(2)
-    expect(mapDebugMocks.updateDistrictBarRuntimeStatus).toHaveBeenCalledWith(
+    expect(mapDebugMocks.updateRegionBarRuntimeStatus).toHaveBeenCalledWith(
       expect.objectContaining({ degraded: true })
     )
     expect(warn).toHaveBeenCalledWith('区县柱体更新失败，保留地图底图', expect.any(Error))
@@ -1728,7 +1761,7 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
       expect(overlayComponentMocks.props!.layout).toEqual({ badges: [], panel: null })
       expect(pipelineMocks.instance.render).toHaveBeenCalledTimes(1)
       expect(districtBarMocks.dispose).not.toHaveBeenCalled()
-      expect(mapDebugMocks.updateDistrictBarRuntimeStatus).not.toHaveBeenCalledWith(
+      expect(mapDebugMocks.updateRegionBarRuntimeStatus).not.toHaveBeenCalledWith(
         expect.objectContaining({ degraded: true })
       )
       expect(warn).toHaveBeenCalledWith(

@@ -46,7 +46,7 @@ describe('MapDataControls', () => {
   it('renders column and overlay controls and keeps all nested references stable while editing', async () => {
     const { app, root, effect, setItem } = await mountControls()
     const { useMapVisualSettings } = await import('@/composables/useMapVisualSettings')
-    useMapVisualSettings().updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
+    useMapVisualSettings().updateRegionBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
     await nextTick()
 
     expect(root.textContent).toContain('区域数据柱体')

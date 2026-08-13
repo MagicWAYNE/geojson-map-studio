@@ -1,23 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from 'vue'
 import {
-  B3_GLOW_PROFILE_DEFAULTS,
-  assignMapEffectConfig,
-  MAP_EFFECT_DEFAULTS,
   type MapEffectBaseConfigV2,
-  type MapEffectConfig,
   type MapEffectHoverConfigV2,
   type MapEffectQualityConfig
 } from '@/components/map/mapEffectConfig'
+import type { MapInwardGlowConfig } from '@/components/map/mapInwardGlowConfig'
+import type { MapMosaicParticleConfig } from '@/components/map/mapMosaicParticleConfig'
 import {
-  assignInwardGlowConfig,
-  type MapInwardGlowConfig
-} from '@/components/map/mapInwardGlowConfig'
-import {
-  assignMosaicParticleConfig,
-  type MapMosaicParticleConfig
-} from '@/components/map/mapMosaicParticleConfig'
-import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
+  useMapVisualSettings,
+  type VisualNumericFieldId
+} from '@/composables/useMapVisualSettings'
 import MapInwardGlowControls from './MapInwardGlowControls.vue'
 import MapMosaicParticleControls from './MapMosaicParticleControls.vue'
 
@@ -140,12 +133,9 @@ const GROUPS: readonly Group[] = [
 
 const visualSettings = useMapVisualSettings()
 const {
-  effect,
-  effectDraft: draft,
   effectEditTarget: editTarget,
   effectLivePreview: livePreview,
-  effectRuntimeStatus,
-  resetEffect
+  effectRuntimeStatus
 } = visualSettings
 const HEX = /^#[0-9a-f]{6}$/i
 
@@ -237,11 +227,11 @@ function runtimeStatusLabel(): string {
 }
 
 function replaceInwardGlow(channel: GlowChannel, value: MapInwardGlowConfig): void {
-  assignInwardGlowConfig(editTarget.value[channel].inwardGlow, value)
+  visualSettings.replaceEffectInwardGlow(channel, value)
 }
 
 function replaceMosaicParticles(value: MapMosaicParticleConfig): void {
-  assignMosaicParticleConfig(editTarget.value.hover.mosaicParticles, value)
+  visualSettings.replaceEffectMosaicParticles(value)
 }
 
 function isBaseColorField(field: Field): field is Extract<ColorField, { section: 'base' }> {
@@ -288,23 +278,22 @@ function valueOf(field: Field): string | number | boolean {
 }
 
 function writeValue(field: Field, value: string | number | boolean): void {
-  const target = editTarget.value
   if (isBaseColorField(field) && typeof value === 'string') {
-    target.base[field.key] = value
+    visualSettings.setEffectBaseField(field.key, value)
   } else if (isHoverColorField(field) && typeof value === 'string') {
-    target.hover[field.key] = value
+    visualSettings.setEffectHoverField(field.key, value)
   } else if (isBaseBooleanField(field) && typeof value === 'boolean') {
-    target.base[field.key] = value
+    visualSettings.setEffectBaseField(field.key, value)
   } else if (isHoverBooleanField(field) && typeof value === 'boolean') {
-    target.hover[field.key] = value
+    visualSettings.setEffectHoverField(field.key, value)
   } else if (isBaseNumberField(field) && typeof value === 'number') {
-    target.base[field.key] = value
+    visualSettings.setEffectBaseField(field.key, value)
   } else if (isHoverNumberField(field) && typeof value === 'number') {
-    target.hover[field.key] = value
+    visualSettings.setEffectHoverField(field.key, value)
   } else if (isQualityNumberField(field) && typeof value === 'number') {
-    target.quality[field.key] = value
+    visualSettings.setEffectQualityField(field.key, value)
   } else if (isQualitySelectField(field) && typeof value === 'number' && isRenderScale(value)) {
-    target.quality.renderScale = value
+    visualSettings.setEffectQualityField('renderScale', value)
   }
 }
 
@@ -312,35 +301,22 @@ function fieldId(field: Field, control: 'color' | 'hex' | 'number' | 'range' | '
   return `effect-${field.section}-${field.key}-${control}`
 }
 
-function draftKey(field: NumberField): string {
-  return `effect.${field.section}.${field.key}`
+function draftKey(field: NumberField): VisualNumericFieldId {
+  return `effect.${field.section}.${field.key}` as VisualNumericFieldId
 }
 
 function numberDraft(field: NumberField): string {
-  return visualSettings.readNumericDraft(draftKey(field), Number(valueOf(field)))
-}
-
-function normalizeNumber(field: NumberField, raw: string): number {
-  const parsed = raw.trim() === '' ? Number(valueOf(field)) : Number(raw)
-  const value = Number.isFinite(parsed) ? parsed : Number(valueOf(field))
-  const clamped = Math.min(field.max, Math.max(field.min, value))
-  const precision = (String(field.step).split('.')[1] ?? '').length
-  return Number((Math.round(clamped / field.step) * field.step).toFixed(precision))
+  return visualSettings.numericField(draftKey(field)).read(Number(valueOf(field)))
 }
 
 function writeNumber(field: NumberField, raw: string): void {
   const current = Number(valueOf(field))
-  const result = visualSettings.commitNumericDraft(
-    draftKey(field),
-    raw,
-    current,
-    (value) => normalizeNumber(field, String(value))
-  )
+  const result = visualSettings.numericField(draftKey(field)).commit(raw, current, field)
   if (result.changed) writeValue(field, result.value)
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
+  visualSettings.numericField(draftKey(field)).edit((event.target as HTMLInputElement).value)
 }
 
 function commitNumber(field: NumberField, event: Event): void {
@@ -378,82 +354,20 @@ const numberFields = GROUPS.flatMap((group) => group.fields).filter(
 )
 const stopDraftWatch = watch(editTarget, () => {
   for (const field of numberFields) {
-    visualSettings.syncNumericDraft(draftKey(field), Number(valueOf(field)))
+    visualSettings.numericField(draftKey(field)).sync(Number(valueOf(field)))
   }
 }, { deep: true, immediate: true })
 
-function applyB3Preset(channel: GlowChannel, target: MapEffectConfig): void {
-  if (channel === 'base') {
-    target.base.outerGlowNearRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio
-    target.base.outerGlowNearOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio
-    target.base.outerGlowFarRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio
-    target.base.outerGlowFarOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio
-    target.base.outerGlowFalloff = B3_GLOW_PROFILE_DEFAULTS.falloff
-    target.base.outerGlowEdgeSoftness = B3_GLOW_PROFILE_DEFAULTS.edgeSoftness
-    target.base.outerGlowNearPasses = B3_GLOW_PROFILE_DEFAULTS.nearPasses
-    target.base.outerGlowFarPasses = B3_GLOW_PROFILE_DEFAULTS.farPasses
-  } else {
-    target.hover.glowNearRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio
-    target.hover.glowNearOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio
-    target.hover.glowFarRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio
-    target.hover.glowFarOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio
-    target.hover.glowFalloff = B3_GLOW_PROFILE_DEFAULTS.falloff
-    target.hover.glowEdgeSoftness = B3_GLOW_PROFILE_DEFAULTS.edgeSoftness
-    target.hover.glowNearPasses = B3_GLOW_PROFILE_DEFAULTS.nearPasses
-    target.hover.glowFarPasses = B3_GLOW_PROFILE_DEFAULTS.farPasses
-  }
-}
-
-function resetGlowGroup(channel: GlowChannel, target: MapEffectConfig): void {
-  if (channel === 'base') {
-    const defaults = MAP_EFFECT_DEFAULTS.base
-    target.base.outerGlowEnabled = defaults.outerGlowEnabled
-    target.base.outerGlowColor = defaults.outerGlowColor
-    target.base.outerGlowWidth = defaults.outerGlowWidth
-    target.base.outerGlowStrength = defaults.outerGlowStrength
-    target.base.outerGlowNearRadiusRatio = defaults.outerGlowNearRadiusRatio
-    target.base.outerGlowNearOpacityRatio = defaults.outerGlowNearOpacityRatio
-    target.base.outerGlowFarRadiusRatio = defaults.outerGlowFarRadiusRatio
-    target.base.outerGlowFarOpacityRatio = defaults.outerGlowFarOpacityRatio
-    target.base.outerGlowFalloff = defaults.outerGlowFalloff
-    target.base.outerGlowEdgeSoftness = defaults.outerGlowEdgeSoftness
-    target.base.outerGlowNearPasses = defaults.outerGlowNearPasses
-    target.base.outerGlowFarPasses = defaults.outerGlowFarPasses
-  } else {
-    const defaults = MAP_EFFECT_DEFAULTS.hover
-    target.hover.glowEnabled = defaults.glowEnabled
-    target.hover.glowColor = defaults.glowColor
-    target.hover.glowWidth = defaults.glowWidth
-    target.hover.glowStrength = defaults.glowStrength
-    target.hover.glowNearRadiusRatio = defaults.glowNearRadiusRatio
-    target.hover.glowNearOpacityRatio = defaults.glowNearOpacityRatio
-    target.hover.glowFarRadiusRatio = defaults.glowFarRadiusRatio
-    target.hover.glowFarOpacityRatio = defaults.glowFarOpacityRatio
-    target.hover.glowFalloff = defaults.glowFalloff
-    target.hover.glowEdgeSoftness = defaults.glowEdgeSoftness
-    target.hover.glowNearPasses = defaults.glowNearPasses
-    target.hover.glowFarPasses = defaults.glowFarPasses
-  }
-}
-
-function resetAll(target: MapEffectConfig): void {
-  if (target === effect) {
-    resetEffect()
-    return
-  }
-  assignMapEffectConfig(target, MAP_EFFECT_DEFAULTS)
-}
-
 function runB3Preset(channel: GlowChannel | undefined): void {
-  if (channel) applyB3Preset(channel, editTarget.value)
+  if (channel) visualSettings.applyEffectB3Preset(channel)
 }
 
 function resetGroup(channel: GlowChannel | undefined): void {
-  if (channel) resetGlowGroup(channel, editTarget.value)
+  if (channel) visualSettings.resetEffectGlowGroup(channel)
 }
 
 function resetCurrentTarget(): void {
-  resetAll(editTarget.value)
+  visualSettings.resetEditableEffect()
 }
 
 async function copyEffect(): Promise<void> {

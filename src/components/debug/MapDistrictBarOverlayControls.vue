@@ -205,7 +205,10 @@ import {
   cloneDistrictBarOverlayConfig,
   normalizeDistrictBarOverlayConfig
 } from '@/components/map/mapDistrictBarOverlayConfig'
-import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
+import {
+  useMapVisualSettings,
+  type VisualNumericFieldId
+} from '@/composables/useMapVisualSettings'
 
 const props = defineProps<{
   modelValue: MapDistrictBarOverlayConfig
@@ -222,8 +225,8 @@ function pathKey(path: MapDistrictBarOverlayControlPath): string {
   return path.join('-')
 }
 
-function draftKey(field: OverlayNumberControl): string {
-  return `bars.overlay.${field.path.join('.')}`
+function draftKey(field: OverlayNumberControl): VisualNumericFieldId {
+  return `bars.overlay.${field.path.join('.')}` as VisualNumericFieldId
 }
 
 function fieldId(field: MapDistrictBarOverlayControl, control: string): string {
@@ -324,25 +327,16 @@ function updateColor(field: OverlayColorControl, event: Event): void {
 }
 
 function numberDraft(field: OverlayNumberControl): string {
-  return visualSettings.readNumericDraft(draftKey(field), readNumber(props.modelValue, field.path))
+  return visualSettings.numericField(draftKey(field)).read(readNumber(props.modelValue, field.path))
 }
 
 function updateNumberDraft(field: OverlayNumberControl, event: Event): void {
-  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
+  visualSettings.numericField(draftKey(field)).edit((event.target as HTMLInputElement).value)
 }
 
 function writeNumber(field: OverlayNumberControl, raw: string): void {
   const current = readNumber(props.modelValue, field.path)
-  const result = visualSettings.commitNumericDraft(
-    draftKey(field),
-    raw,
-    current,
-    (value) => {
-      const candidate = cloneDistrictBarOverlayConfig(props.modelValue)
-      writeNumberPath(candidate, field.path, value)
-      return readNumber(normalizeDistrictBarOverlayConfig(candidate), field.path)
-    }
-  )
+  const result = visualSettings.numericField(draftKey(field)).commit(raw, current, field)
   if (!result.changed) return
   const candidate = cloneDistrictBarOverlayConfig(props.modelValue)
   writeNumberPath(candidate, field.path, result.value)
@@ -364,7 +358,7 @@ watch(() => props.modelValue, () => {
   for (const group of MAP_DISTRICT_BAR_OVERLAY_CONTROL_GROUPS) {
     for (const field of group.fields) {
       if (field.kind !== 'number') continue
-      visualSettings.syncNumericDraft(draftKey(field), readNumber(props.modelValue, field.path))
+      visualSettings.numericField(draftKey(field)).sync(readNumber(props.modelValue, field.path))
     }
   }
 }, { deep: true, immediate: true })

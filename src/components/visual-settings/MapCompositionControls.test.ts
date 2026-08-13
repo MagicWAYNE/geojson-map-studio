@@ -37,6 +37,14 @@ describe('MapCompositionControls', () => {
     expect(range.value).toBe('1180')
     expect(root.textContent).toContain('地图与右侧设置栏发生重叠')
 
+    number.value = '2500'
+    number.dispatchEvent(new Event('input', { bubbles: true }))
+    number.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(session.layout.left).toBe(2500)
+    expect(number.value).toBe('2500')
+    expect(root.textContent).toContain('地图超出 1920×1080 设计视口')
+
     root.querySelector<HTMLButtonElement>('[data-action="reset-composition"]')!.click()
     await nextTick()
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)

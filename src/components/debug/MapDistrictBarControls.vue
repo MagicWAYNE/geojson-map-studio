@@ -5,7 +5,11 @@ import {
   normalizeDistrictBarConfig,
   type MapDistrictBarConfig
 } from '@/components/map/mapDistrictBarConfig'
-import { useMapVisualSettings, type MapDistrictBarRuntimeStatus } from '@/composables/useMapVisualSettings'
+import {
+  useMapVisualSettings,
+  type RegionBarRuntimeStatus,
+  type VisualNumericFieldId
+} from '@/composables/useMapVisualSettings'
 
 type ColorKey = 'color' | 'pulseColor'
 type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'pulseEnabled' | 'overlay' | ColorKey>
@@ -20,7 +24,7 @@ interface NumberField {
 
 const props = defineProps<{
   modelValue: MapDistrictBarConfig
-  runtimeStatus: MapDistrictBarRuntimeStatus
+  runtimeStatus: RegionBarRuntimeStatus
 }>()
 
 const emit = defineEmits<{
@@ -55,7 +59,7 @@ const NUMBER_FIELDS: readonly NumberField[] = [
 const HEX = /^#[0-9a-f]{6}$/i
 const visualSettings = useMapVisualSettings()
 
-function draftKey(field: NumberField): string {
+function draftKey(field: NumberField): VisualNumericFieldId {
   return `bars.${field.key}`
 }
 
@@ -92,35 +96,29 @@ function updateColor(key: ColorKey, event: Event): void {
 }
 
 function numberDraft(field: NumberField): string {
-  return visualSettings.readNumericDraft(draftKey(field), numberValue(field))
+  return visualSettings.numericField(draftKey(field)).read(numberValue(field))
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
+  visualSettings.numericField(draftKey(field)).edit((event.target as HTMLInputElement).value)
 }
 
-function normalizedNumber(field: NumberField, raw: string): number {
-  const current = numberValue(field)
-  const parsed = raw.trim() === '' ? current : Number(raw)
-  const finite = Number.isFinite(parsed) ? parsed : current
-  const clamped = Math.min(field.max, Math.max(field.min, finite))
-  const constrained = field.key === 'maxHeight'
-    ? Math.max(props.modelValue.minHeight, clamped)
-    : field.key === 'pulseInnerRadiusRatio'
-      ? Math.min(props.modelValue.pulseOuterRadiusRatio, clamped)
-      : field.key === 'pulseOuterRadiusRatio'
-        ? Math.max(props.modelValue.pulseInnerRadiusRatio, clamped)
-        : clamped
-  const precision = (String(field.step).split('.')[1] ?? '').length
-  return Number((Math.round(constrained / field.step) * field.step).toFixed(precision))
+function numericConstraint(field: NumberField): NumberField {
+  if (field.key === 'maxHeight') return { ...field, min: props.modelValue.minHeight }
+  if (field.key === 'pulseInnerRadiusRatio') {
+    return { ...field, max: props.modelValue.pulseOuterRadiusRatio }
+  }
+  if (field.key === 'pulseOuterRadiusRatio') {
+    return { ...field, min: props.modelValue.pulseInnerRadiusRatio }
+  }
+  return field
 }
 
 function writeNumber(field: NumberField, raw: string): void {
-  const result = visualSettings.commitNumericDraft(
-    draftKey(field),
+  const result = visualSettings.numericField(draftKey(field)).commit(
     raw,
     numberValue(field),
-    (value) => normalizedNumber(field, String(value))
+    numericConstraint(field)
   )
   if (result.changed) emitClone((next) => (next[field.key] = result.value))
 }
@@ -137,7 +135,7 @@ function updateRange(field: NumberField, event: Event): void {
 
 watch(() => props.modelValue, () => {
   for (const field of NUMBER_FIELDS) {
-    visualSettings.syncNumericDraft(draftKey(field), numberValue(field))
+    visualSettings.numericField(draftKey(field)).sync(numberValue(field))
   }
 }, { deep: true, immediate: true })
 </script>

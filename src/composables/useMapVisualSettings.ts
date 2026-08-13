@@ -1,19 +1,53 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
+  B3_GLOW_PROFILE_DEFAULTS,
   MAP_EFFECT_DEFAULTS,
   assignMapEffectConfig,
   cloneMapEffectConfig,
   formatMapEffectConfig,
   normalizeMapEffectConfig,
-  type MapEffectConfig
+  type MapEffectBaseConfigV4,
+  type MapEffectConfig,
+  type MapEffectHoverConfigV4,
+  type MapEffectQualityConfig
 } from '@/components/map/mapEffectConfig'
+import {
+  MAP_DISTRICT_BAR_DEFAULTS,
+  cloneDistrictBarConfig,
+  normalizeDistrictBarConfig,
+  type MapDistrictBarConfig
+} from '@/components/map/mapDistrictBarConfig'
+import {
+  MAP_DISTRICT_BAR_OVERLAY_DEFAULTS,
+  cloneDistrictBarOverlayConfig,
+  normalizeDistrictBarOverlayConfig,
+  type MapDistrictBarBadgeOverlayConfig,
+  type MapDistrictBarOverlayCollisionConfig,
+  type MapDistrictBarOverlayConfig,
+  type MapDistrictBarPanelOverlayConfig
+} from '@/components/map/mapDistrictBarOverlayConfig'
+import {
+  BASE_INWARD_GLOW_DEFAULTS,
+  HOVER_INWARD_GLOW_DEFAULTS,
+  cloneInwardGlowConfig,
+  type MapInwardGlowConfig
+} from '@/components/map/mapInwardGlowConfig'
+import {
+  BLUE_PURPLE_MOSAIC_PARTICLE_PRESET,
+  HOVER_MOSAIC_PARTICLE_DEFAULTS,
+  cloneMosaicParticleConfig,
+  type MapMosaicParticleConfig
+} from '@/components/map/mapMosaicParticleConfig'
 import {
   MAP_HUD_DEFAULTS,
   assignMapHudConfig,
   cloneMapHudConfig,
   formatMapHudConfig,
   normalizeMapHudConfig,
-  type MapHudConfig
+  type MapHudAnchorConfig,
+  type MapHudConfig,
+  type MapHudRotatingLayerConfig,
+  type MapHudStaticLayerConfig
 } from '@/components/map/mapHudConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 import { copyTextToClipboard } from '@/utils/copyText'
@@ -40,12 +74,52 @@ export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
   degraded: boolean
 }
 
-export interface MapDistrictBarRuntimeStatus {
+export interface RegionBarRuntimeStatus {
   renderedCount: number
   dataMin: number | null
   dataMax: number | null
   degraded: boolean
 }
+
+type NumericKey<T> = {
+  [Key in keyof T]-?: T[Key] extends number ? Key : never
+}[keyof T] & string
+
+export type VisualNumericFieldId =
+  | `layout.${keyof MapLayout}`
+  | `effect.base.${NumericKey<MapEffectBaseConfigV4>}`
+  | `effect.base.inwardGlow.${NumericKey<MapInwardGlowConfig>}`
+  | `effect.hover.${NumericKey<MapEffectHoverConfigV4>}`
+  | `effect.hover.inwardGlow.${NumericKey<MapInwardGlowConfig>}`
+  | `effect.hover.mosaicParticles.${NumericKey<MapMosaicParticleConfig>}`
+  | `effect.quality.${NumericKey<MapEffectQualityConfig>}`
+  | `bars.${NumericKey<MapDistrictBarConfig>}`
+  | `bars.overlay.badge.${NumericKey<MapDistrictBarBadgeOverlayConfig>}`
+  | `bars.overlay.panel.${NumericKey<MapDistrictBarPanelOverlayConfig>}`
+  | `bars.overlay.collision.${NumericKey<MapDistrictBarOverlayCollisionConfig>}`
+  | `hud.anchor.${NumericKey<MapHudAnchorConfig>}`
+  | `hud.static.${NumericKey<MapHudStaticLayerConfig>}`
+  | `hud.rotating.${NumericKey<MapHudRotatingLayerConfig>}`
+
+export interface VisualNumericConstraint {
+  min?: number
+  max?: number
+  step?: number
+}
+
+export interface VisualNumericField {
+  readonly id: VisualNumericFieldId
+  read(fallback: number): string
+  edit(raw: string): void
+  sync(value: number): void
+  commit(
+    raw: string,
+    current: number,
+    constraint?: Readonly<VisualNumericConstraint>
+  ): { value: number; changed: boolean }
+}
+
+export type EffectGlowChannel = 'base' | 'hover'
 
 export const VISUAL_SETTINGS_PAGES: readonly VisualSettingsPage[] = [
   { id: 'composition', label: '构图与视角' },
@@ -82,7 +156,7 @@ export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   degraded: false
 }
 
-export const DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: MapDistrictBarRuntimeStatus = {
+export const DEFAULT_REGION_BAR_RUNTIME_STATUS: RegionBarRuntimeStatus = {
   renderedCount: 0,
   dataMin: null,
   dataMax: null,
@@ -99,13 +173,14 @@ const hudDraft = reactive<MapHudConfig>(cloneMapHudConfig(hud))
 const effectLivePreview = ref(true)
 const hudLivePreview = ref(true)
 const effectRuntimeStatus = reactive<MapEffectRuntimeStatus>({ ...DEFAULT_MAP_EFFECT_RUNTIME_STATUS })
-const districtBarRuntimeStatus = reactive<MapDistrictBarRuntimeStatus>({
-  ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS
+const regionBarRuntimeStatus = reactive<RegionBarRuntimeStatus>({
+  ...DEFAULT_REGION_BAR_RUNTIME_STATUS
 })
 const cameraView = ref(DEFAULT_CAMERA_VIEW)
 const fps = ref(0)
-const numericDrafts = reactive<Record<string, string>>({})
-const committedNumericDrafts = new Map<string, string>()
+const numericDrafts = reactive<Partial<Record<VisualNumericFieldId, string>>>({})
+const committedNumericDrafts = new Map<VisualNumericFieldId, string>()
+const numericFieldBindings = new Map<VisualNumericFieldId, VisualNumericField>()
 const copyFeedback = reactive<Record<VisualCopyKey, VisualCopyStatus>>({
   'composition-css': 'idle',
   camera: 'idle',
@@ -116,8 +191,8 @@ const copyFeedback = reactive<Record<VisualCopyKey, VisualCopyStatus>>({
 })
 const copyRequests = new Map<VisualCopyKey, number>()
 const copyTimers = new Map<VisualCopyKey, ReturnType<typeof setTimeout>>()
-let applyingEffectDraft = false
-let applyingHudDraft = false
+let lastEffectiveEffect = cloneMapEffectConfig(effect)
+let lastEffectiveHud = cloneMapHudConfig(hud)
 
 const effectEditTarget = computed(() => effectLivePreview.value ? effect : effectDraft)
 const hudEditTarget = computed(() => hudLivePreview.value ? hud : hudDraft)
@@ -125,6 +200,12 @@ const effectJson = computed(() => formatMapEffectConfig(effect))
 const editableEffectJson = computed(() => formatMapEffectConfig(effectEditTarget.value))
 const hudJson = computed(() => formatMapHudConfig(hud))
 const editableHudJson = computed(() => formatMapHudConfig(hudEditTarget.value))
+const regionBarJson = computed(() => JSON.stringify(normalizeDistrictBarConfig(effect.bars), null, 2))
+const regionOverlayJson = computed(() => JSON.stringify(
+  normalizeDistrictBarOverlayConfig(effect.bars.overlay),
+  null,
+  2
+))
 const compositionCss = computed(() =>
   `.pos-map { left: ${layout.left}px; top: ${layout.top}px; width: ${layout.width}px; height: ${layout.height}px; }`
 )
@@ -157,19 +238,51 @@ const compositionWarnings = computed<string[]>(() => {
 
 watch(effect, (value) => {
   assignMapEffectConfig(effect, normalizeMapEffectConfig(value))
+  if (!effectLivePreview.value) mergeCleanDraftLeaves(
+    effectDraft as unknown as Record<string, unknown>,
+    value as unknown as Readonly<Record<string, unknown>>,
+    lastEffectiveEffect as unknown as Readonly<Record<string, unknown>>
+  )
+  lastEffectiveEffect = cloneMapEffectConfig(value)
 }, { deep: true })
 
 watch(hud, (value) => {
   assignMapHudConfig(hud, normalizeMapHudConfig(value))
+  if (!hudLivePreview.value) mergeCleanDraftLeaves(
+    hudDraft as unknown as Record<string, unknown>,
+    value as unknown as Readonly<Record<string, unknown>>,
+    lastEffectiveHud as unknown as Readonly<Record<string, unknown>>
+  )
+  lastEffectiveHud = cloneMapHudConfig(value)
 }, { deep: true })
 
-watch(effect, () => {
-  if (!effectLivePreview.value && !applyingEffectDraft) syncEffectDraft(effect)
-}, { deep: true, flush: 'sync' })
-
-watch(hud, () => {
-  if (!hudLivePreview.value && !applyingHudDraft) syncHudDraft(hud)
-}, { deep: true, flush: 'sync' })
+function mergeCleanDraftLeaves(
+  draftValue: Record<string, unknown>,
+  nextValue: Readonly<Record<string, unknown>>,
+  previousValue: Readonly<Record<string, unknown>>
+): void {
+  for (const key of Object.keys(nextValue)) {
+    const draftChild = draftValue[key]
+    const nextChild = nextValue[key]
+    const previousChild = previousValue[key]
+    if (
+      draftChild !== null
+      && nextChild !== null
+      && previousChild !== null
+      && typeof draftChild === 'object'
+      && typeof nextChild === 'object'
+      && typeof previousChild === 'object'
+    ) {
+      mergeCleanDraftLeaves(
+        draftChild as Record<string, unknown>,
+        nextChild as Readonly<Record<string, unknown>>,
+        previousChild as Readonly<Record<string, unknown>>
+      )
+    } else if (Object.is(draftChild, previousChild)) {
+      draftValue[key] = nextChild
+    }
+  }
+}
 
 function syncEffectDraft(source: Readonly<MapEffectConfig> = effect): void {
   assignMapEffectConfig(effectDraft, cloneMapEffectConfig(source))
@@ -191,9 +304,7 @@ function setHudLivePreview(next: boolean): void {
 
 function applyEffectDraft(): void {
   const normalized = normalizeMapEffectConfig(effectDraft)
-  applyingEffectDraft = true
   assignMapEffectConfig(effect, normalized)
-  applyingEffectDraft = false
   syncEffectDraft(normalized)
 }
 
@@ -203,9 +314,7 @@ function discardEffectDraft(): void {
 
 function applyHudDraft(): void {
   const normalized = normalizeMapHudConfig(hudDraft)
-  applyingHudDraft = true
   assignMapHudConfig(hud, normalized)
-  applyingHudDraft = false
   syncHudDraft(normalized)
 }
 
@@ -230,40 +339,39 @@ function resetHud(): void {
   syncHudDraft(hud)
 }
 
-const LAYOUT_LIMITS: Record<keyof MapLayout, { min: number; max: number }> = {
-  left: { min: -1920, max: 1920 },
-  top: { min: -1080, max: 1080 },
-  width: { min: 200, max: 1920 },
-  height: { min: 200, max: 1080 }
-}
-
-function readNumericDraft(key: string, fallback: number): string {
+function readNumericDraft(key: VisualNumericFieldId, fallback: number): string {
   return numericDrafts[key] ?? String(fallback)
 }
 
-function editNumericDraft(key: string, raw: string): void {
+function editNumericDraft(key: VisualNumericFieldId, raw: string): void {
   numericDrafts[key] = raw
   committedNumericDrafts.delete(key)
 }
 
-function syncNumericDraft(key: string, value: number): void {
+function syncNumericDraft(key: VisualNumericFieldId, value: number): void {
   const normalized = String(value)
   numericDrafts[key] = normalized
   if (committedNumericDrafts.get(key) !== normalized) committedNumericDrafts.delete(key)
 }
 
 function commitNumericDraft(
-  key: string,
+  key: VisualNumericFieldId,
   raw: string,
   current: number,
-  normalize: (value: number) => number
+  constraint: Readonly<VisualNumericConstraint> = {}
 ): { value: number; changed: boolean } {
   const parsed = raw.trim() === '' ? Number.NaN : Number(raw)
   if (!Number.isFinite(parsed)) {
     syncNumericDraft(key, current)
     return { value: current, changed: false }
   }
-  const value = normalize(parsed)
+  let value = parsed
+  if (constraint.min !== undefined) value = Math.max(constraint.min, value)
+  if (constraint.max !== undefined) value = Math.min(constraint.max, value)
+  if (constraint.step !== undefined) {
+    const precision = (String(constraint.step).split('.')[1] ?? '').length
+    value = Number((Math.round(value / constraint.step) * constraint.step).toFixed(precision))
+  }
   const normalized = String(value)
   numericDrafts[key] = normalized
   const changed = committedNumericDrafts.get(key) !== normalized && value !== current
@@ -271,16 +379,213 @@ function commitNumericDraft(
   return { value, changed }
 }
 
+function numericField(id: VisualNumericFieldId): VisualNumericField {
+  const existing = numericFieldBindings.get(id)
+  if (existing) return existing
+  const field: VisualNumericField = {
+    id,
+    read: (fallback) => readNumericDraft(id, fallback),
+    edit: (raw) => editNumericDraft(id, raw),
+    sync: (value) => syncNumericDraft(id, value),
+    commit: (raw, current, constraint) => commitNumericDraft(id, raw, current, constraint)
+  }
+  numericFieldBindings.set(id, field)
+  return field
+}
+
 function commitLayoutField(key: keyof MapLayout, raw: string): number {
-  const limits = LAYOUT_LIMITS[key]
-  const result = commitNumericDraft(
-    `layout.${key}`,
-    raw,
-    layout[key],
-    (value) => Math.round(Math.min(limits.max, Math.max(limits.min, value)))
-  )
+  const result = numericField(`layout.${key}`).commit(raw, layout[key], { step: 1 })
   if (result.changed) layout[key] = result.value
   return result.value
+}
+
+type EffectBaseFieldKey = Exclude<keyof MapEffectBaseConfigV4, 'inwardGlow'>
+type EffectHoverFieldKey = Exclude<keyof MapEffectHoverConfigV4, 'inwardGlow' | 'mosaicParticles'>
+type HudSection = 'anchor' | 'static' | 'rotating'
+
+function assignEditableEffect(candidate: Readonly<MapEffectConfig>): void {
+  assignMapEffectConfig(effectEditTarget.value, normalizeMapEffectConfig(candidate))
+}
+
+function updateEditableEffect(update: (candidate: MapEffectConfig) => void): void {
+  const candidate = cloneMapEffectConfig(effectEditTarget.value)
+  update(candidate)
+  assignEditableEffect(candidate)
+}
+
+function setEffectBaseField<Key extends EffectBaseFieldKey>(
+  key: Key,
+  value: MapEffectBaseConfigV4[Key]
+): void {
+  updateEditableEffect((candidate) => {
+    candidate.base[key] = value
+  })
+}
+
+function setEffectHoverField<Key extends EffectHoverFieldKey>(
+  key: Key,
+  value: MapEffectHoverConfigV4[Key]
+): void {
+  updateEditableEffect((candidate) => {
+    candidate.hover[key] = value
+  })
+}
+
+function setEffectQualityField<Key extends keyof MapEffectQualityConfig>(
+  key: Key,
+  value: MapEffectQualityConfig[Key]
+): void {
+  updateEditableEffect((candidate) => {
+    candidate.quality[key] = value
+  })
+}
+
+function replaceEffectInwardGlow(
+  channel: EffectGlowChannel,
+  value: Readonly<MapInwardGlowConfig>
+): void {
+  updateEditableEffect((candidate) => {
+    candidate[channel].inwardGlow = cloneInwardGlowConfig(value)
+  })
+}
+
+function applyEffectInwardPreset(channel: EffectGlowChannel): void {
+  replaceEffectInwardGlow(
+    channel,
+    channel === 'base' ? BASE_INWARD_GLOW_DEFAULTS : HOVER_INWARD_GLOW_DEFAULTS
+  )
+}
+
+function replaceEffectMosaicParticles(value: Readonly<MapMosaicParticleConfig>): void {
+  updateEditableEffect((candidate) => {
+    candidate.hover.mosaicParticles = cloneMosaicParticleConfig(value)
+  })
+}
+
+function applyEffectMosaicPreset(): void {
+  replaceEffectMosaicParticles(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
+}
+
+function randomizeEffectMosaicSeed(): void {
+  updateEditableEffect((candidate) => {
+    candidate.hover.mosaicParticles.seed = Math.floor(Math.random() * 10000)
+  })
+}
+
+function resetEffectMosaicParticles(): void {
+  replaceEffectMosaicParticles(HOVER_MOSAIC_PARTICLE_DEFAULTS)
+}
+
+function applyEffectB3Preset(channel: EffectGlowChannel): void {
+  updateEditableEffect((candidate) => {
+    if (channel === 'base') {
+      candidate.base.outerGlowNearRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio
+      candidate.base.outerGlowNearOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio
+      candidate.base.outerGlowFarRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio
+      candidate.base.outerGlowFarOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio
+      candidate.base.outerGlowFalloff = B3_GLOW_PROFILE_DEFAULTS.falloff
+      candidate.base.outerGlowEdgeSoftness = B3_GLOW_PROFILE_DEFAULTS.edgeSoftness
+      candidate.base.outerGlowNearPasses = B3_GLOW_PROFILE_DEFAULTS.nearPasses
+      candidate.base.outerGlowFarPasses = B3_GLOW_PROFILE_DEFAULTS.farPasses
+      return
+    }
+    candidate.hover.glowNearRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.nearRadiusRatio
+    candidate.hover.glowNearOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.nearOpacityRatio
+    candidate.hover.glowFarRadiusRatio = B3_GLOW_PROFILE_DEFAULTS.farRadiusRatio
+    candidate.hover.glowFarOpacityRatio = B3_GLOW_PROFILE_DEFAULTS.farOpacityRatio
+    candidate.hover.glowFalloff = B3_GLOW_PROFILE_DEFAULTS.falloff
+    candidate.hover.glowEdgeSoftness = B3_GLOW_PROFILE_DEFAULTS.edgeSoftness
+    candidate.hover.glowNearPasses = B3_GLOW_PROFILE_DEFAULTS.nearPasses
+    candidate.hover.glowFarPasses = B3_GLOW_PROFILE_DEFAULTS.farPasses
+  })
+}
+
+function resetEffectGlowGroup(channel: EffectGlowChannel): void {
+  updateEditableEffect((candidate) => {
+    if (channel === 'base') {
+      const defaults = MAP_EFFECT_DEFAULTS.base
+      candidate.base.outerGlowEnabled = defaults.outerGlowEnabled
+      candidate.base.outerGlowColor = defaults.outerGlowColor
+      candidate.base.outerGlowWidth = defaults.outerGlowWidth
+      candidate.base.outerGlowStrength = defaults.outerGlowStrength
+      candidate.base.outerGlowNearRadiusRatio = defaults.outerGlowNearRadiusRatio
+      candidate.base.outerGlowNearOpacityRatio = defaults.outerGlowNearOpacityRatio
+      candidate.base.outerGlowFarRadiusRatio = defaults.outerGlowFarRadiusRatio
+      candidate.base.outerGlowFarOpacityRatio = defaults.outerGlowFarOpacityRatio
+      candidate.base.outerGlowFalloff = defaults.outerGlowFalloff
+      candidate.base.outerGlowEdgeSoftness = defaults.outerGlowEdgeSoftness
+      candidate.base.outerGlowNearPasses = defaults.outerGlowNearPasses
+      candidate.base.outerGlowFarPasses = defaults.outerGlowFarPasses
+      return
+    }
+    const defaults = MAP_EFFECT_DEFAULTS.hover
+    candidate.hover.glowEnabled = defaults.glowEnabled
+    candidate.hover.glowColor = defaults.glowColor
+    candidate.hover.glowWidth = defaults.glowWidth
+    candidate.hover.glowStrength = defaults.glowStrength
+    candidate.hover.glowNearRadiusRatio = defaults.glowNearRadiusRatio
+    candidate.hover.glowNearOpacityRatio = defaults.glowNearOpacityRatio
+    candidate.hover.glowFarRadiusRatio = defaults.glowFarRadiusRatio
+    candidate.hover.glowFarOpacityRatio = defaults.glowFarOpacityRatio
+    candidate.hover.glowFalloff = defaults.glowFalloff
+    candidate.hover.glowEdgeSoftness = defaults.glowEdgeSoftness
+    candidate.hover.glowNearPasses = defaults.glowNearPasses
+    candidate.hover.glowFarPasses = defaults.glowFarPasses
+  })
+}
+
+function resetEditableEffect(): void {
+  assignEditableEffect(MAP_EFFECT_DEFAULTS)
+}
+
+function assignOverlay(
+  target: MapDistrictBarOverlayConfig,
+  source: Readonly<MapDistrictBarOverlayConfig>
+): void {
+  target.enabled = source.enabled
+  Object.assign(target.badge, source.badge)
+  Object.assign(target.panel, source.panel)
+  Object.assign(target.collision, source.collision)
+}
+
+function assignRegionBars(target: MapDistrictBarConfig, source: Readonly<MapDistrictBarConfig>): void {
+  const { overlay, ...barFields } = source
+  Object.assign(target, barFields)
+  assignOverlay(target.overlay, overlay)
+}
+
+function syncBarsAcrossEffectDrafts(value: Readonly<MapDistrictBarConfig>): void {
+  assignRegionBars(effect.bars, value)
+  if (!effectLivePreview.value) assignRegionBars(effectDraft.bars, value)
+}
+
+function replaceRegionBars(value: Readonly<MapDistrictBarConfig>): void {
+  syncBarsAcrossEffectDrafts(normalizeDistrictBarConfig(value))
+}
+
+function resetRegionBars(): void {
+  replaceRegionBars(cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS))
+}
+
+function replaceRegionOverlay(value: Readonly<MapDistrictBarOverlayConfig>): void {
+  const normalized = normalizeDistrictBarOverlayConfig(value)
+  assignOverlay(effect.bars.overlay, normalized)
+  if (!effectLivePreview.value) assignOverlay(effectDraft.bars.overlay, normalized)
+}
+
+function resetRegionOverlay(): void {
+  replaceRegionOverlay(cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS))
+}
+
+function setHudField(section: HudSection, key: string, value: number | boolean): void {
+  const candidate = cloneMapHudConfig(hudEditTarget.value)
+  const target = candidate[section] as unknown as Record<string, number | boolean>
+  target[key] = value
+  assignMapHudConfig(hudEditTarget.value, normalizeMapHudConfig(candidate))
+}
+
+function resetEditableHud(): void {
+  assignMapHudConfig(hudEditTarget.value, cloneMapHudConfig(MAP_HUD_DEFAULTS))
 }
 
 async function copyVisualText(key: VisualCopyKey, value: string): Promise<boolean> {
@@ -330,14 +635,14 @@ function updateEffectRuntimeStatus(next: MapEffectRuntimeStatus): boolean {
   return true
 }
 
-function updateDistrictBarRuntimeStatus(next: MapDistrictBarRuntimeStatus): boolean {
+function updateRegionBarRuntimeStatus(next: RegionBarRuntimeStatus): boolean {
   if (
-    next.renderedCount === districtBarRuntimeStatus.renderedCount
-    && next.dataMin === districtBarRuntimeStatus.dataMin
-    && next.dataMax === districtBarRuntimeStatus.dataMax
-    && next.degraded === districtBarRuntimeStatus.degraded
+    next.renderedCount === regionBarRuntimeStatus.renderedCount
+    && next.dataMin === regionBarRuntimeStatus.dataMin
+    && next.dataMax === regionBarRuntimeStatus.dataMax
+    && next.degraded === regionBarRuntimeStatus.degraded
   ) return false
-  Object.assign(districtBarRuntimeStatus, next)
+  Object.assign(regionBarRuntimeStatus, next)
   return true
 }
 
@@ -349,13 +654,21 @@ function resetVisualSession(): void {
   resetLayout()
   resetEffect()
   resetHud()
+  lastEffectiveEffect = cloneMapEffectConfig(effect)
+  lastEffectiveHud = cloneMapHudConfig(hud)
   Object.assign(effectRuntimeStatus, DEFAULT_MAP_EFFECT_RUNTIME_STATUS)
-  Object.assign(districtBarRuntimeStatus, DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS)
+  Object.assign(regionBarRuntimeStatus, DEFAULT_REGION_BAR_RUNTIME_STATUS)
   cameraView.value = DEFAULT_CAMERA_VIEW
   fps.value = 0
-  for (const key of Object.keys(numericDrafts)) delete numericDrafts[key]
+  for (const key of Object.keys(numericDrafts) as VisualNumericFieldId[]) delete numericDrafts[key]
   committedNumericDrafts.clear()
-  for (const key of Object.keys(copyFeedback) as VisualCopyKey[]) copyFeedback[key] = 'idle'
+  for (const key of Object.keys(copyFeedback) as VisualCopyKey[]) {
+    copyRequests.set(key, (copyRequests.get(key) ?? 0) + 1)
+    const timer = copyTimers.get(key)
+    if (timer) clearTimeout(timer)
+    copyTimers.delete(key)
+    copyFeedback[key] = 'idle'
+  }
 }
 
 export function useMapVisualSettings() {
@@ -377,9 +690,11 @@ export function useMapVisualSettings() {
     hudDirty,
     hudJson,
     editableHudJson,
+    regionBarJson,
+    regionOverlayJson,
     visualDirty,
     effectRuntimeStatus,
-    districtBarRuntimeStatus,
+    regionBarRuntimeStatus,
     cameraView,
     fps,
     compositionCss,
@@ -396,16 +711,31 @@ export function useMapVisualSettings() {
     resetEffect,
     resetHud,
     resetVisualSession,
-    readNumericDraft,
-    editNumericDraft,
-    syncNumericDraft,
-    commitNumericDraft,
+    numericField,
     commitLayoutField,
+    setEffectBaseField,
+    setEffectHoverField,
+    setEffectQualityField,
+    replaceEffectInwardGlow,
+    applyEffectInwardPreset,
+    replaceEffectMosaicParticles,
+    applyEffectMosaicPreset,
+    randomizeEffectMosaicSeed,
+    resetEffectMosaicParticles,
+    applyEffectB3Preset,
+    resetEffectGlowGroup,
+    resetEditableEffect,
+    replaceRegionBars,
+    resetRegionBars,
+    replaceRegionOverlay,
+    resetRegionOverlay,
+    setHudField,
+    resetEditableHud,
     copyVisualText,
     copyLabel,
     updateCameraView,
     updateFps,
     updateEffectRuntimeStatus,
-    updateDistrictBarRuntimeStatus
+    updateRegionBarRuntimeStatus
   }
 }

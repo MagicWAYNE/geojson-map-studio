@@ -6,16 +6,16 @@
 
 Status: ready-for-human
 
-- [ ] Every legacy HUD anchor, static-disc and rotating-disc field and action has an equivalent reachable control; an inventory test prevents silent omissions.
-- [ ] HUD live preview, explicit draft, apply, discard, reset and normalized JSON copy preserve current behavior.
-- [ ] Partial or invalid HUD numeric text never reaches effective configuration.
-- [ ] Engineering information presents FPS, render target dimensions, render scale, normal/Hover outward and inward glow states, mosaic state, bar count/range and degradation.
-- [ ] Automatic region carousel can be enabled or disabled without changing editor-focus pause semantics.
-- [ ] Current camera position/target, normalized complete effect config, bar/overlay config and HUD config remain inspectable or copyable from an obvious engineering location.
-- [ ] Opening, closing and switching engineering pages does not reset visual state or data-authoring state.
-- [ ] HUD changes apply in place without recreating its textures unnecessarily, and never recreate renderer, canvas, geometry, camera or controls.
-- [ ] The obsolete standalone debug drawer and header debug toggle have no active user-facing entry once parity is complete.
-- [ ] Existing HUD, carousel, debug-status and Three.js lifecycle tests remain green through the new session seam.
+- [x] Every legacy HUD anchor, static-disc and rotating-disc field and action has an equivalent reachable control; an inventory test prevents silent omissions.
+- [x] HUD live preview, explicit draft, apply, discard, reset and normalized JSON copy preserve current behavior.
+- [x] Partial or invalid HUD numeric text never reaches effective configuration.
+- [x] Engineering information presents FPS, render target dimensions, render scale, normal/Hover outward and inward glow states, mosaic state, bar count/range and degradation.
+- [x] Automatic region carousel can be enabled or disabled without changing editor-focus pause semantics.
+- [x] Current camera position/target, normalized complete effect config, bar/overlay config and HUD config remain inspectable or copyable from an obvious engineering location.
+- [x] Opening, closing and switching engineering pages does not reset visual state or data-authoring state.
+- [x] HUD changes apply in place without recreating its textures unnecessarily, and never recreate renderer, canvas, geometry, camera or controls.
+- [x] The obsolete standalone debug drawer and header debug toggle have no active user-facing entry once parity is complete.
+- [x] Existing HUD, carousel, debug-status and Three.js lifecycle tests remain green through the new session seam.
 
 ## Comments
 

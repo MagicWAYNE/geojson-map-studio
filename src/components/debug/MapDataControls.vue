@@ -1,72 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import {
-  MAP_DISTRICT_BAR_DEFAULTS,
-  cloneDistrictBarConfig,
-  normalizeDistrictBarConfig,
-  type MapDistrictBarConfig
-} from '@/components/map/mapDistrictBarConfig'
-import {
-  MAP_DISTRICT_BAR_OVERLAY_DEFAULTS,
-  cloneDistrictBarOverlayConfig,
-  normalizeDistrictBarOverlayConfig,
-  type MapDistrictBarOverlayConfig
-} from '@/components/map/mapDistrictBarOverlayConfig'
+import type { MapDistrictBarConfig } from '@/components/map/mapDistrictBarConfig'
+import type { MapDistrictBarOverlayConfig } from '@/components/map/mapDistrictBarOverlayConfig'
 import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 import MapDistrictBarControls from './MapDistrictBarControls.vue'
 import MapDistrictBarOverlayControls from './MapDistrictBarOverlayControls.vue'
 
 const visualSettings = useMapVisualSettings()
-const { effect, districtBarRuntimeStatus } = visualSettings
-
-const barJson = computed(() => JSON.stringify(normalizeDistrictBarConfig(effect.bars), null, 2))
-const overlayJson = computed(() => JSON.stringify(
-  normalizeDistrictBarOverlayConfig(effect.bars.overlay),
-  null,
-  2
-))
-
-function assignOverlayConfig(
-  target: MapDistrictBarOverlayConfig,
-  source: Readonly<MapDistrictBarOverlayConfig>
-): void {
-  target.enabled = source.enabled
-  Object.assign(target.badge, source.badge)
-  Object.assign(target.panel, source.panel)
-  Object.assign(target.collision, source.collision)
-}
-
-function assignBarsConfig(target: MapDistrictBarConfig, source: Readonly<MapDistrictBarConfig>): void {
-  const { overlay, ...barFields } = source
-  Object.assign(target, barFields)
-  assignOverlayConfig(target.overlay, overlay)
-}
+const { effect, regionBarRuntimeStatus, regionBarJson, regionOverlayJson } = visualSettings
 
 function replaceBars(value: MapDistrictBarConfig): void {
-  assignBarsConfig(effect.bars, normalizeDistrictBarConfig(value))
+  visualSettings.replaceRegionBars(value)
 }
 
 async function copyBars(): Promise<void> {
-  await visualSettings.copyVisualText('bars', barJson.value)
+  await visualSettings.copyVisualText('bars', regionBarJson.value)
 }
 
 async function copyOverlay(): Promise<void> {
-  await visualSettings.copyVisualText('overlay', overlayJson.value)
+  await visualSettings.copyVisualText('overlay', regionOverlayJson.value)
 }
 
 function resetBars(): void {
-  assignBarsConfig(effect.bars, cloneDistrictBarConfig(MAP_DISTRICT_BAR_DEFAULTS))
+  visualSettings.resetRegionBars()
 }
 
 function replaceOverlay(value: MapDistrictBarOverlayConfig): void {
-  assignOverlayConfig(effect.bars.overlay, normalizeDistrictBarOverlayConfig(value))
+  visualSettings.replaceRegionOverlay(value)
 }
 
 function resetOverlay(): void {
-  assignOverlayConfig(
-    effect.bars.overlay,
-    cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS)
-  )
+  visualSettings.resetRegionOverlay()
 }
 
 </script>
@@ -78,7 +41,7 @@ function resetOverlay(): void {
       <p class="hint">柱体主体固定为不透明；稳定底环与向内收缩的脉冲环可独立调节。</p>
       <MapDistrictBarControls
         :model-value="effect.bars"
-        :runtime-status="districtBarRuntimeStatus"
+        :runtime-status="regionBarRuntimeStatus"
         @update:model-value="replaceBars"
       />
     </section>
@@ -94,7 +57,7 @@ function resetOverlay(): void {
 
     <section class="data-group">
       <h3>可复制浮层参数</h3>
-      <pre class="json-out" data-testid="overlay-json">{{ overlayJson }}</pre>
+      <pre class="json-out" data-testid="overlay-json">{{ regionOverlayJson }}</pre>
       <div class="actions">
         <button class="btn" data-testid="copy-overlay" data-visual-action="overlay.copy" @click="copyOverlay">
           {{ visualSettings.copyLabel('overlay', '复制浮层参数') }}
@@ -107,7 +70,7 @@ function resetOverlay(): void {
 
     <section class="data-group">
       <h3>可复制柱体参数</h3>
-      <pre class="json-out" data-testid="bars-json">{{ barJson }}</pre>
+      <pre class="json-out" data-testid="bars-json">{{ regionBarJson }}</pre>
       <div class="actions">
         <button class="btn" data-testid="copy-bars" data-visual-action="bars.copy" @click="copyBars">
           {{ visualSettings.copyLabel('bars', '复制柱体参数') }}

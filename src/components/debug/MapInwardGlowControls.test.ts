@@ -8,6 +8,7 @@ import {
   type MapInwardGlowConfig
 } from '@/components/map/mapInwardGlowConfig'
 import MapInwardGlowControls from './MapInwardGlowControls.vue'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 type Channel = 'base' | 'hover'
 
@@ -159,23 +160,25 @@ describe('MapInwardGlowControls', () => {
     app.unmount()
   })
 
-  it('emits fresh clones for B1 and group reset on each action', async () => {
+  it('routes B1 and group reset intentions through the visual session owner', async () => {
     const { app, root, state, updates } = await mountControls('hover')
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
     state.value.width = 111
+    session.setEffectHoverField('emissiveIntensity', 1.2)
+    session.replaceEffectInwardGlow('hover', state.value)
     await nextTick()
 
     button(root, '应用 B1 预设').click()
     await nextTick()
-    const preset = updates.at(-1)!
-    expect(preset).toEqual(HOVER_INWARD_GLOW_DEFAULTS)
-    expect(preset).not.toBe(HOVER_INWARD_GLOW_DEFAULTS)
+    expect(session.effect.hover.inwardGlow).toEqual(HOVER_INWARD_GLOW_DEFAULTS)
+    expect(session.effect.hover.emissiveIntensity).toBe(1.2)
+    expect(updates).toHaveLength(0)
 
-    preset.width = 99
+    session.effect.hover.inwardGlow.width = 99
     button(root, '重置本组').click()
     await nextTick()
-    const reset = updates.at(-1)!
-    expect(reset).toEqual(HOVER_INWARD_GLOW_DEFAULTS)
-    expect(reset).not.toBe(preset)
+    expect(session.effect.hover.inwardGlow).toEqual(HOVER_INWARD_GLOW_DEFAULTS)
     app.unmount()
   })
 })
