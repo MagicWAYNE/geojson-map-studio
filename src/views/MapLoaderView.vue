@@ -6,8 +6,10 @@ import {
   composeMapVisualization,
   inspectGeoJsonMap,
   MapImportError,
+  prefillMapVisualizationDraft,
   prepareGeoJsonMapPackage,
   type GeoJsonInspection,
+  type MapMetricsSummary,
   type MapVisualizationDraft,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
@@ -17,12 +19,12 @@ import bgMain from '@/assets/images/bg-main.png'
 const router = useRouter()
 const geometryText = ref<string>()
 const geometryFileName = ref('')
-const metricsText = ref<string>()
 const metricsFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
 const visualization = ref<MapVisualizationDraft>()
+const prefillSummary = shallowRef<MapMetricsSummary>()
 const warnings = ref<MapSourceWarning[]>([])
 const validationError = ref('')
 const busy = ref(false)
@@ -48,17 +50,6 @@ function errorMessage(cause: unknown, fileName = ''): string {
   return fileName ? `${fileName}：${message}` : message
 }
 
-function validationFileName(cause: unknown): string {
-  if (
-    cause instanceof MapImportError &&
-    (
-      cause.code === 'invalid-metrics' ||
-      (metricsText.value !== undefined && ['invalid-json', 'file-too-large'].includes(cause.code))
-    )
-  ) return metricsFileName.value
-  return geometryFileName.value
-}
-
 function visualizationErrorMessage(cause: unknown): string {
   if (cause instanceof MapImportError) {
     const match = /^regions\[(\d+)]/.exec(cause.path)
@@ -81,6 +72,7 @@ function validateVisualization(): void {
 function validatePackage(): void {
   prepared.value = undefined
   visualization.value = undefined
+  prefillSummary.value = undefined
   validationError.value = ''
   if (geometryText.value === undefined) return
   if (!nameProperty.value) {
@@ -91,14 +83,13 @@ function validatePackage(): void {
     const nextPrepared = prepareGeoJsonMapPackage({
       geometryText: geometryText.value,
       geometryFileName: geometryFileName.value,
-      nameProperty: nameProperty.value,
-      ...(metricsText.value === undefined ? {} : { metricsText: metricsText.value })
+      nameProperty: nameProperty.value
     })
     prepared.value = nextPrepared
     visualization.value = nextPrepared.visualization
     validateVisualization()
   } catch (cause) {
-    validationError.value = errorMessage(cause, validationFileName(cause))
+    validationError.value = errorMessage(cause, geometryFileName.value)
   }
 }
 
@@ -106,8 +97,8 @@ async function handleGeometryFile(event: Event): Promise<void> {
   const generation = ++geometryReadGeneration
   metricsReadGeneration += 1
   metricsReading.value = false
-  metricsText.value = undefined
   metricsFileName.value = ''
+  prefillSummary.value = undefined
   const file = (event.target as HTMLInputElement).files?.[0]
   geometryText.value = undefined
   geometryFileName.value = ''
@@ -136,22 +127,26 @@ async function handleGeometryFile(event: Event): Promise<void> {
 async function handleMetricsFile(event: Event): Promise<void> {
   const generation = ++metricsReadGeneration
   const file = (event.target as HTMLInputElement).files?.[0]
-  metricsText.value = undefined
   metricsFileName.value = file?.name ?? ''
-  prepared.value = undefined
-  visualization.value = undefined
   validationError.value = ''
   if (!file) {
     metricsReading.value = false
-    validatePackage()
+    prefillSummary.value = undefined
+    validateVisualization()
+    return
+  }
+  if (!prepared.value) {
+    validationError.value = '请先上传并校验 GeoJSON 边界文件'
     return
   }
   metricsReading.value = true
   try {
     const text = await file.text()
     if (generation !== metricsReadGeneration) return
-    metricsText.value = text
-    validatePackage()
+    const prefill = prefillMapVisualizationDraft(prepared.value.document, text)
+    visualization.value = prefill.visualization
+    prefillSummary.value = prefill.summary
+    validateVisualization()
   } catch (cause) {
     if (generation === metricsReadGeneration) validationError.value = errorMessage(cause, file.name)
   } finally {
@@ -256,6 +251,7 @@ onMounted(async () => {
             id="metrics-file"
             type="file"
             accept=".json,application/json"
+            :disabled="!prepared || metricsReading"
             @change="handleMetricsFile"
           />
         </label>
@@ -300,10 +296,10 @@ onMounted(async () => {
           {{ prepared.summary.polygonCount }} / MultiPolygon {{ prepared.summary.multiPolygonCount }} ·
           名称字段 {{ prepared.summary.nameProperty }}
         </p>
-        <p v-if="prepared.summary.metrics" data-summary="metrics">
-          业务数据：匹配 {{ prepared.summary.metrics.matchedNames.length }} ·
-          缺失 {{ prepared.summary.metrics.missingNames.length }} ·
-          多余 {{ prepared.summary.metrics.extraNames.length }}
+        <p v-if="prefillSummary" data-summary="metrics">
+          业务数据：匹配 {{ prefillSummary.matchedNames.length }} ·
+          缺失 {{ prefillSummary.missingNames.length }} ·
+          多余 {{ prefillSummary.extraNames.length }}
         </p>
         <p v-else data-summary="metrics">
           已启用 {{ enabledRegionCount }} / {{ visualization?.regions.length ?? 0 }} 个分块；

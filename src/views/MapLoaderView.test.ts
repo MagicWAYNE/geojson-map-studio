@@ -173,12 +173,73 @@ describe('MapLoaderView', () => {
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('缺失 1')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('多余 1')
 
+    const regionA = regionRow(root, '区域 A')
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')?.checked).toBe(true)
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('120')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="display-name"]')!, '手工修正 A')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '121')
+
     applyButton.click()
     await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
-    const prepared = sourceMocks.activate.mock.calls[0][0]
+    const [prepared, visualization] = sourceMocks.activate.mock.calls[0]
     expect(prepared.document.geometry.regions).toHaveLength(3)
-    expect(prepared.document.metrics.size).toBe(2)
+    expect(prepared.persisted).not.toHaveProperty('metricsText')
+    expect(prepared.document.metrics.size).toBe(0)
+    expect((visualization as MapVisualizationDraft).regions.find((item) => item.regionKey === '区域 A'))
+      .toMatchObject({ displayName: '手工修正 A', enabled: true, primary: 121, secondary: 45.6 })
     expect(routerMocks.push).toHaveBeenCalledWith('/')
+    app.unmount()
+  })
+
+  it('新业务文件只在校验通过后替换预填草稿，失败时保留当前编辑值', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#metrics-file')!,
+      new File([fixture('valid-metrics.json')], 'valid-metrics.json')
+    )
+    await vi.waitFor(() => expect(regionRow(root, '区域 A')
+      .querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('120'))
+    enter(regionRow(root, '区域 A').querySelector<HTMLInputElement>('[data-field="display-name"]')!, '保留编辑名')
+
+    let resolveInvalid!: (text: string) => void
+    const invalidText = new Promise<string>((resolve) => { resolveInvalid = resolve })
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#metrics-file')!,
+      { name: 'new-invalid.json', text: () => invalidText } as File
+    )
+    await nextTick()
+    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    expect(regionRow(root, '区域 A')
+      .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
+    resolveInvalid('{')
+    await vi.waitFor(() => expect(root.textContent).toContain('new-invalid.json'))
+    expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
+    expect(regionRow(root, '区域 A')
+      .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
+
+    const replacement = JSON.stringify({
+      version: 1,
+      primaryMetric: { label: '新主指标', unit: '个' },
+      secondaryMetric: { label: '新次指标', unit: '次' },
+      regions: [{ name: '区域 B', primary: 9, secondary: 2 }]
+    })
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#metrics-file')!,
+      new File([replacement], 'replacement.json')
+    )
+    await vi.waitFor(() => expect(root.querySelector<HTMLInputElement>('#primary-label')?.value).toBe('新主指标'))
+    expect(regionRow(root, '区域 A')
+      .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('区域 A')
+    expect(regionRow(root, '区域 A')
+      .querySelector<HTMLInputElement>('[data-field="enabled"]')?.checked).toBe(false)
+    expect(regionRow(root, '区域 B')
+      .querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('9')
+    expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 1')
     app.unmount()
   })
 

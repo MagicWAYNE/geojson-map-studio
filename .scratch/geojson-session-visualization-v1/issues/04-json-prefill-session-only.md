@@ -4,15 +4,15 @@
 
 **Blocked by:** 03 — Edit visualization data for detected regions.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Valid JSON prefills both metric definitions and enables only exactly matched region rows.
-- [ ] Matched, missing and extra region names are summarized before Apply.
-- [ ] Manual edits made after prefill are used by the next Apply operation.
-- [ ] Selecting a different JSON explicitly replaces the prior prefill draft only after the new file validates.
-- [ ] Invalid or slow JSON reads disable Apply, preserve the last active map and report the filename and precise error.
-- [ ] JSON labels, units, display names and values are absent from the persisted geometry record and disappear after reload.
-- [ ] Existing file-size, row-count, exact-name and numeric validation limits remain enforced.
+- [x] Valid JSON prefills both metric definitions and enables only exactly matched region rows.
+- [x] Matched, missing and extra region names are summarized before Apply.
+- [x] Manual edits made after prefill are used by the next Apply operation.
+- [x] Selecting a different JSON explicitly replaces the prior prefill draft only after the new file validates.
+- [x] Invalid or slow JSON reads disable Apply, preserve the last active map and report the filename and precise error.
+- [x] JSON labels, units, display names and values are absent from the persisted geometry record and disappear after reload.
+- [x] Existing file-size, row-count, exact-name and numeric validation limits remain enforced.
 
 ## Comments
 

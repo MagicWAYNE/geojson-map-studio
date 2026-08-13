@@ -7,6 +7,7 @@ import {
   composeMapVisualization,
   createMapVisualizationDraft,
   inspectGeoJsonMap,
+  prefillMapVisualizationDraft,
   prepareGeoJsonMapPackage
 } from './mapDocument'
 
@@ -89,8 +90,7 @@ describe('mapDocument', () => {
       totalPositionCount: 20,
       polygonCount: 1,
       multiPolygonCount: 1,
-      nameProperty: 'name',
-      metrics: null
+      nameProperty: 'name'
     })
     expect(prepared.persisted).toEqual({
       version: 2,
@@ -100,7 +100,7 @@ describe('mapDocument', () => {
     })
   })
 
-  it('把可选业务数据按区域名称匹配并报告缺失与多余项', () => {
+  it('用可选业务数据预填独立编辑草稿并报告缺失与多余项', () => {
     const metricsText = JSON.stringify({
       version: 1,
       primaryMetric: { label: '扶持企业', unit: '家' },
@@ -114,18 +114,19 @@ describe('mapDocument', () => {
     const prepared = prepareGeoJsonMapPackage({
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
-      nameProperty: 'name',
-      metricsText
+      nameProperty: 'name'
     })
+    const prefill = prefillMapVisualizationDraft(prepared.document, metricsText)
+    const document = composeMapVisualization(prepared.document, prefill.visualization)
 
-    expect(prepared.document.metricLabels).toEqual({
+    expect(document.metricLabels).toEqual({
       primary: { label: '扶持企业', unit: '家' },
       secondary: { label: '服务资源', unit: '项' }
     })
-    expect([...prepared.document.metrics]).toEqual([
+    expect([...document.metrics]).toEqual([
       ['区域 A', { name: '区域 A', displayName: '区域 A', primary: 120, secondary: 45.6 }]
     ])
-    expect(prepared.summary.metrics).toEqual({
+    expect(prefill.summary).toEqual({
       matchedNames: ['区域 A'],
       missingNames: ['区域 B'],
       extraNames: ['区域 C']
@@ -136,7 +137,7 @@ describe('mapDocument', () => {
       geometryFileName: 'mixed.geojson',
       nameProperty: 'name'
     })
-    expect(prepared.visualization.regions.find((region) => region.regionKey === '区域 A')).toEqual({
+    expect(prefill.visualization.regions.find((region) => region.regionKey === '区域 A')).toEqual({
       regionKey: '区域 A',
       displayName: '区域 A',
       enabled: true,
@@ -205,13 +206,13 @@ describe('mapDocument', () => {
     const prepared = prepareGeoJsonMapPackage({
       geometryText,
       geometryFileName: 'exact.geojson',
-      nameProperty: 'name',
-      metricsText
+      nameProperty: 'name'
     })
+    const prefill = prefillMapVisualizationDraft(prepared.document, metricsText)
 
     expect(prepared.document.geometry.regions[0].name).toBe('区域 A ')
     expect(prepared.document.metrics.size).toBe(0)
-    expect(prepared.summary.metrics).toEqual({
+    expect(prefill.summary).toEqual({
       matchedNames: [],
       missingNames: ['区域 A ', '区域 B'],
       extraNames: ['区域 A']
@@ -338,13 +339,16 @@ describe('mapDocument', () => {
       },
       path: 'regions[0].primary'
     }
-  ])('拒绝$name且不生成可激活地图包', ({ metrics, path }) => {
-    expect(() => prepareGeoJsonMapPackage({
+  ])('拒绝$name且不生成可用预填草稿', ({ metrics, path }) => {
+    const prepared = prepareGeoJsonMapPackage({
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
-      nameProperty: 'name',
-      metricsText: JSON.stringify(metrics)
-    })).toThrowError(expect.objectContaining({ code: 'invalid-metrics', path }))
+      nameProperty: 'name'
+    })
+    expect(() => prefillMapVisualizationDraft(
+      prepared.document,
+      JSON.stringify(metrics)
+    )).toThrowError(expect.objectContaining({ code: 'invalid-metrics', path }))
   })
 
   it('在解析前拒绝超限文件和区域数', () => {
