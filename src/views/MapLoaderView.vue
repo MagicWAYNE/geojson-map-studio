@@ -19,7 +19,6 @@ import bgMain from '@/assets/images/bg-main.png'
 const router = useRouter()
 const geometryText = ref<string>()
 const geometryFileName = ref('')
-const metricsFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
@@ -99,7 +98,6 @@ async function handleGeometryFile(event: Event): Promise<void> {
   const generation = ++geometryReadGeneration
   metricsReadGeneration += 1
   metricsReading.value = false
-  metricsFileName.value = ''
   prefillSummary.value = undefined
   metricsValidationError.value = ''
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -130,7 +128,6 @@ async function handleGeometryFile(event: Event): Promise<void> {
 async function handleMetricsFile(event: Event): Promise<void> {
   const generation = ++metricsReadGeneration
   const file = (event.target as HTMLInputElement).files?.[0]
-  metricsFileName.value = file?.name ?? ''
   metricsValidationError.value = ''
   if (!file) {
     metricsReading.value = false
