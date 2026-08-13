@@ -29,10 +29,7 @@ import {
   updateDistrictBarLayer,
   type DistrictBarLayer
 } from './mapDistrictBarLayer'
-import {
-  createMapDistrictHoverCarousel,
-  type MapDistrictHoverCarousel
-} from './mapDistrictHoverCarousel'
+import { createMapHoverCoordinator, type MapHoverCoordinator } from './mapHoverCoordinator'
 import MapDistrictBarOverlay from './MapDistrictBarOverlay.vue'
 import {
   calculateDistrictBarOverlayLayout,
@@ -113,7 +110,7 @@ let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
 let districtBars: DistrictBarLayer | null = null
 let mapRoot: THREE.Group | null = null
-let districtHoverCarousel: MapDistrictHoverCarousel | null = null
+let hoverCoordinator: MapHoverCoordinator | null = null
 let barAnimationStartedAt = 0
 let pendingBusinessDocument: MapDocument | null = null
 let districtBarOverlaySizes: DistrictBarOverlayMeasuredSizes | undefined
@@ -382,9 +379,15 @@ function applyHudConfig(): void {
 const stopHudWatch = hudConfig ? watch(hudConfig, applyHudConfig, { deep: true }) : () => undefined
 
 const stopDistrictCarouselWatch = watch(districtCarouselEnabled, (enabled) => {
-  const carousel = districtHoverCarousel
-  if (!carousel) return
-  setEffectiveHover(carousel.setEnabled(enabled, performance.now()))
+  const hover = hoverCoordinator
+  if (!hover) return
+  setEffectiveHover(hover.setCarouselEnabled(enabled, performance.now()))
+})
+
+const stopAuthoringFocusWatch = watch(() => props.focus, (focus) => {
+  const hover = hoverCoordinator
+  if (!hover) return
+  setEffectiveHover(hover.setAuthoringFocus(focus || null, performance.now()))
 })
 
 function publishDistrictBarRuntimeStatus(layer: DistrictBarLayer, degraded = false): void {
@@ -731,15 +734,15 @@ function onPointerMove(e: PointerEvent) {
   pointerInsideMap = true
   const visual = pick(e)
   const name = visual?.name
-  const carousel = districtHoverCarousel
-  setEffectiveHover(carousel ? carousel.pointerMove(name ?? null) : name ?? null)
+  const hover = hoverCoordinator
+  setEffectiveHover(hover ? hover.pointerMove(name ?? null) : name ?? null)
   if (container.value) container.value.style.cursor = visual ? 'pointer' : 'default'
 }
 
 function onPointerEnter() {
   pointerInsideMap = true
-  const carousel = districtHoverCarousel
-  if (carousel) setEffectiveHover(carousel.pointerEnter())
+  const hover = hoverCoordinator
+  if (hover) setEffectiveHover(hover.pointerEnter())
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -756,15 +759,15 @@ function onClick(e: PointerEvent) {
 
 function onPointerLeave() {
   pointerInsideMap = false
-  const carousel = districtHoverCarousel
-  setEffectiveHover(carousel ? carousel.pointerLeave(performance.now()) : null)
+  const hover = hoverCoordinator
+  setEffectiveHover(hover ? hover.pointerLeave(performance.now()) : null)
   if (container.value) container.value.style.cursor = 'default'
 }
 
 function handleVisibilityChange() {
   if (document.visibilityState !== 'visible') return
-  const carousel = districtHoverCarousel
-  if (carousel) setEffectiveHover(carousel.resetTiming(performance.now()))
+  const hover = hoverCoordinator
+  if (hover) setEffectiveHover(hover.resetTiming(performance.now()))
 }
 
 // —— 渲染循环 + FPS ——
@@ -776,8 +779,8 @@ function loop(now: number) {
   raf = requestAnimationFrame(loop)
   const deltaMs = lastFrameAt ? Math.min(now - lastFrameAt, 50) : 0
   lastFrameAt = now
-  const carousel = districtHoverCarousel
-  if (carousel) setEffectiveHover(carousel.tick(now))
+  const hover = hoverCoordinator
+  if (hover) setEffectiveHover(hover.tick(now))
   const previousMosaicState = currentMosaicState()
   const glowStatusChanged = updateRegionVisuals(deltaMs)
   advanceMosaicParticles(deltaMs)
@@ -928,16 +931,14 @@ async function init(generation: number) {
     if (pendingInitCleanup === cleanupPendingTexture) pendingInitCleanup = null
     applyEffectConfig()
 
-    districtHoverCarousel = createMapDistrictHoverCarousel(
+    hoverCoordinator = createMapHoverCoordinator(
       regionVisuals.map((visual) => visual.name),
       districtCarouselEnabled.value,
       performance.now()
     )
-    setEffectiveHover(
-      pointerInsideMap
-        ? districtHoverCarousel.pointerEnter()
-        : districtHoverCarousel.current()
-    )
+    hoverCoordinator.setAuthoringFocus(props.focus || null, performance.now())
+    if (pointerInsideMap) hoverCoordinator.pointerEnter()
+    setEffectiveHover(hoverCoordinator.current())
 
     const el = container.value
     if (!el || !isCurrentInit(generation)) return
@@ -1036,7 +1037,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   el?.removeEventListener('click', onClick as EventListener)
   el?.removeEventListener('pointerleave', onPointerLeave)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  districtHoverCarousel = null
+  hoverCoordinator = null
   pointerInsideMap = false
   clearDistrictBarOverlay()
   districtBarOverlayFailureWarned = false
@@ -1090,6 +1091,7 @@ onBeforeUnmount(() => {
   stopEffectWatch()
   stopHudWatch()
   stopDistrictCarouselWatch()
+  stopAuthoringFocusWatch()
   stopDocumentWatch()
   cleanupScene()
 })

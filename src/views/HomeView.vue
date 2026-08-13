@@ -8,6 +8,7 @@ import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
 
 const mapDocument = shallowRef<MapDocument | null>(null)
+const authoringFocus = ref('')
 const loadError = ref('')
 let mounted = true
 
@@ -29,9 +30,17 @@ onBeforeUnmount(() => {
   <div class="home">
     <img class="bg-main" :src="bgMain" alt="" />
     <img class="bg-terrain" :src="bgTerrain" alt="" />
-    <ChongqingMap3D v-if="mapDocument" class="pos-map" :document="mapDocument" />
+    <ChongqingMap3D
+      v-if="mapDocument"
+      class="pos-map"
+      :document="mapDocument"
+      :focus="authoringFocus"
+    />
     <div v-else-if="loadError" class="map-load-error" role="alert">{{ loadError }}</div>
-    <MapLoaderView @map-activated="mapDocument = $event" />
+    <MapLoaderView
+      @map-activated="mapDocument = $event"
+      @authoring-focus="authoringFocus = $event ?? ''"
+    />
   </div>
 </template>
 

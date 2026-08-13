@@ -7,6 +7,7 @@ export interface MapDistrictHoverCarousel {
   pointerEnter(): string | null
   pointerMove(name: string | null): string | null
   pointerLeave(now: number): string | null
+  setAuthoringActive(active: boolean, now: number): string | null
   setEnabled(enabled: boolean, now: number): string | null
   resetTiming(now: number): string | null
 }
@@ -24,6 +25,7 @@ export function createMapDistrictHoverCarousel(
   let enabled = initiallyEnabled
   let pointerInside = false
   let pointerName: string | null = null
+  let authoringActive = false
   let currentIndex = names.length ? 0 : -1
   let lastManualIndex: number | null = null
   let nextAt: number | null = enabled && currentIndex >= 0
@@ -37,14 +39,14 @@ export function createMapDistrictHoverCarousel(
 
   function current(): string | null {
     if (pointerInside) return pointerName
-    if (!enabled || resumeAt !== null) return null
+    if (authoringActive || !enabled || resumeAt !== null) return null
     return automaticName()
   }
 
   function tick(nowValue: number): string | null {
     const now = finiteNow(nowValue)
     if (pointerInside) return pointerName
-    if (!enabled || currentIndex < 0) return null
+    if (authoringActive || !enabled || currentIndex < 0) return null
 
     if (resumeAt !== null) {
       if (now < resumeAt) return null
@@ -92,8 +94,19 @@ export function createMapDistrictHoverCarousel(
     pointerName = null
     nextAt = null
     resumeAt = enabled && currentIndex >= 0
+      && !authoringActive
       ? finiteNow(nowValue) + MAP_DISTRICT_CAROUSEL_RESUME_DELAY_MS
       : null
+    return null
+  }
+
+  function setAuthoringActive(active: boolean, nowValue: number): string | null {
+    if (authoringActive === active) return current()
+    authoringActive = active
+    nextAt = null
+    resumeAt = null
+    if (authoringActive || pointerInside || !enabled || currentIndex < 0) return current()
+    resumeAt = finiteNow(nowValue) + MAP_DISTRICT_CAROUSEL_RESUME_DELAY_MS
     return null
   }
 
@@ -102,7 +115,7 @@ export function createMapDistrictHoverCarousel(
     enabled = nextEnabled
     nextAt = null
     resumeAt = null
-    if (!enabled || pointerInside || currentIndex < 0) return current()
+    if (!enabled || pointerInside || authoringActive || currentIndex < 0) return current()
     currentIndex = ((lastManualIndex ?? currentIndex) + 1) % names.length
     lastManualIndex = null
     nextAt = finiteNow(nowValue) + MAP_DISTRICT_CAROUSEL_INTERVAL_MS
@@ -110,7 +123,7 @@ export function createMapDistrictHoverCarousel(
   }
 
   function resetTiming(nowValue: number): string | null {
-    if (pointerInside || !enabled || currentIndex < 0) return current()
+    if (pointerInside || authoringActive || !enabled || currentIndex < 0) return current()
     const now = finiteNow(nowValue)
     if (resumeAt !== null) {
       return now >= resumeAt ? tick(now) : null
@@ -125,6 +138,7 @@ export function createMapDistrictHoverCarousel(
     pointerEnter,
     pointerMove,
     pointerLeave,
+    setAuthoringActive,
     setEnabled,
     resetTiming
   }

@@ -359,9 +359,13 @@ async function mountInitializedMap(
   const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
   const root = document.createElement('div')
   const currentDocument = shallowRef(mapDocument)
+  const currentFocus = shallowRef('')
   const Host = defineComponent({
     setup() {
-      return () => h(ChongqingMap3D, { document: currentDocument.value })
+      return () => h(ChongqingMap3D, {
+        document: currentDocument.value,
+        focus: currentFocus.value
+      })
     }
   })
   const app = createApp(Host)
@@ -374,6 +378,10 @@ async function mountInitializedMap(
     renderer,
     updateDocument: async (nextDocument: MapDocument) => {
       currentDocument.value = nextDocument
+      await nextTick()
+    },
+    updateFocus: async (focus: string) => {
+      currentFocus.value = focus
       await nextTick()
     },
     runFrame: (now = 16) => frameCallback(now),
@@ -466,6 +474,32 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledTimes(2)
     expect(mounted.root.querySelectorAll('canvas')).toHaveLength(1)
     expect(districtBarMocks.reconcile).not.toHaveBeenCalled()
+    mounted.app.unmount()
+  })
+
+  it('gives map pointer including whitespace priority over authoring focus and restores focus on leave', async () => {
+    const mounted = await mountInitializedMap(2)
+    const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
+    const intersections = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
+    await mounted.updateFocus('测试区1')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
+
+    intersections.mockReturnValue([{ object: regionMeshes[0] } as THREE.Intersection])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 10,
+      clientY: 10
+    }))
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区0')
+
+    intersections.mockReturnValue([])
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: 12,
+      clientY: 12
+    }))
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, null)
+
+    mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
     mounted.app.unmount()
   })
 

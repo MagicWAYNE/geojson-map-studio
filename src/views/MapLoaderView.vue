@@ -21,6 +21,7 @@ import {
 
 const emit = defineEmits<{
   mapActivated: [document: MapDocument]
+  authoringFocus: [regionKey: string | null]
 }>()
 const geometryText = ref<string>()
 const geometryFileName = ref('')
@@ -97,6 +98,7 @@ async function activateGeometry(candidate: GeometryCandidate): Promise<void> {
       installWorkspace(candidate.prepared)
       prefillSummary.value = undefined
       metricsValidationError.value = ''
+      emit('authoringFocus', null)
       emit('mapActivated', document)
     } catch (cause) {
       if (generation === activationGeneration) {
@@ -257,6 +259,17 @@ function commitAll(): void {
   if (result) publishCommit(result)
 }
 
+function focusRegion(regionKey: string): void {
+  emit('authoringFocus', regionKey)
+}
+
+function leaveRegion(event: FocusEvent): void {
+  const row = event.currentTarget as HTMLElement
+  const next = event.relatedTarget
+  if (next instanceof Node && row.contains(next)) return
+  emit('authoringFocus', null)
+}
+
 async function resetMap(): Promise<void> {
   if (busy.value) return
   busy.value = true
@@ -273,6 +286,7 @@ async function resetMap(): Promise<void> {
     workspaceSnapshot.value = undefined
     prefillSummary.value = undefined
     metricsValidationError.value = ''
+    emit('authoringFocus', null)
     emit('mapActivated', document)
   } catch (cause) {
     validationError.value = errorMessage(cause)
@@ -452,6 +466,8 @@ onMounted(async () => {
               data-region-row
               :data-region-key="region.regionKey"
               :data-dirty="workspaceSnapshot?.dirtyRegionKeys.includes(region.regionKey) || undefined"
+              @focusin="focusRegion(region.regionKey)"
+              @focusout="leaveRegion"
             >
               <label class="map-loader__enable">
                 <input

@@ -214,6 +214,28 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
+  it('任意分块行控件 focus 都发布稳定 key，离开该行才清除', async () => {
+    const onAuthoringFocus = vi.fn()
+    const { app, root } = await mountView({ onAuthoringFocus })
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+    onAuthoringFocus.mockClear()
+    const row = regionRow(root, '区域 A')
+    const nameInput = row.querySelector<HTMLInputElement>('[data-field="display-name"]')!
+    const updateButton = row.querySelector<HTMLButtonElement>('[data-action="update-region"]')!
+
+    nameInput.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    expect(onAuthoringFocus).toHaveBeenLastCalledWith('区域 A')
+    row.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: updateButton }))
+    expect(onAuthoringFocus).not.toHaveBeenCalledWith(null)
+    row.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }))
+    expect(onAuthoringFocus).toHaveBeenLastCalledWith(null)
+    app.unmount()
+  })
+
   it('返回加载页时恢复同一几何的当前页面草稿', async () => {
     const prepared = prepareGeoJsonMapPackage({
       geometryText: fixture('valid-mixed.geojson'),

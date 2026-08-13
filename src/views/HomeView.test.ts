@@ -10,18 +10,19 @@ vi.mock('@/components/map/mapSource', () => ({
 }))
 vi.mock('@/components/map/ChongqingMap3D.vue', () => ({
   default: defineComponent({
-    props: ['document'],
+    props: ['document', 'focus'],
     setup(props) {
       return () => h('div', {
         class: 'map-stub',
-        'data-source': props.document.source.displayName
+        'data-source': props.document.source.displayName,
+        'data-focus': props.focus
       })
     }
   })
 }))
 vi.mock('@/views/MapLoaderView.vue', () => ({
   default: defineComponent({
-    emits: ['mapActivated'],
+    emits: ['mapActivated', 'authoringFocus'],
     setup(_, { emit }) {
       return () => h('aside', { class: 'authoring-panel-stub' }, [
         '地图创作面板',
@@ -30,7 +31,11 @@ vi.mock('@/views/MapLoaderView.vue', () => ({
           onClick: () => emit('mapActivated', {
             source: { kind: 'geojson', displayName: 'new.geojson' }
           })
-        }, '激活')
+        }, '激活'),
+        h('button', {
+          class: 'focus-stub-region',
+          onClick: () => emit('authoringFocus', '区域 A')
+        }, '聚焦')
       ])
     }
   })
@@ -92,6 +97,22 @@ describe('HomeView same-page map authoring', () => {
 
     expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('new.geojson')
     expect(root.querySelectorAll('.map-stub')).toHaveLength(1)
+    app.unmount()
+  })
+
+  it('把面板的稳定分块 focus 作为受控 hover 传给地图', async () => {
+    sourceMocks.load.mockResolvedValue({
+      document: { source: { kind: 'geojson', displayName: 'map.geojson' } },
+      warnings: []
+    })
+    const root = document.createElement('div')
+    const app = createApp(HomeView)
+    app.mount(root)
+    await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
+
+    root.querySelector<HTMLButtonElement>('.focus-stub-region')!.click()
+    await nextTick()
+    expect(root.querySelector('.map-stub')?.getAttribute('data-focus')).toBe('区域 A')
     app.unmount()
   })
 })
