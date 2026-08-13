@@ -3,10 +3,12 @@ import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { activeMapSource } from '@/components/map/mapSource'
 import {
+  composeMapVisualization,
   inspectGeoJsonMap,
   MapImportError,
   prepareGeoJsonMapPackage,
   type GeoJsonInspection,
+  type MapVisualizationDraft,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
 import type { MapSourceWarning } from '@/components/map/activeMapSource'
@@ -20,13 +22,24 @@ const metricsFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
+const visualization = ref<MapVisualizationDraft>()
 const warnings = ref<MapSourceWarning[]>([])
 const validationError = ref('')
 const busy = ref(false)
+const metricsReading = ref(false)
 let geometryReadGeneration = 0
 let metricsReadGeneration = 0
 
-const canApply = computed(() => prepared.value !== undefined && !busy.value)
+const enabledRegionCount = computed(() =>
+  visualization.value?.regions.filter((region) => region.enabled).length ?? 0
+)
+const canApply = computed(() =>
+  prepared.value !== undefined &&
+  visualization.value !== undefined &&
+  !busy.value &&
+  !metricsReading.value &&
+  !validationError.value
+)
 
 function errorMessage(cause: unknown, fileName = ''): string {
   const message = cause instanceof MapImportError
@@ -46,8 +59,28 @@ function validationFileName(cause: unknown): string {
   return geometryFileName.value
 }
 
+function visualizationErrorMessage(cause: unknown): string {
+  if (cause instanceof MapImportError) {
+    const match = /^regions\[(\d+)]/.exec(cause.path)
+    const region = match && visualization.value?.regions[Number(match[1])]
+    if (region) return `${region.regionKey}：${cause.userMessage}`
+  }
+  return errorMessage(cause)
+}
+
+function validateVisualization(): void {
+  validationError.value = ''
+  if (!prepared.value || !visualization.value) return
+  try {
+    composeMapVisualization(prepared.value.document, visualization.value)
+  } catch (cause) {
+    validationError.value = visualizationErrorMessage(cause)
+  }
+}
+
 function validatePackage(): void {
   prepared.value = undefined
+  visualization.value = undefined
   validationError.value = ''
   if (geometryText.value === undefined) return
   if (!nameProperty.value) {
@@ -55,12 +88,15 @@ function validatePackage(): void {
     return
   }
   try {
-    prepared.value = prepareGeoJsonMapPackage({
+    const nextPrepared = prepareGeoJsonMapPackage({
       geometryText: geometryText.value,
       geometryFileName: geometryFileName.value,
       nameProperty: nameProperty.value,
       ...(metricsText.value === undefined ? {} : { metricsText: metricsText.value })
     })
+    prepared.value = nextPrepared
+    visualization.value = nextPrepared.visualization
+    validateVisualization()
   } catch (cause) {
     validationError.value = errorMessage(cause, validationFileName(cause))
   }
@@ -68,12 +104,17 @@ function validatePackage(): void {
 
 async function handleGeometryFile(event: Event): Promise<void> {
   const generation = ++geometryReadGeneration
+  metricsReadGeneration += 1
+  metricsReading.value = false
+  metricsText.value = undefined
+  metricsFileName.value = ''
   const file = (event.target as HTMLInputElement).files?.[0]
   geometryText.value = undefined
   geometryFileName.value = ''
   inspection.value = undefined
   nameProperty.value = ''
   prepared.value = undefined
+  visualization.value = undefined
   validationError.value = ''
   if (!file) return
   geometryFileName.value = file.name
@@ -98,11 +139,14 @@ async function handleMetricsFile(event: Event): Promise<void> {
   metricsText.value = undefined
   metricsFileName.value = file?.name ?? ''
   prepared.value = undefined
+  visualization.value = undefined
   validationError.value = ''
   if (!file) {
+    metricsReading.value = false
     validatePackage()
     return
   }
+  metricsReading.value = true
   try {
     const text = await file.text()
     if (generation !== metricsReadGeneration) return
@@ -110,6 +154,8 @@ async function handleMetricsFile(event: Event): Promise<void> {
     validatePackage()
   } catch (cause) {
     if (generation === metricsReadGeneration) validationError.value = errorMessage(cause, file.name)
+  } finally {
+    if (generation === metricsReadGeneration) metricsReading.value = false
   }
 }
 
@@ -117,12 +163,24 @@ function handleNameProperty(): void {
   validatePackage()
 }
 
+function setRegionNumber(
+  regionIndex: number,
+  field: 'primary' | 'secondary',
+  event: Event
+): void {
+  const region = visualization.value?.regions[regionIndex]
+  if (!region) return
+  const value = (event.target as HTMLInputElement).value
+  region[field] = value === '' ? null : Number(value)
+  validateVisualization()
+}
+
 async function applyMap(): Promise<void> {
-  if (!prepared.value || busy.value) return
+  if (!prepared.value || !visualization.value || busy.value) return
   busy.value = true
   validationError.value = ''
   try {
-    await activeMapSource.activate(prepared.value)
+    await activeMapSource.activate(prepared.value, visualization.value)
     await router.push('/')
   } catch (cause) {
     validationError.value = errorMessage(cause)
@@ -147,7 +205,18 @@ async function resetMap(): Promise<void> {
 
 onMounted(async () => {
   try {
-    warnings.value = (await activeMapSource.load()).warnings
+    const result = await activeMapSource.load()
+    warnings.value = result.warnings
+    if (result.custom) {
+      const restored = result.custom
+      geometryText.value = restored.prepared.persisted.geometryText
+      geometryFileName.value = restored.prepared.persisted.geometryFileName
+      nameProperty.value = restored.prepared.persisted.nameProperty
+      inspection.value = inspectGeoJsonMap(restored.prepared.persisted.geometryText)
+      prepared.value = restored.prepared
+      visualization.value = restored.visualization
+      validateVisualization()
+    }
   } catch (cause) {
     warnings.value = [{ code: 'storage-read-failed', message: errorMessage(cause) }]
   }
@@ -236,7 +305,101 @@ onMounted(async () => {
           缺失 {{ prepared.summary.metrics.missingNames.length }} ·
           多余 {{ prepared.summary.metrics.extraNames.length }}
         </p>
-        <p v-else data-summary="metrics">未附加业务数据；地图不会生成柱体或数值浮层。</p>
+        <p v-else data-summary="metrics">
+          已启用 {{ enabledRegionCount }} / {{ visualization?.regions.length ?? 0 }} 个分块；
+          未启用分块只显示地图效果。
+        </p>
+      </section>
+
+      <section v-if="prepared && visualization" class="map-loader__editor" aria-labelledby="editor-title">
+        <header class="map-loader__editor-heading">
+          <div>
+            <h2 id="editor-title">分块数据配置</h2>
+            <p>原始标识用于数据绑定，展示名称仅用于地图与悬浮窗呈现。</p>
+          </div>
+          <span>{{ enabledRegionCount }} / {{ visualization.regions.length }} 已启用</span>
+        </header>
+
+        <div class="map-loader__metric-fields">
+          <label for="primary-label">
+            <span>主指标名称</span>
+            <input id="primary-label" v-model="visualization.labels.primary.label" maxlength="20" @input="validateVisualization" />
+          </label>
+          <label for="primary-unit">
+            <span>主指标单位</span>
+            <input id="primary-unit" v-model="visualization.labels.primary.unit" maxlength="8" @input="validateVisualization" />
+          </label>
+          <label for="secondary-label">
+            <span>次指标名称</span>
+            <input id="secondary-label" v-model="visualization.labels.secondary.label" maxlength="20" @input="validateVisualization" />
+          </label>
+          <label for="secondary-unit">
+            <span>次指标单位</span>
+            <input id="secondary-unit" v-model="visualization.labels.secondary.unit" maxlength="8" @input="validateVisualization" />
+          </label>
+        </div>
+
+        <div class="map-loader__region-table" role="table" aria-label="已识别地图分块">
+          <div class="map-loader__region-head" role="row">
+            <span>可视化</span>
+            <span>原始标识</span>
+            <span>展示名称</span>
+            <span>主数值</span>
+            <span>次数值</span>
+          </div>
+          <div class="map-loader__region-scroll">
+            <div
+              v-for="(region, regionIndex) in visualization.regions"
+              :key="region.regionKey"
+              class="map-loader__region-row"
+              role="row"
+              data-region-row
+              :data-region-key="region.regionKey"
+            >
+              <label class="map-loader__enable">
+                <input
+                  v-model="region.enabled"
+                  type="checkbox"
+                  data-field="enabled"
+                  :aria-label="`启用 ${region.regionKey} 可视化`"
+                  @change="validateVisualization"
+                />
+                <span>{{ region.enabled ? '启用' : '关闭' }}</span>
+              </label>
+              <span class="map-loader__region-key" data-original-key :title="region.regionKey">
+                {{ region.regionKey }}
+              </span>
+              <input
+                v-model="region.displayName"
+                type="text"
+                maxlength="40"
+                data-field="display-name"
+                :aria-label="`${region.regionKey} 展示名称`"
+                @input="validateVisualization"
+              />
+              <input
+                type="number"
+                min="0"
+                step="any"
+                data-field="primary"
+                :disabled="!region.enabled"
+                :value="region.primary ?? ''"
+                :aria-label="`${region.regionKey} 主数值`"
+                @input="setRegionNumber(regionIndex, 'primary', $event)"
+              />
+              <input
+                type="number"
+                min="0"
+                step="any"
+                data-field="secondary"
+                :disabled="!region.enabled"
+                :value="region.secondary ?? ''"
+                :aria-label="`${region.regionKey} 次数值`"
+                @input="setRegionNumber(regionIndex, 'secondary', $event)"
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
       <p v-if="validationError" class="map-loader__error" role="alert">
@@ -274,15 +437,18 @@ onMounted(async () => {
 
 .map-loader__card {
   position: relative;
-  width: 760px;
-  padding: 44px 48px 40px;
+  box-sizing: border-box;
+  width: 1480px;
+  max-height: 980px;
+  padding: 30px 38px 28px;
+  overflow: auto;
   background: linear-gradient(145deg, rgba(8, 28, 63, 0.96), rgba(5, 18, 44, 0.94));
   border: 1px solid rgba(63, 169, 255, 0.62);
   border-radius: 10px;
   box-shadow: 0 0 56px rgba(25, 119, 229, 0.32), inset 0 0 40px rgba(17, 87, 171, 0.16);
 }
 
-.map-loader__card h1 { margin: 4px 0 12px; color: #fff; font-size: 34px; }
+.map-loader__card h1 { margin: 4px 0 8px; color: #fff; font-size: 32px; }
 .map-loader__card h2 { margin: 0 0 8px; color: #7de7ff; font-size: 18px; }
 .map-loader__card p { margin: 0; color: #98b6d8; font-size: 16px; line-height: 1.7; }
 .map-loader__eyebrow { color: #2edcff !important; font-family: monospace; letter-spacing: 0.18em; }
@@ -301,7 +467,7 @@ onMounted(async () => {
 .map-loader__warnings { list-style: none; }
 .map-loader__name-conflicts { list-style-position: inside; }
 .map-loader__error { color: #ffad99 !important; background: rgba(116, 33, 25, 0.28); }
-.map-loader__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 28px; }
+.map-loader__fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 22px; }
 .map-loader__field { display: grid; gap: 9px; color: #c9dff8; font-size: 16px; }
 .map-loader__field strong { color: #4ee7ff; font-weight: 500; }
 .map-loader__field em { color: #89a8ca; font-style: normal; }
@@ -325,7 +491,96 @@ onMounted(async () => {
 }
 
 .map-loader__summary p + p { margin-top: 5px; }
-.map-loader__actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 30px; }
+.map-loader__editor {
+  margin-top: 20px;
+  padding: 18px 20px 20px;
+  background: rgba(4, 25, 57, 0.6);
+  border: 1px solid rgba(55, 139, 226, 0.38);
+  border-radius: 6px;
+}
+
+.map-loader__editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.map-loader__editor-heading > span {
+  flex: 0 0 auto;
+  color: #57e5ff;
+  font-family: monospace;
+  font-size: 15px;
+}
+
+.map-loader__metric-fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.map-loader__metric-fields label {
+  display: grid;
+  gap: 6px;
+  color: #9dbbdc;
+  font-size: 14px;
+}
+
+.map-loader__metric-fields input,
+.map-loader__region-row input[type='text'],
+.map-loader__region-row input[type='number'] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  color: #ecf7ff;
+  background: rgba(8, 37, 77, 0.86);
+  border: 1px solid rgba(66, 151, 236, 0.5);
+  border-radius: 4px;
+}
+
+.map-loader__region-table { margin-top: 16px; }
+.map-loader__region-head,
+.map-loader__region-row {
+  display: grid;
+  grid-template-columns: 96px minmax(180px, 1fr) minmax(210px, 1.2fr) minmax(130px, 0.7fr) minmax(130px, 0.7fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.map-loader__region-head {
+  padding: 0 12px 9px;
+  color: #73a9d7;
+  font-size: 13px;
+}
+
+.map-loader__region-scroll {
+  max-height: 326px;
+  overflow: auto;
+  border-top: 1px solid rgba(69, 145, 221, 0.32);
+  border-bottom: 1px solid rgba(69, 145, 221, 0.32);
+}
+
+.map-loader__region-row {
+  min-height: 54px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(53, 112, 175, 0.2);
+}
+
+.map-loader__region-row:last-child { border-bottom: 0; }
+.map-loader__enable { display: flex; align-items: center; gap: 7px; color: #9fb9d5; font-size: 13px; }
+.map-loader__enable input { accent-color: #2edcff; }
+.map-loader__region-key {
+  overflow: hidden;
+  color: #bcd7f2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-loader__region-row input:disabled { opacity: 0.42; }
+
+.map-loader__actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 22px; }
 .map-loader__actions button {
   min-width: 178px;
   min-height: 46px;
