@@ -1,5 +1,6 @@
 {
-  "name": "cqbigscreen",
+  "name": "geojson-map-studio",
+  "description": "A lightweight browser workspace for turning GeoJSON boundaries and optional business data into polished technology-style maps.",
   "private": true,
   "version": "0.1.0",
   "type": "module",
