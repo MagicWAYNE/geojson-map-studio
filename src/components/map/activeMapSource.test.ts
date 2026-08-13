@@ -22,7 +22,8 @@ class MemoryMapPackageStore implements MapPackageStore {
     return this.active
   }
 
-  async writeActive(value: PersistedMapPackage): Promise<void> {
+  async writeActive(value: PersistedMapPackage, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     if (this.failWrite) throw new Error('write failed')
     this.writeCount += 1
     this.active = structuredClone(value)
@@ -81,6 +82,33 @@ function visualizationFor(name: string, displayName: string) {
 }
 
 describe('activeMapSource', () => {
+  it('激活写入被新上传中止时不替换持久记录、会话或当前地图', async () => {
+    const store = new MemoryMapPackageStore()
+    const session = createMemoryMapVisualizationSession()
+    const source = createActiveMapSource({ store, session, loadBuiltin: async () => builtinDocument() })
+    const current = prepared('当前地图')
+    await source.activate(current, visualizationFor('当前地图', '当前展示名'))
+
+    const writeActive = vi.spyOn(store, 'writeActive').mockImplementationOnce(async (_value, signal) => {
+      await new Promise<void>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    const controller = new AbortController()
+    const staleActivation = source.activate(prepared('过期地图'), undefined, {
+      signal: controller.signal
+    })
+    controller.abort(new DOMException('stale geometry activation', 'AbortError'))
+
+    await expect(staleActivation).rejects.toMatchObject({ name: 'AbortError' })
+    expect(writeActive).toHaveBeenCalledTimes(1)
+    expect(store.active).toEqual(current.persisted)
+    expect(session.read(current.document.source)?.regions[0].displayName).toBe('当前展示名')
+    await expect(source.load()).resolves.toMatchObject({
+      document: { source: { displayName: '当前地图.geojson' } }
+    })
+  })
+
   it('同一几何的业务更新只替换页面内存会话，不重写 geometry-only 记录', async () => {
     const store = new MemoryMapPackageStore()
     const session = createMemoryMapVisualizationSession()

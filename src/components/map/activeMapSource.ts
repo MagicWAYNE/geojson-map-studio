@@ -10,8 +10,12 @@ import type { MapVisualizationSession } from './mapVisualizationSession'
 
 export interface MapPackageStore {
   readActive(): Promise<unknown>
-  writeActive(value: PersistedMapPackage): Promise<void>
-  deleteActive(): Promise<void>
+  writeActive(value: PersistedMapPackage, signal?: AbortSignal): Promise<void>
+  deleteActive(signal?: AbortSignal): Promise<void>
+}
+
+export interface MapActivationOptions {
+  signal?: AbortSignal
 }
 
 export type MapSourceWarningCode =
@@ -36,9 +40,13 @@ export interface ActiveMapLoadResult {
 
 export interface ActiveMapSource {
   load(): Promise<ActiveMapLoadResult>
-  activate(prepared: PreparedMapPackage, visualization?: MapVisualizationDraft): Promise<MapDocument>
+  activate(
+    prepared: PreparedMapPackage,
+    visualization?: MapVisualizationDraft,
+    options?: MapActivationOptions
+  ): Promise<MapDocument>
   updateVisualization(prepared: PreparedMapPackage, visualization: MapVisualizationDraft): MapDocument
-  resetToBuiltin(): Promise<MapDocument>
+  resetToBuiltin(options?: MapActivationOptions): Promise<MapDocument>
 }
 
 export interface ActiveMapSourceDependencies {
@@ -171,10 +179,13 @@ export function createActiveMapSource(
 
     async activate(
       prepared: PreparedMapPackage,
-      visualization = prepared.visualization
+      visualization = prepared.visualization,
+      options: MapActivationOptions = {}
     ): Promise<MapDocument> {
+      options.signal?.throwIfAborted()
       const document = composeMapVisualization(prepared.document, visualization)
-      await dependencies.store.writeActive(prepared.persisted)
+      await dependencies.store.writeActive(prepared.persisted, options.signal)
+      options.signal?.throwIfAborted()
       dependencies.session.replace(prepared.document.source, visualization)
       currentCustom = { document, prepared, visualization }
       return document
@@ -203,9 +214,12 @@ export function createActiveMapSource(
       return document
     },
 
-    async resetToBuiltin(): Promise<MapDocument> {
+    async resetToBuiltin(options: MapActivationOptions = {}): Promise<MapDocument> {
+      options.signal?.throwIfAborted()
       const document = await dependencies.loadBuiltin()
-      await dependencies.store.deleteActive()
+      options.signal?.throwIfAborted()
+      await dependencies.store.deleteActive(options.signal)
+      options.signal?.throwIfAborted()
       dependencies.session.clear()
       currentCustom = null
       return document

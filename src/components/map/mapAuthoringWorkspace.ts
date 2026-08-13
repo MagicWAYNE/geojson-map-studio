@@ -3,8 +3,10 @@ import {
   MapImportError,
   type MapDocument,
   type MapVisualizationDraft,
-  type MapVisualizationRegionDraft
+  type MapVisualizationRegionDraft,
+  type PreparedMapPackage
 } from './mapDocument'
+import type { ActiveMapLoadResult, MapActivationOptions } from './activeMapSource'
 
 export interface MapAuthoringRegionDraft {
   regionKey: string
@@ -27,6 +29,7 @@ export interface MapAuthoringSnapshot {
   dirtyRegionKeys: string[]
   metricError: string
   regionErrors: Readonly<Record<string, string>>
+  authoringFocus: string | null
 }
 
 export type MapAuthoringCommitResult =
@@ -38,6 +41,7 @@ export interface MapAuthoringWorkspace {
   prefill(draft: MapVisualizationDraft): void
   editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
   editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
+  focusRegion(regionKey: string | null): void
   commitAll(): MapAuthoringCommitResult
   commitMetrics(): MapAuthoringCommitResult
   commitRegion(regionKey: string): MapAuthoringCommitResult
@@ -48,6 +52,48 @@ export interface MapAuthoringWorkspaceDependencies {
     visualization: MapVisualizationDraft,
     document: MapDocument
   ) => MapDocument
+}
+
+export interface MapAuthoringGeometryIntent {
+  readonly generation: number
+  readonly signal: AbortSignal
+}
+
+export interface MapAuthoringSessionSnapshot {
+  document: MapDocument
+  prepared?: PreparedMapPackage
+  workspace?: MapAuthoringSnapshot
+  authoringFocus: string | null
+}
+
+export interface MapAuthoringSessionDependencies {
+  activateGeometry(
+    prepared: PreparedMapPackage,
+    options: MapActivationOptions
+  ): Promise<MapDocument>
+  publishVisualization(
+    prepared: PreparedMapPackage,
+    visualization: MapVisualizationDraft,
+    document: MapDocument
+  ): MapDocument
+  resetGeometry(options: MapActivationOptions): Promise<MapDocument>
+}
+
+export interface MapAuthoringSession {
+  read(): MapAuthoringSessionSnapshot
+  beginGeometryLoad(): MapAuthoringGeometryIntent
+  loadGeometry(
+    prepared: PreparedMapPackage,
+    intent: MapAuthoringGeometryIntent
+  ): Promise<MapDocument>
+  prefill(draft: MapVisualizationDraft): void
+  editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
+  editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
+  focusRegion(regionKey: string | null): void
+  commitAll(): MapAuthoringCommitResult
+  commitMetrics(): MapAuthoringCommitResult
+  commitRegion(regionKey: string): MapAuthoringCommitResult
+  reset(): Promise<MapDocument>
 }
 
 function cloneVisualization(draft: MapVisualizationDraft): MapVisualizationDraft {
@@ -126,6 +172,18 @@ export function createMapAuthoringWorkspace(
   const editable = toEditable(committed)
   const regionErrors: Record<string, string> = {}
   let metricError = ''
+  let authoringFocus: string | null = null
+
+  function publishCandidate(candidate: MapVisualizationDraft): MapAuthoringCommitResult {
+    const nextDocument = composeMapVisualization(baseDocument, candidate)
+    const publishedDocument = dependencies.publishVisualization?.(
+      cloneVisualization(candidate),
+      nextDocument
+    ) ?? nextDocument
+    committed = candidate
+    document = publishedDocument
+    return { ok: true, document, visualization: cloneVisualization(committed) }
+  }
 
   return {
     read() {
@@ -148,7 +206,8 @@ export function createMapAuthoringWorkspace(
           })
           .map((region) => region.regionKey),
         metricError,
-        regionErrors: { ...regionErrors }
+        regionErrors: { ...regionErrors },
+        authoringFocus
       }
     },
 
@@ -173,23 +232,24 @@ export function createMapAuthoringWorkspace(
       delete regionErrors[regionKey]
     },
 
+    focusRegion(regionKey) {
+      if (regionKey !== null && !editable.regions.some((region) => region.regionKey === regionKey)) {
+        throw new Error(`未知地图分块：${regionKey}`)
+      }
+      authoringFocus = regionKey
+    },
+
     commitAll() {
       const candidate = allCandidate(editable)
       try {
-        const nextDocument = composeMapVisualization(baseDocument, candidate)
-        const publishedDocument = dependencies.publishVisualization?.(
-          cloneVisualization(candidate),
-          nextDocument
-        ) ?? nextDocument
-        committed = candidate
-        document = publishedDocument
+        const result = publishCandidate(candidate)
         metricError = ''
         Object.keys(regionErrors).forEach((key) => delete regionErrors[key])
         const normalized = toEditable(committed)
         Object.assign(editable.labels.primary, normalized.labels.primary)
         Object.assign(editable.labels.secondary, normalized.labels.secondary)
         editable.regions.forEach((row, index) => Object.assign(row, normalized.regions[index]))
-        return { ok: true, document, visualization: cloneVisualization(committed) }
+        return result
       } catch (cause) {
         const message = errorMessage(cause)
         if (cause instanceof MapImportError) {
@@ -213,15 +273,9 @@ export function createMapAuthoringWorkspace(
         secondary: { ...editable.labels.secondary }
       }
       try {
-        const nextDocument = composeMapVisualization(baseDocument, candidate)
-        const publishedDocument = dependencies.publishVisualization?.(
-          cloneVisualization(candidate),
-          nextDocument
-        ) ?? nextDocument
-        committed = candidate
-        document = publishedDocument
+        const result = publishCandidate(candidate)
         metricError = ''
-        return { ok: true, document, visualization: cloneVisualization(committed) }
+        return result
       } catch (cause) {
         const error = errorMessage(cause)
         metricError = error
@@ -240,21 +294,142 @@ export function createMapAuthoringWorkspace(
       const candidate = cloneVisualization(committed)
       candidate.regions[index] = fromEditable(editableRow)
       try {
-        const nextDocument = composeMapVisualization(baseDocument, candidate)
-        const publishedDocument = dependencies.publishVisualization?.(
-          cloneVisualization(candidate),
-          nextDocument
-        ) ?? nextDocument
-        committed = candidate
-        document = publishedDocument
+        const result = publishCandidate(candidate)
         Object.assign(editableRow, toEditable(candidate).regions[index])
         delete regionErrors[regionKey]
-        return { ok: true, document, visualization: cloneVisualization(committed) }
+        return result
       } catch (cause) {
         const error = `${regionKey}：${errorMessage(cause)}`
         regionErrors[regionKey] = error
         return { ok: false, error }
       }
+    }
+  }
+}
+
+export function createMapAuthoringSession(
+  initialLoad: ActiveMapLoadResult,
+  dependencies: MapAuthoringSessionDependencies
+): MapAuthoringSession {
+  let document = initialLoad.document
+  let prepared = initialLoad.custom?.prepared
+  let workspace: MapAuthoringWorkspace | undefined
+  let geometryGeneration = 0
+  let geometryController: AbortController | undefined
+
+  function installWorkspace(
+    nextPrepared: PreparedMapPackage,
+    visualization: MapVisualizationDraft
+  ): void {
+    prepared = nextPrepared
+    workspace = createMapAuthoringWorkspace(
+      nextPrepared.document,
+      visualization,
+      {
+        publishVisualization(nextVisualization, nextDocument) {
+          document = dependencies.publishVisualization(
+            nextPrepared,
+            nextVisualization,
+            nextDocument
+          )
+          return document
+        }
+      }
+    )
+  }
+
+  if (prepared && initialLoad.custom) {
+    installWorkspace(prepared, initialLoad.custom.visualization)
+  }
+
+  function requireWorkspace(): MapAuthoringWorkspace {
+    if (!workspace) throw new Error('请先上传并校验 GeoJSON 边界文件')
+    return workspace
+  }
+
+  function beginGeometryLoad(): MapAuthoringGeometryIntent {
+    geometryController?.abort(new DOMException('stale geometry activation', 'AbortError'))
+    geometryController = new AbortController()
+    geometryGeneration += 1
+    return {
+      generation: geometryGeneration,
+      signal: geometryController.signal
+    }
+  }
+
+  function assertCurrent(intent: MapAuthoringGeometryIntent): void {
+    intent.signal.throwIfAborted()
+    if (intent.generation !== geometryGeneration) {
+      throw new DOMException('stale geometry activation', 'AbortError')
+    }
+  }
+
+  function publish(result: MapAuthoringCommitResult): MapAuthoringCommitResult {
+    if (result.ok) document = result.document
+    return result
+  }
+
+  return {
+    read() {
+      const workspaceSnapshot = workspace?.read()
+      return {
+        document,
+        prepared,
+        workspace: workspaceSnapshot,
+        authoringFocus: workspaceSnapshot?.authoringFocus ?? null
+      }
+    },
+
+    beginGeometryLoad,
+
+    async loadGeometry(nextPrepared, intent) {
+      assertCurrent(intent)
+      const nextDocument = await dependencies.activateGeometry(nextPrepared, {
+        signal: intent.signal
+      })
+      assertCurrent(intent)
+      document = nextDocument
+      installWorkspace(nextPrepared, nextPrepared.visualization)
+      return document
+    },
+
+    prefill(draft) {
+      requireWorkspace().prefill(draft)
+    },
+
+    editMetric(metric, patch) {
+      requireWorkspace().editMetric(metric, patch)
+    },
+
+    editRegion(regionKey, patch) {
+      requireWorkspace().editRegion(regionKey, patch)
+    },
+
+    focusRegion(regionKey) {
+      if (!workspace && regionKey === null) return
+      requireWorkspace().focusRegion(regionKey)
+    },
+
+    commitAll() {
+      return publish(requireWorkspace().commitAll())
+    },
+
+    commitMetrics() {
+      return publish(requireWorkspace().commitMetrics())
+    },
+
+    commitRegion(regionKey) {
+      return publish(requireWorkspace().commitRegion(regionKey))
+    },
+
+    async reset() {
+      const intent = beginGeometryLoad()
+      const nextDocument = await dependencies.resetGeometry({ signal: intent.signal })
+      assertCurrent(intent)
+      document = nextDocument
+      prepared = undefined
+      workspace = undefined
+      return document
     }
   }
 }

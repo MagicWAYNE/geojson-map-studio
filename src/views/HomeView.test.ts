@@ -22,9 +22,13 @@ vi.mock('@/components/map/ChongqingMap3D.vue', () => ({
 }))
 vi.mock('@/views/MapLoaderView.vue', () => ({
   default: defineComponent({
+    props: ['initialLoad'],
     emits: ['mapActivated', 'authoringFocus'],
-    setup(_, { emit }) {
-      return () => h('aside', { class: 'authoring-panel-stub' }, [
+    setup(props, { emit }) {
+      return () => h('aside', {
+        class: 'authoring-panel-stub',
+        'data-initial-source': props.initialLoad.document.source.displayName
+      }, [
         '地图创作面板',
         h('button', {
           class: 'activate-stub-map',
@@ -77,6 +81,8 @@ describe('HomeView same-page map authoring', () => {
     await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
     await nextTick()
     expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('custom.geojson')
+    expect(root.querySelector('.authoring-panel-stub')?.getAttribute('data-initial-source')).toBe('custom.geojson')
+    expect(sourceMocks.load).toHaveBeenCalledTimes(1)
     expect(root.querySelectorAll('.home > *')).toHaveLength(4)
     expect(root.querySelector('.authoring-panel-stub')?.textContent).toContain('地图创作面板')
     app.unmount()

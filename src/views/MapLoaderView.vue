@@ -11,24 +11,37 @@ import {
   type MapMetricsSummary,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
-import type { MapSourceWarning } from '@/components/map/activeMapSource'
+import type { ActiveMapLoadResult, MapSourceWarning } from '@/components/map/activeMapSource'
 import {
-  createMapAuthoringWorkspace,
+  createMapAuthoringSession,
+  type MapAuthoringGeometryIntent,
   type MapAuthoringCommitResult,
   type MapAuthoringSnapshot,
-  type MapAuthoringWorkspace
 } from '@/components/map/mapAuthoringWorkspace'
 
 const emit = defineEmits<{
   mapActivated: [document: MapDocument]
   authoringFocus: [regionKey: string | null]
 }>()
+const props = defineProps<{
+  initialLoad: ActiveMapLoadResult
+}>()
+const authoringSession = createMapAuthoringSession(props.initialLoad, {
+  activateGeometry(nextPrepared, options) {
+    return activeMapSource.activate(nextPrepared, undefined, options)
+  },
+  publishVisualization(nextPrepared, nextVisualization) {
+    return activeMapSource.updateVisualization(nextPrepared, nextVisualization)
+  },
+  resetGeometry(options) {
+    return activeMapSource.resetToBuiltin(options)
+  }
+})
 const geometryText = ref<string>()
 const geometryFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
-const workspace = shallowRef<MapAuthoringWorkspace>()
 const workspaceSnapshot = shallowRef<MapAuthoringSnapshot>()
 const visualization = computed(() => workspaceSnapshot.value?.editable)
 const prefillSummary = shallowRef<MapMetricsSummary>()
@@ -40,7 +53,6 @@ const metricsReading = ref(false)
 let geometryReadGeneration = 0
 let metricsReadGeneration = 0
 let activationGeneration = 0
-let activationQueue = Promise.resolve()
 
 const enabledRegionCount = computed(() =>
   visualization.value?.regions.filter((region) => region.enabled).length ?? 0
@@ -54,23 +66,7 @@ function errorMessage(cause: unknown, fileName = ''): string {
 }
 
 function refreshWorkspace(): void {
-  workspaceSnapshot.value = workspace.value?.read()
-}
-
-function installWorkspace(
-  nextPrepared: PreparedMapPackage,
-  initialVisualization = nextPrepared.visualization
-): void {
-  workspace.value = createMapAuthoringWorkspace(
-    nextPrepared.document,
-    initialVisualization,
-    {
-      publishVisualization(visualization) {
-        return activeMapSource.updateVisualization(nextPrepared, visualization)
-      }
-    }
-  )
-  refreshWorkspace()
+  workspaceSnapshot.value = authoringSession.read().workspace
 }
 
 interface GeometryCandidate {
@@ -81,35 +77,45 @@ interface GeometryCandidate {
   prepared: PreparedMapPackage
 }
 
-async function activateGeometry(candidate: GeometryCandidate): Promise<void> {
-  const generation = ++activationGeneration
+interface GeometryActivationRequest {
+  generation: number
+  intent: MapAuthoringGeometryIntent
+}
+
+function beginGeometryActivation(): GeometryActivationRequest {
+  return {
+    generation: ++activationGeneration,
+    intent: authoringSession.beginGeometryLoad()
+  }
+}
+
+async function activateGeometry(
+  candidate: GeometryCandidate,
+  request = beginGeometryActivation()
+): Promise<void> {
+  const { generation, intent } = request
   busy.value = true
   validationError.value = ''
-  const run = activationQueue.then(async () => {
+  try {
+    const document = await authoringSession.loadGeometry(candidate.prepared, intent)
     if (generation !== activationGeneration) return
-    try {
-      const document = await activeMapSource.activate(candidate.prepared)
-      if (generation !== activationGeneration) return
-      geometryText.value = candidate.text
-      geometryFileName.value = candidate.fileName
-      inspection.value = candidate.inspection
-      nameProperty.value = candidate.nameProperty
-      prepared.value = candidate.prepared
-      installWorkspace(candidate.prepared)
-      prefillSummary.value = undefined
-      metricsValidationError.value = ''
-      emit('authoringFocus', null)
-      emit('mapActivated', document)
-    } catch (cause) {
-      if (generation === activationGeneration) {
-        validationError.value = errorMessage(cause, candidate.fileName)
-      }
-    } finally {
-      if (generation === activationGeneration) busy.value = false
+    geometryText.value = candidate.text
+    geometryFileName.value = candidate.fileName
+    inspection.value = candidate.inspection
+    nameProperty.value = candidate.nameProperty
+    prepared.value = candidate.prepared
+    refreshWorkspace()
+    prefillSummary.value = undefined
+    metricsValidationError.value = ''
+    emit('authoringFocus', authoringSession.read().authoringFocus)
+    emit('mapActivated', document)
+  } catch (cause) {
+    if (generation === activationGeneration) {
+      validationError.value = errorMessage(cause, candidate.fileName)
     }
-  })
-  activationQueue = run.catch(() => undefined)
-  await run
+  } finally {
+    if (generation === activationGeneration) busy.value = false
+  }
 }
 
 function prepareCandidate(input: {
@@ -130,8 +136,8 @@ function prepareCandidate(input: {
 
 async function handleGeometryFile(event: Event): Promise<void> {
   const generation = ++geometryReadGeneration
+  const activationRequest = beginGeometryActivation()
   let activationStarted = false
-  activationGeneration += 1
   metricsReadGeneration += 1
   metricsReading.value = false
   metricsValidationError.value = ''
@@ -157,7 +163,7 @@ async function handleGeometryFile(event: Event): Promise<void> {
       fileName: file.name,
       nameProperty: nextNameProperty,
       inspection: nextInspection
-    }))
+    }), activationRequest)
   } catch (cause) {
     if (generation === geometryReadGeneration) validationError.value = errorMessage(cause, file.name)
   } finally {
@@ -183,7 +189,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
     const text = await file.text()
     if (generation !== metricsReadGeneration) return
     const prefill = prefillMapVisualizationDraft(prepared.value.document, text)
-    workspace.value?.prefill(prefill.visualization)
+    authoringSession.prefill(prefill.visualization)
     refreshWorkspace()
     prefillSummary.value = prefill.summary
   } catch (cause) {
@@ -218,7 +224,7 @@ function editMetric(
   field: 'label' | 'unit',
   event: Event
 ): void {
-  workspace.value?.editMetric(metric, { [field]: (event.target as HTMLInputElement).value })
+  authoringSession.editMetric(metric, { [field]: (event.target as HTMLInputElement).value })
   refreshWorkspace()
 }
 
@@ -228,7 +234,7 @@ function editRegion(
   event: Event
 ): void {
   const input = event.target as HTMLInputElement
-  workspace.value?.editRegion(regionKey, {
+  authoringSession.editRegion(regionKey, {
     [field]: field === 'enabled' ? input.checked : input.value
   })
   refreshWorkspace()
@@ -245,29 +251,30 @@ function publishCommit(result: MapAuthoringCommitResult): void {
 }
 
 function commitRegion(regionKey: string): void {
-  const result = workspace.value?.commitRegion(regionKey)
-  if (result) publishCommit(result)
+  publishCommit(authoringSession.commitRegion(regionKey))
 }
 
 function commitMetrics(): void {
-  const result = workspace.value?.commitMetrics()
-  if (result) publishCommit(result)
+  publishCommit(authoringSession.commitMetrics())
 }
 
 function commitAll(): void {
-  const result = workspace.value?.commitAll()
-  if (result) publishCommit(result)
+  publishCommit(authoringSession.commitAll())
 }
 
 function focusRegion(regionKey: string): void {
-  emit('authoringFocus', regionKey)
+  authoringSession.focusRegion(regionKey)
+  refreshWorkspace()
+  emit('authoringFocus', authoringSession.read().authoringFocus)
 }
 
 function leaveRegion(event: FocusEvent): void {
   const row = event.currentTarget as HTMLElement
   const next = event.relatedTarget
   if (next instanceof Node && row.contains(next)) return
-  emit('authoringFocus', null)
+  authoringSession.focusRegion(null)
+  refreshWorkspace()
+  emit('authoringFocus', authoringSession.read().authoringFocus)
 }
 
 async function resetMap(): Promise<void> {
@@ -275,14 +282,13 @@ async function resetMap(): Promise<void> {
   busy.value = true
   validationError.value = ''
   try {
-    const document = await activeMapSource.resetToBuiltin()
     activationGeneration += 1
+    const document = await authoringSession.reset()
     geometryText.value = undefined
     geometryFileName.value = ''
     nameProperty.value = ''
     inspection.value = undefined
     prepared.value = undefined
-    workspace.value = undefined
     workspaceSnapshot.value = undefined
     prefillSummary.value = undefined
     metricsValidationError.value = ''
@@ -295,21 +301,16 @@ async function resetMap(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  try {
-    const result = await activeMapSource.load()
-    warnings.value = result.warnings
-    if (result.custom) {
-      const restored = result.custom
-      geometryText.value = restored.prepared.persisted.geometryText
-      geometryFileName.value = restored.prepared.persisted.geometryFileName
-      nameProperty.value = restored.prepared.persisted.nameProperty
-      inspection.value = inspectGeoJsonMap(restored.prepared.persisted.geometryText)
-      prepared.value = restored.prepared
-      installWorkspace(restored.prepared, restored.visualization)
-    }
-  } catch (cause) {
-    warnings.value = [{ code: 'storage-read-failed', message: errorMessage(cause) }]
+onMounted(() => {
+  warnings.value = props.initialLoad.warnings
+  if (props.initialLoad.custom) {
+    const restored = props.initialLoad.custom
+    geometryText.value = restored.prepared.persisted.geometryText
+    geometryFileName.value = restored.prepared.persisted.geometryFileName
+    nameProperty.value = restored.prepared.persisted.nameProperty
+    inspection.value = inspectGeoJsonMap(restored.prepared.persisted.geometryText)
+    prepared.value = restored.prepared
+    refreshWorkspace()
   }
 })
 </script>

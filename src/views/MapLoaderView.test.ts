@@ -5,7 +5,6 @@ import { createApp, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sourceMocks = vi.hoisted(() => ({
-  load: vi.fn(),
   activate: vi.fn(),
   updateVisualization: vi.fn(),
   resetToBuiltin: vi.fn()
@@ -46,14 +45,16 @@ function regionRow(root: HTMLElement, key: string): HTMLElement {
 async function mountView(props: Record<string, unknown> = {}) {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(MapLoaderView, props)
+  const app = createApp(MapLoaderView, {
+    initialLoad: { document: {}, warnings: [] },
+    ...props
+  })
   app.mount(root)
   await nextTick()
   return { app, root }
 }
 
 beforeEach(() => {
-  sourceMocks.load.mockResolvedValue({ document: {}, warnings: [] })
   sourceMocks.activate.mockImplementation(async (prepared) => prepared.document)
   sourceMocks.updateVisualization.mockImplementation((prepared, visualization) =>
     composeMapVisualization(prepared.document, visualization)
@@ -118,10 +119,12 @@ describe('MapLoaderView', () => {
 
     select.value = 'code'
     select.dispatchEvent(new Event('change', { bubbles: true }))
-    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => {
+      expect(sourceMocks.activate).toHaveBeenCalledTimes(3)
+      expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
+        .map((row) => row.dataset.regionKey)).toEqual(['A', 'B', 'C'])
+    })
     expect(select.value).toBe('code')
-    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
-      .map((row) => row.dataset.regionKey)).toEqual(['A', 'B', 'C'])
     app.unmount()
   })
 
@@ -251,13 +254,13 @@ describe('MapLoaderView', () => {
         ? { ...row, displayName: '创新一区', enabled: true, primary: 12, secondary: 3 }
         : row)
     }
-    sourceMocks.load.mockResolvedValue({
+    const initialLoad = {
       document: prepared.document,
       warnings: [],
       custom: { prepared, visualization }
-    })
+    }
 
-    const { app, root } = await mountView()
+    const { app, root } = await mountView({ initialLoad })
     await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
     const row = regionRow(root, '区域 A')
     expect(root.querySelector<HTMLInputElement>('#primary-label')?.value).toBe('孵化项目')
@@ -371,11 +374,11 @@ describe('MapLoaderView', () => {
   })
 
   it('没有唯一名称字段时不激活，并可恢复内置地图', async () => {
-    sourceMocks.load.mockResolvedValue({
+    const initialLoad = {
       document: {},
       warnings: [{ code: 'invalid-record', message: '已保存地图损坏，已回退内置地图' }]
-    })
-    const { app, root } = await mountView()
+    }
+    const { app, root } = await mountView({ initialLoad })
     await vi.waitFor(() => expect(root.textContent).toContain('已保存地图损坏'))
 
     chooseFile(
@@ -421,6 +424,47 @@ describe('MapLoaderView', () => {
     expect(root.textContent).toContain('越界区域')
     expect(sourceMocks.activate).toHaveBeenCalledTimes(1)
     expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
+    app.unmount()
+  })
+
+  it('新文件意图会中止已开始的过期激活，即使新文件随后校验失败', async () => {
+    const current = prepareGeoJsonMapPackage({
+      geometryText: fixture('valid-mixed.geojson'),
+      geometryFileName: 'current.geojson',
+      nameProperty: 'name'
+    })
+    const initialLoad = {
+      document: current.document,
+      warnings: [],
+      custom: { prepared: current, visualization: current.visualization }
+    }
+    let activationSignal: AbortSignal | undefined
+    sourceMocks.activate.mockImplementationOnce(async (_prepared, _visualization, options) => {
+      activationSignal = options.signal
+      await new Promise<void>((_resolve, reject) => {
+        activationSignal?.addEventListener('abort', () => reject(activationSignal?.reason), { once: true })
+      })
+      return current.document
+    })
+    const onMapActivated = vi.fn()
+    const { app, root } = await mountView({ initialLoad, onMapActivated })
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'stale.geojson')
+    )
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('invalid-coordinate.geojson')], 'invalid-newer.geojson')
+    )
+
+    await vi.waitFor(() => expect(root.textContent).toContain('invalid-newer.geojson'))
+    expect(activationSignal?.aborted).toBe(true)
+    expect(onMapActivated).not.toHaveBeenCalled()
+    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
+      .map((row) => row.dataset.regionKey)).toEqual(['区域 A', '区域 B', '区域 C'])
     app.unmount()
   })
 })

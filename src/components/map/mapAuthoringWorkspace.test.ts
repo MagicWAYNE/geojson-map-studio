@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { prepareGeoJsonMapPackage } from './mapDocument'
-import { createMapAuthoringWorkspace } from './mapAuthoringWorkspace'
+import {
+  createMapAuthoringSession,
+  createMapAuthoringWorkspace
+} from './mapAuthoringWorkspace'
 
 function preparedMap() {
   return prepareGeoJsonMapPackage({
@@ -25,6 +28,50 @@ function preparedMap() {
 }
 
 describe('map authoring workspace', () => {
+  it('session owns geometry loading, focus and reset intents while stale activation stays inert', async () => {
+    const current = preparedMap()
+    const activateGeometry = vi.fn(async (_prepared, options: { signal: AbortSignal }) => {
+      await new Promise<void>((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+      })
+      return current.document
+    })
+    const resetGeometry = vi.fn(async () => current.document)
+    const session = createMapAuthoringSession({
+      document: current.document,
+      warnings: [],
+      custom: { prepared: current, visualization: current.visualization }
+    }, {
+      activateGeometry,
+      publishVisualization: (_prepared, _visualization, document) => document,
+      resetGeometry
+    })
+
+    session.focusRegion('区域 A')
+    expect(session.read().workspace?.authoringFocus).toBe('区域 A')
+    const staleIntent = session.beginGeometryLoad()
+    const staleLoad = session.loadGeometry(current, staleIntent)
+    session.beginGeometryLoad()
+    await expect(staleLoad).rejects.toMatchObject({ name: 'AbortError' })
+    expect(session.read().workspace?.authoringFocus).toBe('区域 A')
+
+    await session.reset()
+    expect(resetGeometry).toHaveBeenCalledTimes(1)
+    expect(session.read().workspace).toBeUndefined()
+    expect(session.read().authoringFocus).toBeNull()
+  })
+
+  it('workspace owns stable authoring focus and clears it when geometry intent resets', () => {
+    const prepared = preparedMap()
+    const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
+
+    workspace.focusRegion('区域 A')
+    expect(workspace.read().authoringFocus).toBe('区域 A')
+    workspace.focusRegion(null)
+    expect(workspace.read().authoringFocus).toBeNull()
+    expect(() => workspace.focusRegion('不存在')).toThrow('未知地图分块')
+  })
+
   it('编辑保持草稿，更新一个分块后才原子替换该分块的已提交可视化', () => {
     const prepared = preparedMap()
     const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)

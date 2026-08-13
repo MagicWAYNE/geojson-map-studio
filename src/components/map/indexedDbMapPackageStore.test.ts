@@ -31,4 +31,18 @@ describe('indexedDbMapPackageStore', () => {
     await refreshedStore.deleteActive()
     await expect(firstStore.readActive()).resolves.toBeNull()
   })
+
+  it('写入前已经取消时拒绝事务并保留当前 active record', async () => {
+    const databaseName = `cqbigscreen-map-source-abort-test-${Date.now()}`
+    const store = createIndexedDbMapPackageStore({ databaseName })
+    await store.writeActive(firstPackage)
+    const controller = new AbortController()
+    controller.abort(new DOMException('stale geometry activation', 'AbortError'))
+
+    await expect(store.writeActive({
+      ...firstPackage,
+      geometryFileName: 'stale.geojson'
+    }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(store.readActive()).resolves.toEqual(firstPackage)
+  })
 })

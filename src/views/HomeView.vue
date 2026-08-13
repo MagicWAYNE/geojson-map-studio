@@ -3,11 +3,13 @@ import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import ChongqingMap3D from '@/components/map/ChongqingMap3D.vue'
 import MapLoaderView from '@/views/MapLoaderView.vue'
 import { activeMapSource } from '@/components/map/mapSource'
+import type { ActiveMapLoadResult } from '@/components/map/activeMapSource'
 import type { MapDocument } from '@/components/map/mapDocument'
 import bgMain from '@/assets/images/bg-main.png'
 import bgTerrain from '@/assets/images/bg-terrain.png'
 
 const mapDocument = shallowRef<MapDocument | null>(null)
+const initialLoad = shallowRef<ActiveMapLoadResult | null>(null)
 const authoringFocus = ref('')
 const loadError = ref('')
 let mounted = true
@@ -15,7 +17,10 @@ let mounted = true
 onMounted(async () => {
   try {
     const result = await activeMapSource.load()
-    if (mounted) mapDocument.value = result.document
+    if (mounted) {
+      initialLoad.value = result
+      mapDocument.value = result.document
+    }
   } catch (cause) {
     if (mounted) loadError.value = cause instanceof Error ? cause.message : String(cause)
   }
@@ -38,6 +43,8 @@ onBeforeUnmount(() => {
     />
     <div v-else-if="loadError" class="map-load-error" role="alert">{{ loadError }}</div>
     <MapLoaderView
+      v-if="initialLoad"
+      :initial-load="initialLoad"
       @map-activated="mapDocument = $event"
       @authoring-focus="authoringFocus = $event ?? ''"
     />

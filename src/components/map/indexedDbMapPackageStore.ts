@@ -25,6 +25,40 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   })
 }
 
+async function runWriteTransaction(
+  database: IDBDatabase,
+  signal: AbortSignal | undefined,
+  mutate: (store: IDBObjectStore) => void
+): Promise<void> {
+  signal?.throwIfAborted()
+  const transaction = database.transaction(STORE_NAME, 'readwrite')
+  const completion = transactionCompletion(transaction)
+  const abortTransaction = () => {
+    try {
+      transaction.abort()
+    } catch {
+      // The transaction already completed, so the caller continuation owns the final check.
+    }
+  }
+  signal?.addEventListener('abort', abortTransaction, { once: true })
+  try {
+    signal?.throwIfAborted()
+    mutate(transaction.objectStore(STORE_NAME))
+    await completion
+    signal?.throwIfAborted()
+  } catch (cause) {
+    try {
+      transaction.abort()
+    } catch {
+      // The mutation already failed or the transaction has already settled.
+    }
+    void completion.catch(() => undefined)
+    throw cause
+  } finally {
+    signal?.removeEventListener('abort', abortTransaction)
+  }
+}
+
 class IndexedDbMapPackageStore implements MapPackageStore {
   private databasePromise: Promise<IDBDatabase> | null = null
 
@@ -70,26 +104,16 @@ class IndexedDbMapPackageStore implements MapPackageStore {
     return result ?? null
   }
 
-  async writeActive(value: PersistedMapPackage): Promise<void> {
+  async writeActive(value: PersistedMapPackage, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     const database = await this.database()
-    const transaction = database.transaction(STORE_NAME, 'readwrite')
-    const completion = transactionCompletion(transaction)
-    try {
-      transaction.objectStore(STORE_NAME).put(value, ACTIVE_KEY)
-    } catch (cause) {
-      transaction.abort()
-      void completion.catch(() => undefined)
-      throw cause
-    }
-    await completion
+    await runWriteTransaction(database, signal, (store) => store.put(value, ACTIVE_KEY))
   }
 
-  async deleteActive(): Promise<void> {
+  async deleteActive(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     const database = await this.database()
-    const transaction = database.transaction(STORE_NAME, 'readwrite')
-    const completion = transactionCompletion(transaction)
-    transaction.objectStore(STORE_NAME).delete(ACTIVE_KEY)
-    await completion
+    await runWriteTransaction(database, signal, (store) => store.delete(ACTIVE_KEY))
   }
 }
 
