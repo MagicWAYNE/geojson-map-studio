@@ -89,6 +89,8 @@ describe('HomeView same-page map authoring', () => {
     expect(map.style.left).toBe('81px')
     expect(map.style.width).toBe('1000px')
     app.unmount()
+    expect(session.layout.left).toBe(24)
+    expect(session.layout.width).toBe(1120)
   })
 
   it('异步加载当前地图文档并同时呈现固定创作面板', async () => {

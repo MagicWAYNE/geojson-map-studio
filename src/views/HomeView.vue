@@ -13,7 +13,8 @@ const mapDocument = shallowRef<MapDocument | null>(null)
 const initialLoad = shallowRef<ActiveMapLoadResult | null>(null)
 const authoringFocus = ref('')
 const loadError = ref('')
-const { layout } = useMapVisualSettings()
+const visualSettings = useMapVisualSettings()
+const { layout } = visualSettings
 const mapStyle = computed(() => ({
   left: `${layout.left}px`,
   top: `${layout.top}px`,
@@ -36,6 +37,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   mounted = false
+  visualSettings.resetVisualSession()
 })
 </script>
 

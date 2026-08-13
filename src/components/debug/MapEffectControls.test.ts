@@ -12,8 +12,8 @@ type MountedControls = {
   root: HTMLDivElement
   effect: MapEffectConfig
   setItem: ReturnType<typeof vi.fn>
-  updateEffectRuntimeStatus: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['updateEffectRuntimeStatus']
-  resetEffect: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['resetEffect']
+  updateEffectRuntimeStatus: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['updateEffectRuntimeStatus']
+  resetEffect: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['resetEffect']
 }
 
 const EFFECT_STORAGE_KEYS = new Set([
@@ -41,8 +41,8 @@ async function mountControls(): Promise<MountedControls> {
   const app = createApp(MapEffectControls)
   app.mount(root)
   await nextTick()
-  const { useMapDebug } = await import('@/composables/useMapDebug')
-  const debug = useMapDebug()
+  const { useMapVisualSettings } = await import('@/composables/useMapVisualSettings')
+  const debug = useMapVisualSettings()
   return {
     app,
     root,

@@ -158,10 +158,10 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
   }
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerMocks.push }) }))
-vi.mock('@/composables/useMapDebug', () => ({
+vi.mock('@/composables/useMapVisualSettings', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS: districtBarRuntimeStatusDefault,
-  useMapDebug: () => {
+  useMapVisualSettings: () => {
     const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
     mapDebugMocks.effect = effect
     const hud = reactive<MapHudConfig>({

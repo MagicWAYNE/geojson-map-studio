@@ -13,12 +13,12 @@ async function mountControls() {
   const setItem = vi.fn()
   vi.stubGlobal('localStorage', { getItem: () => null, setItem })
   const { default: MapHudControls } = await import('./MapHudControls.vue')
-  const { useMapDebug } = await import('@/composables/useMapDebug')
+  const { useMapVisualSettings } = await import('@/composables/useMapVisualSettings')
   const root = document.createElement('div')
   const app = createApp(MapHudControls)
   app.mount(root)
   await nextTick()
-  return { app, root, hud: useMapDebug().hud, setItem }
+  return { app, root, hud: useMapVisualSettings().hud, setItem }
 }
 
 function setNumber(root: HTMLElement, id: string, value: number): void {

@@ -24,7 +24,7 @@ afterEach(() => {
   vi.resetModules()
 })
 
-describe('useMapDebug layout defaults', () => {
+describe('useMapVisualSettings layout defaults', () => {
   it('uses the fixed layout defaults and resetLayout restores them without persistence', async () => {
     const values = new Map<string, string>()
     const getItem = vi.fn((key: string) => values.get(key) ?? null)
@@ -33,9 +33,9 @@ describe('useMapDebug layout defaults', () => {
       getItem,
       setItem
     })
-    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
+    const { MAP_LAYOUT_DEFAULT, useMapVisualSettings } = await import('./useMapVisualSettings')
     const expected = { left: 24, top: 132, width: 1120, height: 948 }
-    const debug = useMapDebug()
+    const debug = useMapVisualSettings()
 
     expect(MAP_LAYOUT_DEFAULT).toEqual(expected)
     expect(debug.layout).toEqual(expected)
@@ -56,8 +56,8 @@ describe('useMapDebug layout defaults', () => {
       getItem,
       setItem
     })
-    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { MAP_LAYOUT_DEFAULT, useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
     expect(debug.layout).toEqual(MAP_LAYOUT_DEFAULT)
     expect(getItem).not.toHaveBeenCalled()
     debug.layout.left = 480
@@ -66,7 +66,7 @@ describe('useMapDebug layout defaults', () => {
   })
 })
 
-describe('useMapDebug effects', () => {
+describe('useMapVisualSettings effects', () => {
   it('keeps HUD tuning in the current session without using localStorage', async () => {
     const writes = vi.fn()
     vi.stubGlobal('localStorage', {
@@ -74,8 +74,8 @@ describe('useMapDebug effects', () => {
       setItem: writes
     })
 
-    const { useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
     debug.hud.anchor.x = 24
     debug.hud.rotating.speedDegPerSecond = -8
     await nextTick()
@@ -87,7 +87,7 @@ describe('useMapDebug effects', () => {
     })
 
     vi.resetModules()
-    const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
+    const { useMapVisualSettings: reloadedUseMapDebug } = await import('./useMapVisualSettings')
     expect(reloadedUseMapDebug().hud).toEqual(MAP_HUD_DEFAULTS)
   })
 
@@ -140,8 +140,8 @@ describe('useMapDebug effects', () => {
       removeItem
     })
 
-    const { MAP_LAYOUT_DEFAULT, useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { MAP_LAYOUT_DEFAULT, useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
 
     expect(debug.effect).toEqual(MAP_EFFECT_DEFAULTS)
     expect(debug.layout).toEqual(MAP_LAYOUT_DEFAULT)
@@ -172,8 +172,8 @@ describe('useMapDebug effects', () => {
       removeItem
     })
 
-    const { useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
     debug.effect.base.outerGlowWidth = 42
     debug.effect.base.inwardGlow.width = 140
     debug.effect.hover.mosaicParticles.density = 0.42
@@ -192,7 +192,7 @@ describe('useMapDebug effects', () => {
 
     await nextTick()
     vi.resetModules()
-    const { useMapDebug: reloadedUseMapDebug } = await import('./useMapDebug')
+    const { useMapVisualSettings: reloadedUseMapDebug } = await import('./useMapVisualSettings')
     const reloaded = reloadedUseMapDebug()
     expect(reloaded.effect).toEqual(MAP_EFFECT_DEFAULTS)
   })
@@ -212,8 +212,8 @@ describe('useMapDebug effects', () => {
       removeItem
     })
 
-    const { useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
 
     debug.effect.base.outerGlowColor = '#ABCDEF'
     debug.effect.base.outerGlowFalloff = 9
@@ -251,8 +251,8 @@ describe('useMapDebug effects', () => {
       setItem,
       removeItem: vi.fn((key: string) => values.delete(key))
     })
-    const { useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
     const effect = debug.effect
     const base = effect.base
     const hover = effect.hover
@@ -294,8 +294,8 @@ describe('useMapDebug effects', () => {
   })
 
   it('deduplicates runtime status updates without mutating when unchanged', async () => {
-    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS, useMapDebug } = await import('./useMapDebug')
-    const debug = useMapDebug()
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS, useMapVisualSettings } = await import('./useMapVisualSettings')
+    const debug = useMapVisualSettings()
     const assignSpy = vi.spyOn(Object, 'assign')
     const initial = debug.effectRuntimeStatus
 
@@ -327,7 +327,7 @@ describe('useMapDebug effects', () => {
   })
 
   it('aligns the runtime status default with enabled effect defaults', async () => {
-    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapDebug')
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapVisualSettings')
 
     expect(MAP_EFFECT_DEFAULTS.base.outerGlowEnabled).toBe(true)
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS.baseState).toBe('enabled')
@@ -345,7 +345,7 @@ describe('useMapDebug effects', () => {
   })
 
   it('exposes the runtime status default with exact pipeline-compatible fields', async () => {
-    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapDebug')
+    const { DEFAULT_MAP_EFFECT_RUNTIME_STATUS } = await import('./useMapVisualSettings')
     expect(DEFAULT_MAP_EFFECT_RUNTIME_STATUS).toEqual({
       targetWidth: 1,
       targetHeight: 1,

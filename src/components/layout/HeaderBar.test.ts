@@ -30,14 +30,13 @@ describe('HeaderBar map district carousel control', () => {
     mounted.unmount()
   })
 
-  it('places the enabled carousel switch between the timer and map debug controls', async () => {
+  it('keeps the legacy district carousel without exposing the obsolete map debug entry', async () => {
     const mounted = mountHeader(true)
     const controls = [...mounted.host.querySelector('.controls')!.children]
 
     expect(controls.map((element) => element.className)).toEqual([
       'timer',
       'carousel-btn active',
-      'debug-btn',
       'fs-btn'
     ])
 

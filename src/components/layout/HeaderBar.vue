@@ -3,11 +3,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import headerImg from '@/assets/images/header-bar.png'
 import fsIn from '@/assets/images/fullscreen-in.png'
 import fsOut from '@/assets/images/fullscreen-out.png'
-import { useMapDebug } from '@/composables/useMapDebug'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
 
 defineProps<{ debug?: boolean }>()
-const { drawerOpen } = useMapDebug()
 const { enabled: carouselEnabled, toggle: toggleCarousel } = useMapDistrictCarousel()
 
 const now = ref('')
@@ -77,25 +75,6 @@ async function toggleFs() {
           <path d="m10.2 9 4.6 3-4.6 3z" fill="currentColor" stroke="none" />
         </svg>
       </button>
-      <svg
-        v-if="debug"
-        class="debug-btn"
-        :class="{ active: drawerOpen }"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        @click="drawerOpen = !drawerOpen"
-      >
-        <title>地图调试</title>
-        <line x1="4" y1="7" x2="20" y2="7" />
-        <circle cx="9" cy="7" r="2.4" fill="#061228" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <circle cx="15" cy="12" r="2.4" fill="#061228" />
-        <line x1="4" y1="17" x2="20" y2="17" />
-        <circle cx="7" cy="17" r="2.4" fill="#061228" />
-      </svg>
       <img class="fs-btn" :src="isFs ? fsOut : fsIn" alt="全屏" @click="toggleFs" />
     </div>
   </header>
@@ -177,10 +156,5 @@ async function toggleFs() {
 .carousel-btn svg { width: 100%; height: 100%; }
 .carousel-btn:hover, .carousel-btn.active { color: #00deff; }
 .carousel-btn:focus-visible { outline: 1px solid #00deff; outline-offset: 2px; }
-.debug-btn {
-  width: 32px; height: 32px;
-  cursor: pointer; pointer-events: auto; color: #fff;
-}
-.debug-btn:hover, .debug-btn.active { color: #00deff; }
 .fs-btn { width: 36px; height: 36px; cursor: pointer; pointer-events: auto; }
 </style>

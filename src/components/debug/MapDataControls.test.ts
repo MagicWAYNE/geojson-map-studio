@@ -13,7 +13,7 @@ import {
 interface MountedControls {
   app: App
   root: HTMLDivElement
-  effect: ReturnType<typeof import('@/composables/useMapDebug')['useMapDebug']>['effect']
+  effect: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['effect']
   setItem: ReturnType<typeof vi.fn>
 }
 
@@ -29,8 +29,8 @@ async function mountControls(): Promise<MountedControls> {
   const app = createApp(MapDataControls)
   app.mount(root)
   await nextTick()
-  const { useMapDebug } = await import('@/composables/useMapDebug')
-  return { app, root, effect: useMapDebug().effect, setItem }
+  const { useMapVisualSettings } = await import('@/composables/useMapVisualSettings')
+  return { app, root, effect: useMapVisualSettings().effect, setItem }
 }
 
 afterEach(() => {
@@ -45,8 +45,8 @@ afterEach(() => {
 describe('MapDataControls', () => {
   it('renders column and overlay controls and keeps all nested references stable while editing', async () => {
     const { app, root, effect, setItem } = await mountControls()
-    const { useMapDebug } = await import('@/composables/useMapDebug')
-    useMapDebug().updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
+    const { useMapVisualSettings } = await import('@/composables/useMapVisualSettings')
+    useMapVisualSettings().updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
     await nextTick()
 
     expect(root.textContent).toContain('区域数据柱体')

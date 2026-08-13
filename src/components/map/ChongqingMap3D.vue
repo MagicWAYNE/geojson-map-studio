@@ -8,8 +8,8 @@ import hudRotatingUrl from '@/assets/images/map-hud/hud-disc-v3809z30i-rotating.
 import {
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
   DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS,
-  useMapDebug
-} from '@/composables/useMapDebug'
+  useMapVisualSettings
+} from '@/composables/useMapVisualSettings'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
 import { MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
 import { applyMapEffectConfig } from './mapEffectRuntime'
@@ -92,7 +92,7 @@ const {
   updateDistrictBarRuntimeStatus,
   updateCameraView,
   updateFps
-} = useMapDebug()
+} = useMapVisualSettings()
 const { enabled: districtCarouselEnabled } = useMapDistrictCarousel()
 
 // three 对象一律放模块级普通变量，避免 Vue 深层代理拖慢渲染

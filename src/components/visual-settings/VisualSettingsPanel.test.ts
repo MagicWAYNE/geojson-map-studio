@@ -138,4 +138,21 @@ describe('Engineering Visual Settings inventory', () => {
     expect(session.effect.base.outerGlowWidth).not.toBe(101)
     app.unmount()
   })
+
+  it('gives every visual page its own scroll container', async () => {
+    const root = document.createElement('div')
+    const app = createApp(VisualSettingsPanel)
+    app.mount(root)
+    await nextTick()
+
+    const scrollPages = [...root.querySelectorAll<HTMLElement>('[data-page-scroll]')]
+    expect(scrollPages.map((page) => page.dataset.pageScroll)).toEqual(
+      VISUAL_SETTINGS_PAGES.map((page) => page.id)
+    )
+    scrollPages[1].scrollTop = 140
+    scrollPages[2].scrollTop = 360
+    expect(scrollPages[1].scrollTop).toBe(140)
+    expect(scrollPages[2].scrollTop).toBe(360)
+    app.unmount()
+  })
 })

@@ -6,7 +6,7 @@ import {
   cloneDistrictBarConfig,
   type MapDistrictBarConfig
 } from '@/components/map/mapDistrictBarConfig'
-import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapDebug'
+import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapVisualSettings'
 import MapDistrictBarControls from './MapDistrictBarControls.vue'
 
 interface MountedControls {
