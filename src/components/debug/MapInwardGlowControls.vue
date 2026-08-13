@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { watch } from 'vue'
 import {
   BASE_INWARD_GLOW_DEFAULTS,
   HOVER_INWARD_GLOW_DEFAULTS,
   cloneInwardGlowConfig,
   type MapInwardGlowConfig
 } from '@/components/map/mapInwardGlowConfig'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 type Channel = 'base' | 'hover'
 type NumberKey = Exclude<keyof MapInwardGlowConfig, 'enabled' | 'color'>
@@ -44,8 +45,11 @@ const FIELDS: readonly NumberField[] = [
 ]
 
 const HEX = /^#[0-9a-f]{6}$/i
-const numberDrafts = reactive<Record<string, string>>({})
-const committedNumbers = new Map<string, string>()
+const visualSettings = useMapVisualSettings()
+
+function draftKey(field: NumberField): string {
+  return `effect.${props.channel}.inwardGlow.${field.key}`
+}
 
 function fieldId(name: string, control: 'checkbox' | 'color' | 'hex' | 'number' | 'range'): string {
   return `effect-${props.channel}-inward-${name}-${control}`
@@ -72,12 +76,11 @@ function updateColor(event: Event): void {
 }
 
 function numberDraft(field: NumberField): string {
-  return numberDrafts[field.key] ?? String(props.modelValue[field.key])
+  return visualSettings.readNumericDraft(draftKey(field), props.modelValue[field.key])
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  numberDrafts[field.key] = (event.target as HTMLInputElement).value
-  committedNumbers.delete(field.key)
+  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
 }
 
 function normalizedNumber(field: NumberField, raw: string): number {
@@ -90,12 +93,13 @@ function normalizedNumber(field: NumberField, raw: string): number {
 }
 
 function writeNumber(field: NumberField, raw: string): void {
-  const value = normalizedNumber(field, raw)
-  const normalized = String(value)
-  numberDrafts[field.key] = normalized
-  if (committedNumbers.get(field.key) === normalized || value === props.modelValue[field.key]) return
-  committedNumbers.set(field.key, normalized)
-  emitClone((next) => (next[field.key] = value))
+  const result = visualSettings.commitNumericDraft(
+    draftKey(field),
+    raw,
+    props.modelValue[field.key],
+    (value) => normalizedNumber(field, String(value))
+  )
+  if (result.changed) emitClone((next) => (next[field.key] = result.value))
 }
 
 function commitNumber(field: NumberField, event: Event): void {
@@ -120,9 +124,7 @@ function resetGroup(): void {
 
 watch(() => props.modelValue, () => {
   for (const field of FIELDS) {
-    const value = String(props.modelValue[field.key])
-    numberDrafts[field.key] = value
-    if (committedNumbers.get(field.key) !== value) committedNumbers.delete(field.key)
+    visualSettings.syncNumericDraft(draftKey(field), props.modelValue[field.key])
   }
 }, { deep: true, immediate: true })
 </script>

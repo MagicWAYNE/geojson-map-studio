@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import {
   B3_GLOW_PROFILE_DEFAULTS,
   assignMapEffectConfig,
-  cloneMapEffectConfig,
-  formatMapEffectConfig,
   MAP_EFFECT_DEFAULTS,
-  normalizeMapEffectConfig,
   type MapEffectBaseConfigV2,
   type MapEffectConfig,
   type MapEffectHoverConfigV2,
@@ -20,8 +17,7 @@ import {
   assignMosaicParticleConfig,
   type MapMosaicParticleConfig
 } from '@/components/map/mapMosaicParticleConfig'
-import { useMapDebug } from '@/composables/useMapDebug'
-import { copyTextToClipboard } from '@/utils/copyText'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 import MapInwardGlowControls from './MapInwardGlowControls.vue'
 import MapMosaicParticleControls from './MapMosaicParticleControls.vue'
 
@@ -142,43 +138,30 @@ const GROUPS: readonly Group[] = [
   }
 ]
 
-const { effect, effectRuntimeStatus, resetEffect } = useMapDebug()
-const livePreview = ref(true)
-const draft = reactive<MapEffectConfig>(cloneMapEffectConfig(effect))
-const editTarget = computed<MapEffectConfig>(() => livePreview.value ? effect : draft)
-const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
+const visualSettings = useMapVisualSettings()
+const {
+  effect,
+  effectDraft: draft,
+  effectEditTarget: editTarget,
+  effectLivePreview: livePreview,
+  effectRuntimeStatus,
+  resetEffect
+} = visualSettings
 const HEX = /^#[0-9a-f]{6}$/i
-const numberDrafts = reactive<Record<string, string>>({})
-let copiedTimer = 0
-let applyingDraft = false
-
-function syncDraft(config: MapEffectConfig = effect): void {
-  assignMapEffectConfig(draft, cloneMapEffectConfig(config))
-}
 
 function changeLivePreview(event: Event): void {
-  const next = (event.target as HTMLInputElement).checked
-  syncDraft(effect)
-  livePreview.value = next
+  visualSettings.setEffectLivePreview((event.target as HTMLInputElement).checked)
 }
 
 function applyDraft(): void {
-  const normalized = normalizeMapEffectConfig(draft)
-  applyingDraft = true
-  assignMapEffectConfig(effect, normalized)
-  applyingDraft = false
-  syncDraft(normalized)
+  visualSettings.applyEffectDraft()
 }
 
 function discardDraft(): void {
-  syncDraft(effect)
+  visualSettings.discardEffectDraft()
 }
 
-const stopEffectDraftSync = watch(effect, () => {
-  if (!livePreview.value && !applyingDraft) syncDraft(effect)
-}, { deep: true, flush: 'sync' })
-
-const editableJson = computed(() => formatMapEffectConfig(editTarget.value))
+const editableJson = visualSettings.editableEffectJson
 const performanceWarning = computed(() => {
   const target = editTarget.value
   const baseOutwardHighPass = target.base.outerGlowEnabled
@@ -330,11 +313,11 @@ function fieldId(field: Field, control: 'color' | 'hex' | 'number' | 'range' | '
 }
 
 function draftKey(field: NumberField): string {
-  return `${field.section}.${field.key}`
+  return `effect.${field.section}.${field.key}`
 }
 
 function numberDraft(field: NumberField): string {
-  return numberDrafts[draftKey(field)] ?? String(valueOf(field))
+  return visualSettings.readNumericDraft(draftKey(field), Number(valueOf(field)))
 }
 
 function normalizeNumber(field: NumberField, raw: string): number {
@@ -346,13 +329,18 @@ function normalizeNumber(field: NumberField, raw: string): number {
 }
 
 function writeNumber(field: NumberField, raw: string): void {
-  const rounded = normalizeNumber(field, raw)
-  numberDrafts[draftKey(field)] = String(rounded)
-  writeValue(field, rounded)
+  const current = Number(valueOf(field))
+  const result = visualSettings.commitNumericDraft(
+    draftKey(field),
+    raw,
+    current,
+    (value) => normalizeNumber(field, String(value))
+  )
+  if (result.changed) writeValue(field, result.value)
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  numberDrafts[draftKey(field)] = (event.target as HTMLInputElement).value
+  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
 }
 
 function commitNumber(field: NumberField, event: Event): void {
@@ -389,7 +377,9 @@ const numberFields = GROUPS.flatMap((group) => group.fields).filter(
   (field): field is NumberField => field.kind === 'number'
 )
 const stopDraftWatch = watch(editTarget, () => {
-  for (const field of numberFields) numberDrafts[draftKey(field)] = String(valueOf(field))
+  for (const field of numberFields) {
+    visualSettings.syncNumericDraft(draftKey(field), Number(valueOf(field)))
+  }
 }, { deep: true, immediate: true })
 
 function applyB3Preset(channel: GlowChannel, target: MapEffectConfig): void {
@@ -467,21 +457,15 @@ function resetCurrentTarget(): void {
 }
 
 async function copyEffect(): Promise<void> {
-  copyStatus.value = await copyTextToClipboard(editableJson.value) ? 'success' : 'error'
-  clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1500)
+  await visualSettings.copyVisualText('effect', editableJson.value)
 }
 
 function copyLabel(): string {
-  if (copyStatus.value === 'success') return '已复制 ✓'
-  if (copyStatus.value === 'error') return '复制失败，请重试'
-  return '复制效果参数'
+  return visualSettings.copyLabel('effect', '复制效果参数')
 }
 
 onBeforeUnmount(() => {
-  stopEffectDraftSync()
   stopDraftWatch()
-  clearTimeout(copiedTimer)
 })
 </script>
 

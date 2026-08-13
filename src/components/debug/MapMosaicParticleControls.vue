@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { watch } from 'vue'
 import {
   BLUE_PURPLE_MOSAIC_PARTICLE_PRESET,
   HOVER_MOSAIC_PARTICLE_DEFAULTS,
@@ -7,6 +7,7 @@ import {
   normalizeMosaicParticleConfig,
   type MapMosaicParticleConfig
 } from '@/components/map/mapMosaicParticleConfig'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 type NumberKey = Exclude<
   keyof MapMosaicParticleConfig,
@@ -56,9 +57,12 @@ const FIELDS: readonly NumberField[] = [
   { key: 'seed', label: '固定种子', min: 0, max: 9999, step: 1 }
 ]
 
-const numberDrafts = reactive<Record<string, string>>({})
-const committedNumbers = new Map<string, string>()
+const visualSettings = useMapVisualSettings()
 const HEX = /^#[0-9a-f]{6}$/i
+
+function draftKey(field: NumberField): string {
+  return `effect.hover.mosaicParticles.${field.key}`
+}
 
 function fieldId(name: string, control: 'checkbox' | 'color' | 'hex' | 'number' | 'range'): string {
   return `effect-hover-mosaic-${name}-${control}`
@@ -91,12 +95,11 @@ function updateColor(key: ColorKey, event: Event): void {
 }
 
 function numberDraft(field: NumberField): string {
-  return numberDrafts[field.key] ?? String(props.modelValue[field.key])
+  return visualSettings.readNumericDraft(draftKey(field), props.modelValue[field.key])
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  numberDrafts[field.key] = (event.target as HTMLInputElement).value
-  committedNumbers.delete(field.key)
+  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
 }
 
 function normalizedFieldNumber(field: NumberField, raw: string): number {
@@ -109,18 +112,16 @@ function normalizedFieldNumber(field: NumberField, raw: string): number {
 }
 
 function writeNumber(field: NumberField, raw: string): void {
+  const result = visualSettings.commitNumericDraft(
+    draftKey(field),
+    raw,
+    props.modelValue[field.key],
+    (value) => normalizedFieldNumber(field, String(value))
+  )
+  if (!result.changed) return
   const next = cloneMosaicParticleConfig(props.modelValue)
-  next[field.key] = normalizedFieldNumber(field, raw)
-  const normalized = normalizeMosaicParticleConfig(next)
-  const value = normalized[field.key]
-  const normalizedDraft = String(value)
-  numberDrafts[field.key] = normalizedDraft
-  if (
-    committedNumbers.get(field.key) === normalizedDraft
-    || value === props.modelValue[field.key]
-  ) return
-  committedNumbers.set(field.key, normalizedDraft)
-  emit('update:modelValue', normalized)
+  next[field.key] = result.value
+  emit('update:modelValue', normalizeMosaicParticleConfig(next))
 }
 
 function commitNumber(field: NumberField, event: Event): void {
@@ -146,9 +147,7 @@ function resetGroup(): void {
 
 watch(() => props.modelValue, () => {
   for (const field of FIELDS) {
-    const value = String(props.modelValue[field.key])
-    numberDrafts[field.key] = value
-    if (committedNumbers.get(field.key) !== value) committedNumbers.delete(field.key)
+    visualSettings.syncNumericDraft(draftKey(field), props.modelValue[field.key])
   }
 }, { deep: true, immediate: true })
 </script>

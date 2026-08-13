@@ -116,6 +116,8 @@ const copyFeedback = reactive<Record<VisualCopyKey, VisualCopyStatus>>({
 })
 const copyRequests = new Map<VisualCopyKey, number>()
 const copyTimers = new Map<VisualCopyKey, ReturnType<typeof setTimeout>>()
+let applyingEffectDraft = false
+let applyingHudDraft = false
 
 const effectEditTarget = computed(() => effectLivePreview.value ? effect : effectDraft)
 const hudEditTarget = computed(() => hudLivePreview.value ? hud : hudDraft)
@@ -161,6 +163,14 @@ watch(hud, (value) => {
   assignMapHudConfig(hud, normalizeMapHudConfig(value))
 }, { deep: true })
 
+watch(effect, () => {
+  if (!effectLivePreview.value && !applyingEffectDraft) syncEffectDraft(effect)
+}, { deep: true, flush: 'sync' })
+
+watch(hud, () => {
+  if (!hudLivePreview.value && !applyingHudDraft) syncHudDraft(hud)
+}, { deep: true, flush: 'sync' })
+
 function syncEffectDraft(source: Readonly<MapEffectConfig> = effect): void {
   assignMapEffectConfig(effectDraft, cloneMapEffectConfig(source))
 }
@@ -181,7 +191,9 @@ function setHudLivePreview(next: boolean): void {
 
 function applyEffectDraft(): void {
   const normalized = normalizeMapEffectConfig(effectDraft)
+  applyingEffectDraft = true
   assignMapEffectConfig(effect, normalized)
+  applyingEffectDraft = false
   syncEffectDraft(normalized)
 }
 
@@ -191,7 +203,9 @@ function discardEffectDraft(): void {
 
 function applyHudDraft(): void {
   const normalized = normalizeMapHudConfig(hudDraft)
+  applyingHudDraft = true
   assignMapHudConfig(hud, normalized)
+  applyingHudDraft = false
   syncHudDraft(normalized)
 }
 
