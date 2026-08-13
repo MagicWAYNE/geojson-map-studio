@@ -285,6 +285,7 @@ function createTestMapDocument(
     geometry: { regions, scale: 1, center: [0, 0] },
     metrics: new Map(regions.map((region, index) => [region.name, {
       name: region.name,
+      displayName: region.name,
       primary: 20 + index,
       secondary: 2 + index
     }])),
@@ -301,6 +302,7 @@ function createTestMapDocument(
 function districtBarSnapshots() {
   return Array.from({ length: 8 }, (_, order) => ({
     name: `测试区${order}`,
+    displayName: `测试区${order}`,
     primary: 10 + order,
     secondary: 1 + order,
     order,
@@ -402,6 +404,7 @@ describe('ChongqingMap3D effect wiring', () => {
     const [, dataByName] = districtBarMocks.create.mock.calls[0]
     expect(dataByName.get('测试区0')).toEqual({
       name: '测试区0',
+      displayName: '测试区0',
       primary: 20,
       secondary: 2
     })

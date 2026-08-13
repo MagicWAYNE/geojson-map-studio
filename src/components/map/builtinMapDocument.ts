@@ -14,6 +14,7 @@ function toMetrics(
 ): Map<string, MapRegionMetrics> {
   const metrics = new Map(data.map((item) => [item.name, {
     name: item.name,
+    displayName: item.name,
     primary: item.aj,
     secondary: item.ztje
   }]))
@@ -22,6 +23,7 @@ function toMetrics(
   if (jiangbei && yubei) {
     metrics.set('两江新区', {
       name: '两江新区',
+      displayName: '两江新区',
       primary: jiangbei.primary + yubei.primary,
       secondary: jiangbei.secondary + yubei.secondary
     })

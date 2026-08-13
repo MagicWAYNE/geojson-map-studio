@@ -28,9 +28,10 @@ function snapshot(
   order = 0,
   visible = true,
   primary = 100,
-  secondary = 200
+  secondary = 200,
+  displayName = name
 ) {
-  return { name, primary, secondary, order, visible, hoverProgress: 0, worldPosition }
+  return { name, displayName, primary, secondary, order, visible, hoverProgress: 0, worldPosition }
 }
 
 function input(snapshots: ReturnType<typeof snapshot>[]) {
@@ -44,6 +45,17 @@ function input(snapshots: ReturnType<typeof snapshot>[]) {
 }
 
 describe('calculateDistrictBarOverlayLayout', () => {
+  it('keeps the stable key for interaction while showing the presentation name in hover', () => {
+    const result = calculateDistrictBarOverlayLayout({
+      ...input([snapshot('region-key', [0, 0, -10], 0, true, 100, 200, '创业园 Alpha')]),
+      hoveredName: 'region-key'
+    })
+
+    expect(result.panel).toMatchObject({
+      name: 'region-key',
+      titleText: '创业园 Alpha'
+    })
+  })
   it('projects world-space column tops through the camera clip transform using client pixels', () => {
     const result = calculateDistrictBarOverlayLayout(input([
       snapshot('center', [0, 0, -10], 0),

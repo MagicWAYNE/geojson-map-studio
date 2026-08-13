@@ -4,6 +4,8 @@ import {
   GEOJSON_MAX_FEATURES,
   GEOJSON_MAX_POSITIONS,
   MapImportError,
+  composeMapVisualization,
+  createMapVisualizationDraft,
   inspectGeoJsonMap,
   prepareGeoJsonMapPackage
 } from './mapDocument'
@@ -117,7 +119,7 @@ describe('mapDocument', () => {
       secondary: { label: '服务资源', unit: '项' }
     })
     expect([...prepared.document.metrics]).toEqual([
-      ['区域 A', { name: '区域 A', primary: 120, secondary: 45.6 }]
+      ['区域 A', { name: '区域 A', displayName: '区域 A', primary: 120, secondary: 45.6 }]
     ])
     expect(prepared.summary.metrics).toEqual({
       matchedNames: ['区域 A'],
@@ -125,6 +127,54 @@ describe('mapDocument', () => {
       extraNames: ['区域 C']
     })
     expect(prepared.persisted.metricsText).toBe(metricsText)
+  })
+
+  it('以稳定分块 key 绑定指标，同时允许 hover 使用独立展示名称', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.regions[0] = {
+      ...draft.regions[0],
+      enabled: true,
+      displayName: '创业园 Alpha',
+      primary: 120,
+      secondary: 45.6
+    }
+
+    const composed = composeMapVisualization(base, draft)
+
+    expect(composed.geometry.regions.map((region) => region.name)).toEqual(['区域 A', '区域 B'])
+    expect([...composed.metrics]).toEqual([[
+      '区域 A',
+      { name: '区域 A', displayName: '创业园 Alpha', primary: 120, secondary: 45.6 }
+    ]])
+    expect(draft.regions.map(({ regionKey, displayName }) => ({ regionKey, displayName }))).toEqual([
+      { regionKey: '区域 A', displayName: '创业园 Alpha' },
+      { regionKey: '区域 B', displayName: '区域 B' }
+    ])
+  })
+
+  it.each([
+    { displayNames: ['', '区域 B'], path: 'regions[0].displayName' },
+    { displayNames: ['重复名', '重复名'], path: 'regions[1].displayName' },
+    { displayNames: ['甲'.repeat(41), '区域 B'], path: 'regions[0].displayName' }
+  ])('拒绝空白、重复或超长展示名称', ({ displayNames, path }) => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.regions.forEach((region, index) => { region.displayName = displayNames[index] })
+
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      code: 'invalid-visualization',
+      path
+    }))
+    expect(base.metrics.size).toBe(0)
   })
 
   it('业务数据名称与 GeoJSON 区域名称使用未经修剪的精确匹配', () => {

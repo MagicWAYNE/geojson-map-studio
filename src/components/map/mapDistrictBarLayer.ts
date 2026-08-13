@@ -31,6 +31,7 @@ export interface DistrictBarLayer {
 
 export interface DistrictBarTopSnapshot {
   readonly name: string
+  readonly displayName: string
   readonly primary: number
   readonly secondary: number
   readonly order: number
@@ -40,6 +41,7 @@ export interface DistrictBarTopSnapshot {
 }
 
 interface LayerDatum {
+  displayName: string
   primary: number
   secondary: number
 }
@@ -288,6 +290,7 @@ export function createDistrictBarLayer(
       }
       layer.byName.set(region.name, visual)
       state.dataByName.set(region.name, {
+        displayName: item.displayName,
         primary: item.primary,
         secondary: item.secondary
       })
@@ -374,6 +377,7 @@ export function getDistrictBarTopSnapshots(layer: DistrictBarLayer): DistrictBar
       const worldTop = new THREE.Vector3(0, 0.5, 0).applyMatrix4(visual.column.matrixWorld)
       return [{
         name: visual.name,
+        displayName: datum.displayName,
         primary: datum.primary,
         secondary: datum.secondary,
         order: visual.order,

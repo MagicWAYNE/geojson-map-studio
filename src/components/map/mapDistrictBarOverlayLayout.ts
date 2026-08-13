@@ -314,7 +314,7 @@ export function calculateDistrictBarOverlayLayout(
       },
       side,
       viewportOverflow: minX > maxX || minTop > maxTop,
-      titleText: hovered.snapshot.name,
+      titleText: hovered.snapshot.displayName,
       caseText: formatNumber(
         hovered.snapshot.primary,
         panelConfig.caseDecimals,

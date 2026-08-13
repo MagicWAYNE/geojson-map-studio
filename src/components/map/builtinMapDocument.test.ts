@@ -43,6 +43,7 @@ describe('builtinMapDocument', () => {
     ])
     expect(document.metrics.get('两江新区')).toEqual({
       name: '两江新区',
+      displayName: '两江新区',
       primary: 70,
       secondary: 7
     })

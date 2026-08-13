@@ -22,6 +22,7 @@ export type MapImportErrorCode =
   | 'invalid-name-property'
   | 'duplicate-name'
   | 'invalid-metrics'
+  | 'invalid-visualization'
 
 export class MapImportError extends Error {
   readonly code: MapImportErrorCode
@@ -39,6 +40,7 @@ export class MapImportError extends Error {
 
 export interface MapRegionMetrics {
   name: string
+  displayName: string
   primary: number
   secondary: number
 }
@@ -46,6 +48,19 @@ export interface MapRegionMetrics {
 export interface MapMetricLabels {
   primary: { label: string; unit: string }
   secondary: { label: string; unit: string }
+}
+
+export interface MapVisualizationRegionDraft {
+  regionKey: string
+  displayName: string
+  enabled: boolean
+  primary: number | null
+  secondary: number | null
+}
+
+export interface MapVisualizationDraft {
+  labels: MapMetricLabels
+  regions: MapVisualizationRegionDraft[]
 }
 
 export interface MapDocument {
@@ -365,6 +380,17 @@ function readMetricText(
   return text
 }
 
+function readVisualizationText(value: unknown, path: string, maxLength: number): string {
+  if (typeof value !== 'string') {
+    fail('invalid-visualization', path, `${path} 必须是文本`)
+  }
+  const text = value.trim()
+  if (!text || Array.from(text).length > maxLength) {
+    fail('invalid-visualization', path, `${path} 长度必须在 1 到 ${maxLength} 个字符之间`)
+  }
+  return text
+}
+
 function readMetricLabel(value: unknown, path: string): { label: string; unit: string } {
   if (!isRecord(value)) fail('invalid-metrics', path, `${path} 必须包含 label 和 unit`)
   return {
@@ -402,6 +428,7 @@ function parseMetrics(text: string): ParsedMetrics {
     if (byName.has(name)) fail('invalid-metrics', `${path}.name`, `业务数据区域名称 ${name} 重复`)
     byName.set(name, {
       name,
+      displayName: name,
       primary: readMetricNumber(candidate.primary, `${path}.primary`),
       secondary: readMetricNumber(candidate.secondary, `${path}.secondary`)
     })
@@ -414,6 +441,67 @@ export function inspectGeoJsonMap(geometryText: string): GeoJsonInspection {
   return {
     ...parsed.inspection,
     ...inspectNameProperties(parsed.features)
+  }
+}
+
+export function createMapVisualizationDraft(document: MapDocument): MapVisualizationDraft {
+  return {
+    labels: {
+      primary: { label: '扶持企业', unit: '家' },
+      secondary: { label: '服务资源', unit: '项' }
+    },
+    regions: document.geometry.regions.map((region) => ({
+      regionKey: region.name,
+      displayName: region.name,
+      enabled: false,
+      primary: null,
+      secondary: null
+    }))
+  }
+}
+
+export function composeMapVisualization(
+  document: MapDocument,
+  draft: MapVisualizationDraft
+): MapDocument {
+  const expectedKeys = new Set(document.geometry.regions.map((region) => region.name))
+  const rowsByKey = new Map<string, MapVisualizationRegionDraft>()
+  const displayNames = new Set<string>()
+  const metrics = new Map<string, MapRegionMetrics>()
+
+  for (const [index, row] of draft.regions.entries()) {
+    const path = `regions[${index}]`
+    if (!expectedKeys.has(row.regionKey) || rowsByKey.has(row.regionKey)) {
+      fail('invalid-visualization', `${path}.regionKey`, `${path}.regionKey 必须对应唯一的地图分块`)
+    }
+    rowsByKey.set(row.regionKey, row)
+    const displayName = readVisualizationText(row.displayName, `${path}.displayName`, 40)
+    if (displayNames.has(displayName)) {
+      fail('invalid-visualization', `${path}.displayName`, `展示名称 ${displayName} 重复`)
+    }
+    displayNames.add(displayName)
+    if (!row.enabled) continue
+    metrics.set(row.regionKey, {
+      name: row.regionKey,
+      displayName,
+      primary: readMetricNumber(row.primary, `${path}.primary`),
+      secondary: readMetricNumber(row.secondary, `${path}.secondary`)
+    })
+  }
+
+  if (rowsByKey.size !== expectedKeys.size) {
+    fail('invalid-visualization', 'regions', '每个地图分块必须且只能有一条编辑记录')
+  }
+  const labels = metrics.size === 0
+    ? null
+    : {
+        primary: readMetricLabel(draft.labels.primary, 'primaryMetric'),
+        secondary: readMetricLabel(draft.labels.secondary, 'secondaryMetric')
+      }
+  return {
+    ...document,
+    metrics,
+    metricLabels: labels
   }
 }
 

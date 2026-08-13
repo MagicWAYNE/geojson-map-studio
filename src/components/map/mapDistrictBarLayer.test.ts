@@ -70,14 +70,14 @@ const regions: Region[] = [
 function items(entries: [string, number, number?][]): ReadonlyMap<string, MapRegionMetrics> {
   return new Map(entries.map(([name, primary, secondary = 0]) => [
     name,
-    { name, primary, secondary }
+    { name, displayName: name, primary, secondary }
   ]))
 }
 
 describe('mapDistrictBarLayer', () => {
   it('通过通用 primary 指标创建柱体并公开 primary/secondary 快照', () => {
     const metrics: ReadonlyMap<string, MapRegionMetrics> = new Map([
-      ['A', { name: 'A', primary: 25, secondary: 120.5 }]
+      ['A', { name: 'A', displayName: '创业园 Alpha', primary: 25, secondary: 120.5 }]
     ])
     const layer = createDistrictBarLayer(
       [regions[0]],
@@ -89,9 +89,15 @@ describe('mapDistrictBarLayer', () => {
 
     expect(getDistrictBarTopSnapshots(layer).map((snapshot) => ({
       name: snapshot.name,
+      displayName: snapshot.displayName,
       primary: snapshot.primary,
       secondary: snapshot.secondary
-    }))).toEqual([{ name: 'A', primary: 25, secondary: 120.5 }])
+    }))).toEqual([{
+      name: 'A',
+      displayName: '创业园 Alpha',
+      primary: 25,
+      secondary: 120.5
+    }])
   })
 
   it('按平方根范围映射案件量高度', () => {
@@ -219,8 +225,8 @@ describe('mapDistrictBarLayer', () => {
   it('只为有有效案件量且存在锚点的区块创建柱体与光环', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const layer = createDistrictBarLayer(regions, new Map([
-      ['A', { name: 'A', primary: 100, secondary: 0 }],
-      ['B', { name: 'B', primary: Number.NaN, secondary: 0 }]
+      ['A', { name: 'A', displayName: 'A', primary: 100, secondary: 0 }],
+      ['B', { name: 'B', displayName: 'B', primary: Number.NaN, secondary: 0 }]
     ]), MAP_DISTRICT_BAR_DEFAULTS, 4)
 
     expect(layer.group.children).toHaveLength(3)
