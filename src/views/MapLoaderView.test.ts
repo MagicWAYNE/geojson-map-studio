@@ -63,6 +63,15 @@ afterEach(() => {
 })
 
 describe('MapLoaderView', () => {
+  it('作为首页右侧创作面板呈现且不创建第二层页面背景', async () => {
+    const { app, root } = await mountView()
+    expect(root.firstElementChild?.tagName).toBe('ASIDE')
+    expect(root.firstElementChild?.getAttribute('aria-label')).toBe('GeoJSON 地图创作面板')
+    expect(root.querySelector('.map-loader__background')).toBeNull()
+    expect(root.querySelectorAll('.map-loader__card')).toHaveLength(1)
+    app.unmount()
+  })
+
   it('列出每个分块并可手动配置展示名、启用状态与两项指标', async () => {
     const { app, root } = await mountView()
     chooseFile(

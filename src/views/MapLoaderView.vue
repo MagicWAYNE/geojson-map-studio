@@ -14,7 +14,6 @@ import {
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
 import type { MapSourceWarning } from '@/components/map/activeMapSource'
-import bgMain from '@/assets/images/bg-main.png'
 
 const router = useRouter()
 const geometryText = ref<string>()
@@ -221,8 +220,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="map-loader">
-    <img class="map-loader__background" :src="bgMain" alt="" />
+  <aside class="map-loader" aria-label="GeoJSON 地图创作面板">
     <section class="map-loader__card" aria-labelledby="map-loader-title">
       <header>
         <p class="map-loader__eyebrow">LOCAL MAP PACKAGE</p>
@@ -426,33 +424,29 @@ onMounted(async () => {
         </button>
       </footer>
     </section>
-  </main>
+  </aside>
 </template>
 
 <style scoped>
 .map-loader {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  z-index: 3;
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  box-sizing: border-box;
+  width: 720px;
+  overflow: auto;
   color: #dcecff;
-}
-
-.map-loader__background {
-  position: absolute;
-  inset: 0;
-  width: 1920px;
-  height: 1080px;
+  overscroll-behavior: contain;
 }
 
 .map-loader__card {
   position: relative;
   box-sizing: border-box;
-  width: 1480px;
-  max-height: 980px;
-  padding: 30px 38px 28px;
-  overflow: auto;
+  width: 100%;
+  min-height: 100%;
+  padding: 24px 26px 26px;
   background: linear-gradient(145deg, rgba(8, 28, 63, 0.96), rgba(5, 18, 44, 0.94));
   border: 1px solid rgba(63, 169, 255, 0.62);
   border-radius: 10px;
@@ -478,7 +472,7 @@ onMounted(async () => {
 .map-loader__warnings { list-style: none; }
 .map-loader__name-conflicts { list-style-position: inside; }
 .map-loader__error { color: #ffad99 !important; background: rgba(116, 33, 25, 0.28); }
-.map-loader__fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 22px; }
+.map-loader__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
 .map-loader__field { display: grid; gap: 9px; color: #c9dff8; font-size: 16px; }
 .map-loader__field strong { color: #4ee7ff; font-weight: 500; }
 .map-loader__field em { color: #89a8ca; font-style: normal; }
@@ -530,7 +524,7 @@ onMounted(async () => {
 
 .map-loader__metric-fields {
   display: grid;
-  grid-template-columns: 2fr 1fr 2fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 12px;
   margin-top: 16px;
 }
@@ -560,7 +554,7 @@ onMounted(async () => {
 .map-loader__region-head,
 .map-loader__region-row {
   display: grid;
-  grid-template-columns: 96px minmax(180px, 1fr) minmax(210px, 1.2fr) minmax(130px, 0.7fr) minmax(130px, 0.7fr);
+  grid-template-columns: 74px minmax(92px, 0.8fr) minmax(128px, 1.2fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr);
   align-items: center;
   gap: 12px;
 }

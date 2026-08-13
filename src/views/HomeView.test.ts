@@ -19,6 +19,13 @@ vi.mock('@/components/map/ChongqingMap3D.vue', () => ({
     }
   })
 }))
+vi.mock('@/views/MapLoaderView.vue', () => ({
+  default: defineComponent({
+    setup() {
+      return () => h('aside', { class: 'authoring-panel-stub' }, '地图创作面板')
+    }
+  })
+}))
 
 import HomeView from './HomeView.vue'
 
@@ -27,18 +34,21 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-describe('HomeView map-only presentation', () => {
-  it('keeps only the background layers and centered map shell', () => {
+describe('HomeView same-page map authoring', () => {
+  it('keeps one map shell and places the authoring panel beside it', () => {
     expect(homeViewSource).toContain('<img class="bg-main"')
     expect(homeViewSource).toContain('<img class="bg-terrain"')
     expect(homeViewSource).toContain('<ChongqingMap3D')
+    expect(homeViewSource).toContain('<MapLoaderView')
     expect(homeViewSource).not.toContain('<HeaderBar')
     expect(homeViewSource).not.toContain('<KpiPanel')
-    expect(homeViewSource).not.toContain('<aside')
     expect(homeViewSource).not.toContain('<MapDebugDrawer')
+    expect(homeViewSource).toContain('left: 24px')
+    expect(homeViewSource).toContain('width: 1120px')
+    expect(homeViewSource).toContain('height: 948px')
   })
 
-  it('异步加载当前地图文档并保持首页只有背景与地图主体', async () => {
+  it('异步加载当前地图文档并同时呈现固定创作面板', async () => {
     sourceMocks.load.mockResolvedValue({
       document: {
         source: { kind: 'geojson', displayName: 'custom.geojson' }
@@ -53,8 +63,8 @@ describe('HomeView map-only presentation', () => {
     await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
     await nextTick()
     expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('custom.geojson')
-    expect(root.querySelectorAll('.home > *')).toHaveLength(3)
-    expect(root.querySelector('aside')).toBeNull()
+    expect(root.querySelectorAll('.home > *')).toHaveLength(4)
+    expect(root.querySelector('.authoring-panel-stub')?.textContent).toBe('地图创作面板')
     app.unmount()
   })
 })
