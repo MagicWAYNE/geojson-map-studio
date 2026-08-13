@@ -1,21 +1,40 @@
 <script setup lang="ts">
 import { watch } from 'vue'
-import type { MapHudConfig } from '@/components/map/mapHudConfig'
+import type {
+  MapHudAnchorConfig,
+  MapHudConfig,
+  MapHudRotatingLayerConfig,
+  MapHudStaticLayerConfig
+} from '@/components/map/mapHudConfig'
 import {
   useMapVisualSettings,
   type VisualNumericFieldId
 } from '@/composables/useMapVisualSettings'
 
-type Section = 'anchor' | 'static' | 'rotating'
-type Field = {
+type KeysMatching<Config, Value> = {
+  [Key in keyof Config]-?: Config[Key] extends Value ? Key : never
+}[keyof Config]
+type NumberField<Section extends string, Config> = {
   section: Section
-  key: string
+  key: KeysMatching<Config, number>
   label: string
-  kind: 'number' | 'boolean'
-  min?: number
-  max?: number
-  step?: number
+  kind: 'number'
+  min: number
+  max: number
+  step: number
 }
+type BooleanField<Section extends string, Config> = {
+  section: Section
+  key: KeysMatching<Config, boolean>
+  label: string
+  kind: 'boolean'
+}
+type Field =
+  | NumberField<'anchor', MapHudAnchorConfig>
+  | NumberField<'static', MapHudStaticLayerConfig>
+  | BooleanField<'static', MapHudStaticLayerConfig>
+  | NumberField<'rotating', MapHudRotatingLayerConfig>
+  | BooleanField<'rotating', MapHudRotatingLayerConfig>
 
 interface Group {
   title: string
@@ -69,18 +88,16 @@ function fieldName(field: Field): string {
 }
 
 function draftKey(field: Field): VisualNumericFieldId {
-  return `hud.${field.section}.${field.key}` as VisualNumericFieldId
+  if (field.section === 'anchor') return `hud.anchor.${field.key}`
+  if (field.section === 'static' && field.kind === 'number') return `hud.static.${field.key}`
+  if (field.section === 'rotating' && field.kind === 'number') return `hud.rotating.${field.key}`
+  throw new Error('Boolean HUD fields do not have numeric drafts')
 }
 
 function valueOf(field: Field): number | boolean {
-  if (field.section === 'anchor') return hudValue(editTarget.value.anchor, field.key)
-  if (field.section === 'static') return hudValue(editTarget.value.static, field.key)
-  return hudValue(editTarget.value.rotating, field.key)
-}
-
-function hudValue(source: object, key: string): number | boolean {
-  const value = (source as Record<string, unknown>)[key]
-  return typeof value === 'number' || typeof value === 'boolean' ? value : 0
+  if (field.section === 'anchor') return editTarget.value.anchor[field.key]
+  if (field.section === 'static') return editTarget.value.static[field.key]
+  return editTarget.value.rotating[field.key]
 }
 
 function changeLivePreview(event: Event): void {
@@ -104,13 +121,21 @@ function updateNumberDraft(field: Field, event: Event): void {
 }
 
 function commitNumber(field: Field, event: Event): void {
+  if (field.kind !== 'number') return
   const current = Number(valueOf(field))
   const result = visualSettings.numericField(draftKey(field)).commit(
     (event.target as HTMLInputElement).value,
     current,
     field
   )
-  if (result.changed) visualSettings.setHudField(field.section, field.key, result.value)
+  if (!result.changed) return
+  if (field.section === 'anchor') {
+    visualSettings.setHudField({ section: 'anchor', key: field.key, value: result.value })
+  } else if (field.section === 'static') {
+    visualSettings.setHudField({ section: 'static', key: field.key, value: result.value })
+  } else {
+    visualSettings.setHudField({ section: 'rotating', key: field.key, value: result.value })
+  }
 }
 
 function updateRange(field: Field, event: Event): void {
@@ -118,7 +143,13 @@ function updateRange(field: Field, event: Event): void {
 }
 
 function updateBoolean(field: Field, event: Event): void {
-  visualSettings.setHudField(field.section, field.key, (event.target as HTMLInputElement).checked)
+  if (field.kind !== 'boolean') return
+  const value = (event.target as HTMLInputElement).checked
+  if (field.section === 'static') {
+    visualSettings.setHudField({ section: 'static', key: field.key, value })
+  } else {
+    visualSettings.setHudField({ section: 'rotating', key: field.key, value })
+  }
 }
 
 function resetCurrentTarget(): void {

@@ -120,6 +120,13 @@ export interface VisualNumericField {
 }
 
 export type EffectGlowChannel = 'base' | 'hover'
+type ConfigFieldUpdate<Section extends string, Config> = {
+  [Key in keyof Config]: { section: Section; key: Key; value: Config[Key] }
+}[keyof Config]
+export type HudFieldUpdate =
+  | ConfigFieldUpdate<'anchor', MapHudAnchorConfig>
+  | ConfigFieldUpdate<'static', MapHudStaticLayerConfig>
+  | ConfigFieldUpdate<'rotating', MapHudRotatingLayerConfig>
 
 export const VISUAL_SETTINGS_PAGES: readonly VisualSettingsPage[] = [
   { id: 'composition', label: '构图与视角' },
@@ -401,7 +408,6 @@ function commitLayoutField(key: keyof MapLayout, raw: string): number {
 
 type EffectBaseFieldKey = Exclude<keyof MapEffectBaseConfigV4, 'inwardGlow'>
 type EffectHoverFieldKey = Exclude<keyof MapEffectHoverConfigV4, 'inwardGlow' | 'mosaicParticles'>
-type HudSection = 'anchor' | 'static' | 'rotating'
 
 function assignEditableEffect(candidate: Readonly<MapEffectConfig>): void {
   assignMapEffectConfig(effectEditTarget.value, normalizeMapEffectConfig(candidate))
@@ -577,10 +583,23 @@ function resetRegionOverlay(): void {
   replaceRegionOverlay(cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS))
 }
 
-function setHudField(section: HudSection, key: string, value: number | boolean): void {
-  const candidate = cloneMapHudConfig(hudEditTarget.value)
-  const target = candidate[section] as unknown as Record<string, number | boolean>
+function writeConfigField<Config extends object, Key extends keyof Config>(
+  target: Config,
+  key: Key,
+  value: Config[Key]
+): void {
   target[key] = value
+}
+
+function setHudField(update: HudFieldUpdate): void {
+  const candidate = cloneMapHudConfig(hudEditTarget.value)
+  if (update.section === 'anchor') {
+    writeConfigField(candidate.anchor, update.key, update.value)
+  } else if (update.section === 'static') {
+    writeConfigField(candidate.static, update.key, update.value)
+  } else {
+    writeConfigField(candidate.rotating, update.key, update.value)
+  }
   assignMapHudConfig(hudEditTarget.value, normalizeMapHudConfig(candidate))
 }
 

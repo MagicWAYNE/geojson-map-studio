@@ -96,7 +96,7 @@ describe('visual-settings session', () => {
     expect(session.effect.hover.glowFarPasses).toBe(B3_GLOW_PROFILE_DEFAULTS.farPasses)
     session.applyEffectMosaicPreset()
     expect(session.effect.hover.mosaicParticles).toEqual(BLUE_PURPLE_MOSAIC_PARTICLE_PRESET)
-    session.setHudField('anchor', 'x', 999)
+    session.setHudField({ section: 'anchor', key: 'x', value: 999 })
     expect(session.hud.anchor.x).toBe(150)
 
     const bars = cloneDistrictBarConfig(session.effect.bars)
