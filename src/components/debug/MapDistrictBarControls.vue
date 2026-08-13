@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, watch } from 'vue'
 import {
   cloneDistrictBarConfig,
   normalizeDistrictBarConfig,
   type MapDistrictBarConfig
 } from '@/components/map/mapDistrictBarConfig'
-import type { MapDistrictBarRuntimeStatus } from '@/composables/useMapDebug'
+import { useMapVisualSettings, type MapDistrictBarRuntimeStatus } from '@/composables/useMapVisualSettings'
 
 type ColorKey = 'color' | 'pulseColor'
 type NumberKey = Exclude<keyof MapDistrictBarConfig, 'enabled' | 'pulseEnabled' | 'overlay' | ColorKey>
@@ -53,8 +53,11 @@ const NUMBER_FIELDS: readonly NumberField[] = [
 ]
 
 const HEX = /^#[0-9a-f]{6}$/i
-const numberDrafts = reactive<Record<NumberKey, string>>({} as Record<NumberKey, string>)
-const committedNumbers = new Map<NumberKey, string>()
+const visualSettings = useMapVisualSettings()
+
+function draftKey(field: NumberField): string {
+  return `bars.${field.key}`
+}
 
 const dataRange = computed(() => {
   const { dataMin, dataMax } = props.runtimeStatus
@@ -89,12 +92,11 @@ function updateColor(key: ColorKey, event: Event): void {
 }
 
 function numberDraft(field: NumberField): string {
-  return numberDrafts[field.key] ?? String(numberValue(field))
+  return visualSettings.readNumericDraft(draftKey(field), numberValue(field))
 }
 
 function updateNumberDraft(field: NumberField, event: Event): void {
-  numberDrafts[field.key] = (event.target as HTMLInputElement).value
-  committedNumbers.delete(field.key)
+  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
 }
 
 function normalizedNumber(field: NumberField, raw: string): number {
@@ -114,12 +116,13 @@ function normalizedNumber(field: NumberField, raw: string): number {
 }
 
 function writeNumber(field: NumberField, raw: string): void {
-  const value = normalizedNumber(field, raw)
-  const normalized = String(value)
-  numberDrafts[field.key] = normalized
-  if (committedNumbers.get(field.key) === normalized || value === numberValue(field)) return
-  committedNumbers.set(field.key, normalized)
-  emitClone((next) => (next[field.key] = value))
+  const result = visualSettings.commitNumericDraft(
+    draftKey(field),
+    raw,
+    numberValue(field),
+    (value) => normalizedNumber(field, String(value))
+  )
+  if (result.changed) emitClone((next) => (next[field.key] = result.value))
 }
 
 function commitNumber(field: NumberField, event: Event): void {
@@ -134,9 +137,7 @@ function updateRange(field: NumberField, event: Event): void {
 
 watch(() => props.modelValue, () => {
   for (const field of NUMBER_FIELDS) {
-    const value = String(numberValue(field))
-    numberDrafts[field.key] = value
-    if (committedNumbers.get(field.key) !== value) committedNumbers.delete(field.key)
+    visualSettings.syncNumericDraft(draftKey(field), numberValue(field))
   }
 }, { deep: true, immediate: true })
 </script>
@@ -146,14 +147,14 @@ watch(() => props.modelValue, () => {
     <div class="bar-runtime-status" role="status" aria-live="polite">
       <span>运行状态</span>
       <span>有效柱体：{{ runtimeStatus.renderedCount }}</span>
-      <span>扶持企业范围：{{ dataRange }}</span>
+      <span>区域数值范围：{{ dataRange }}</span>
       <span>柱体主体：不透明</span>
       <span>脉冲环：{{ modelValue.pulseEnabled ? '启用' : '已关闭' }}</span>
       <span>柱体层：{{ runtimeStatus.degraded ? '已降级关闭' : '正常' }}</span>
     </div>
     <div class="field">
       <div class="field-head">
-        <label :for="fieldId('enabled', 'checkbox')">启用柱状图</label>
+        <label :for="fieldId('enabled', 'checkbox')">启用区域数据柱体</label>
         <input
           :id="fieldId('enabled', 'checkbox')"
           class="checkbox"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed } from 'vue'
 import {
   MAP_DISTRICT_BAR_DEFAULTS,
   cloneDistrictBarConfig,
@@ -12,20 +12,12 @@ import {
   normalizeDistrictBarOverlayConfig,
   type MapDistrictBarOverlayConfig
 } from '@/components/map/mapDistrictBarOverlayConfig'
-import { useMapDebug } from '@/composables/useMapDebug'
-import { copyTextToClipboard } from '@/utils/copyText'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 import MapDistrictBarControls from './MapDistrictBarControls.vue'
 import MapDistrictBarOverlayControls from './MapDistrictBarOverlayControls.vue'
 
-const { effect, districtBarRuntimeStatus } = useMapDebug()
-type CopyStatus = 'idle' | 'success' | 'error'
-
-const barsCopyStatus = ref<CopyStatus>('idle')
-const overlayCopyStatus = ref<CopyStatus>('idle')
-let barsCopiedTimer = 0
-let overlayCopiedTimer = 0
-let barsCopyRequest = 0
-let overlayCopyRequest = 0
+const visualSettings = useMapVisualSettings()
+const { effect, districtBarRuntimeStatus } = visualSettings
 
 const barJson = computed(() => JSON.stringify(normalizeDistrictBarConfig(effect.bars), null, 2))
 const overlayJson = computed(() => JSON.stringify(
@@ -55,21 +47,11 @@ function replaceBars(value: MapDistrictBarConfig): void {
 }
 
 async function copyBars(): Promise<void> {
-  const request = ++barsCopyRequest
-  const result = await copyTextToClipboard(barJson.value) ? 'success' : 'error'
-  if (request !== barsCopyRequest) return
-  barsCopyStatus.value = result
-  clearTimeout(barsCopiedTimer)
-  barsCopiedTimer = window.setTimeout(() => (barsCopyStatus.value = 'idle'), 1500)
+  await visualSettings.copyVisualText('bars', barJson.value)
 }
 
 async function copyOverlay(): Promise<void> {
-  const request = ++overlayCopyRequest
-  const result = await copyTextToClipboard(overlayJson.value) ? 'success' : 'error'
-  if (request !== overlayCopyRequest) return
-  overlayCopyStatus.value = result
-  clearTimeout(overlayCopiedTimer)
-  overlayCopiedTimer = window.setTimeout(() => (overlayCopyStatus.value = 'idle'), 1500)
+  await visualSettings.copyVisualText('overlay', overlayJson.value)
 }
 
 function resetBars(): void {
@@ -87,24 +69,12 @@ function resetOverlay(): void {
   )
 }
 
-function copyLabel(status: CopyStatus, idleLabel: string): string {
-  if (status === 'success') return '已复制 ✓'
-  if (status === 'error') return '复制失败，请重试'
-  return idleLabel
-}
-
-onBeforeUnmount(() => {
-  barsCopyRequest += 1
-  overlayCopyRequest += 1
-  clearTimeout(barsCopiedTimer)
-  clearTimeout(overlayCopiedTimer)
-})
 </script>
 
 <template>
   <div class="data-controls">
     <section class="data-group">
-      <h3>区级扶持企业柱状图</h3>
+      <h3>区域数据柱体</h3>
       <p class="hint">柱体主体固定为不透明；稳定底环与向内收缩的脉冲环可独立调节。</p>
       <MapDistrictBarControls
         :model-value="effect.bars"
@@ -127,7 +97,7 @@ onBeforeUnmount(() => {
       <pre class="json-out" data-testid="overlay-json">{{ overlayJson }}</pre>
       <div class="actions">
         <button class="btn" data-testid="copy-overlay" @click="copyOverlay">
-          {{ copyLabel(overlayCopyStatus, '复制浮层参数') }}
+          {{ visualSettings.copyLabel('overlay', '复制浮层参数') }}
         </button>
         <button class="btn ghost" data-testid="reset-overlay" @click="resetOverlay">
           恢复浮层默认值
@@ -136,14 +106,14 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="data-group">
-      <h3>可复制柱状图参数</h3>
+      <h3>可复制柱体参数</h3>
       <pre class="json-out" data-testid="bars-json">{{ barJson }}</pre>
       <div class="actions">
         <button class="btn" data-testid="copy-bars" @click="copyBars">
-          {{ copyLabel(barsCopyStatus, '复制柱状图参数') }}
+          {{ visualSettings.copyLabel('bars', '复制柱体参数') }}
         </button>
         <button class="btn ghost" data-testid="reset-bars" @click="resetBars">
-          恢复柱状图默认值
+          恢复柱体默认值
         </button>
       </div>
     </section>

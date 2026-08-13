@@ -58,7 +58,7 @@ describe('MapDistrictBarControls', () => {
     expect(input(root, 'effect-bars-pulseColor-color').type).toBe('color')
     expect(input(root, 'effect-bars-pulseColor-hex').type).toBe('text')
     expect(root.textContent).toContain('有效柱体：8')
-    expect(root.textContent).toContain('扶持企业范围：10–80')
+    expect(root.textContent).toContain('区域数值范围：10–80')
     expect(root.textContent).toContain('柱体主体：不透明')
     expect(root.textContent).toContain('脉冲环：启用')
     expect(root.textContent).toContain('柱体层：正常')

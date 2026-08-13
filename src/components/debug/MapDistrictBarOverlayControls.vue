@@ -179,8 +179,8 @@ export const MAP_DISTRICT_BAR_OVERLAY_CONTROL_GROUPS: readonly MapDistrictBarOve
       { kind: 'color', path: ['panel', 'unitColor'], label: '单位颜色' },
       numberControl(['panel', 'unitFontSize'], '单位字号 px'),
       numberControl(['panel', 'unitFontWeight'], '单位字重'),
-      numberControl(['panel', 'caseDecimals'], '扶持企业小数位'),
-      numberControl(['panel', 'amountDecimals'], '服务资源小数位'),
+      numberControl(['panel', 'caseDecimals'], '主指标小数位'),
+      numberControl(['panel', 'amountDecimals'], '次指标小数位'),
       { kind: 'bool', path: ['panel', 'thousandsSeparator'], label: '显示千分位' },
       numberControl(['panel', 'enterMs'], '进入时长 ms'),
       numberControl(['panel', 'leaveMs'], '离开时长 ms'),
@@ -200,11 +200,12 @@ export const MAP_DISTRICT_BAR_OVERLAY_CONTROL_GROUPS: readonly MapDistrictBarOve
 </script>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { watch } from 'vue'
 import {
   cloneDistrictBarOverlayConfig,
   normalizeDistrictBarOverlayConfig
 } from '@/components/map/mapDistrictBarOverlayConfig'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 const props = defineProps<{
   modelValue: MapDistrictBarOverlayConfig
@@ -215,11 +216,14 @@ const emit = defineEmits<{
 }>()
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
-const numberDrafts = reactive<Record<string, string>>({})
-const committedNumbers = new Map<string, string>()
+const visualSettings = useMapVisualSettings()
 
 function pathKey(path: MapDistrictBarOverlayControlPath): string {
   return path.join('-')
+}
+
+function draftKey(field: OverlayNumberControl): string {
+  return `bars.overlay.${field.path.join('.')}`
 }
 
 function fieldId(field: MapDistrictBarOverlayControl, control: string): string {
@@ -320,32 +324,29 @@ function updateColor(field: OverlayColorControl, event: Event): void {
 }
 
 function numberDraft(field: OverlayNumberControl): string {
-  return numberDrafts[pathKey(field.path)] ?? String(readNumber(props.modelValue, field.path))
+  return visualSettings.readNumericDraft(draftKey(field), readNumber(props.modelValue, field.path))
 }
 
 function updateNumberDraft(field: OverlayNumberControl, event: Event): void {
-  const key = pathKey(field.path)
-  numberDrafts[key] = (event.target as HTMLInputElement).value
-  committedNumbers.delete(key)
+  visualSettings.editNumericDraft(draftKey(field), (event.target as HTMLInputElement).value)
 }
 
 function writeNumber(field: OverlayNumberControl, raw: string): void {
-  const key = pathKey(field.path)
   const current = readNumber(props.modelValue, field.path)
-  const parsed = raw.trim() === '' ? Number.NaN : Number(raw)
-  if (!Number.isFinite(parsed)) {
-    numberDrafts[key] = String(current)
-    committedNumbers.delete(key)
-    return
-  }
-
+  const result = visualSettings.commitNumericDraft(
+    draftKey(field),
+    raw,
+    current,
+    (value) => {
+      const candidate = cloneDistrictBarOverlayConfig(props.modelValue)
+      writeNumberPath(candidate, field.path, value)
+      return readNumber(normalizeDistrictBarOverlayConfig(candidate), field.path)
+    }
+  )
+  if (!result.changed) return
   const candidate = cloneDistrictBarOverlayConfig(props.modelValue)
-  writeNumberPath(candidate, field.path, parsed)
+  writeNumberPath(candidate, field.path, result.value)
   const normalizedConfig = normalizeDistrictBarOverlayConfig(candidate)
-  const normalized = readNumber(normalizedConfig, field.path)
-  numberDrafts[key] = String(normalized)
-  if (committedNumbers.get(key) === String(normalized) || normalized === current) return
-  committedNumbers.set(key, String(normalized))
   emit('update:modelValue', normalizedConfig)
 }
 
@@ -363,10 +364,7 @@ watch(() => props.modelValue, () => {
   for (const group of MAP_DISTRICT_BAR_OVERLAY_CONTROL_GROUPS) {
     for (const field of group.fields) {
       if (field.kind !== 'number') continue
-      const key = pathKey(field.path)
-      const value = String(readNumber(props.modelValue, field.path))
-      numberDrafts[key] = value
-      if (committedNumbers.get(key) !== value) committedNumbers.delete(key)
+      visualSettings.syncNumericDraft(draftKey(field), readNumber(props.modelValue, field.path))
     }
   }
 }, { deep: true, immediate: true })

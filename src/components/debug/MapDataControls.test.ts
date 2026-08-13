@@ -49,7 +49,8 @@ describe('MapDataControls', () => {
     useMapDebug().updateDistrictBarRuntimeStatus({ renderedCount: 8, dataMin: 16, dataMax: 180, degraded: false })
     await nextTick()
 
-    expect(root.textContent).toContain('区级扶持企业柱状图')
+    expect(root.textContent).toContain('区域数据柱体')
+    expect(root.textContent).not.toMatch(/扶持|企业|服务资源/)
     expect(root.textContent).toContain('有效柱体：8')
     expect(root.textContent).toContain('柱体主体：不透明')
     expect(root.querySelector('#effect-bars-width-number')).not.toBeNull()
@@ -193,7 +194,7 @@ describe('MapDataControls', () => {
 
     vi.advanceTimersByTime(750)
     await nextTick()
-    expect(copyBars.textContent).toBe('复制柱状图参数')
+    expect(copyBars.textContent).toBe('复制柱体参数')
     expect(copyOverlay.textContent).toContain('已复制')
 
     vi.advanceTimersByTime(750)
@@ -227,7 +228,7 @@ describe('MapDataControls', () => {
     copyOverlay.click()
     resolveThird()
     await vi.waitFor(() => expect(copyOverlay.textContent).toContain('已复制'))
-    expect(copyBars.textContent).toBe('复制柱状图参数')
+    expect(copyBars.textContent).toBe('复制柱体参数')
 
     rejectSecond(new Error('denied'))
     await vi.waitFor(() => expect(copyBars.textContent).toContain('复制失败'))
