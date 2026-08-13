@@ -65,7 +65,9 @@ export interface MapVisualizationDraft {
 
 export interface MapDocument {
   version: 1
-  source: { kind: 'builtin' | 'geojson'; displayName: string }
+  source:
+    | { kind: 'builtin'; displayName: string }
+    | { kind: 'geojson'; displayName: string; identity: string }
   geometry: ProjectionResult
   metrics: ReadonlyMap<string, MapRegionMetrics>
   metricLabels: MapMetricLabels | null
@@ -76,11 +78,10 @@ export interface MapDocument {
 }
 
 export interface PersistedMapPackage {
-  version: 1
+  version: 2
   geometryText: string
   geometryFileName: string
   nameProperty: string
-  metricsText?: string
 }
 
 export interface MapMetricsSummary {
@@ -102,6 +103,7 @@ export interface MapImportSummary {
 export interface PreparedMapPackage {
   document: MapDocument
   persisted: PersistedMapPackage
+  visualization: MapVisualizationDraft
   summary: MapImportSummary
 }
 
@@ -147,6 +149,16 @@ function isRecord(value: unknown): value is JsonRecord {
 
 function byteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength
+}
+
+function geometryIdentity(geometryText: string, nameProperty: string): string {
+  let hash = 0x811c9dc5
+  const value = `${nameProperty}\u0000${geometryText}`
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return `geojson-v1:${value.length}:${(hash >>> 0).toString(16).padStart(8, '0')}`
 }
 
 function fail(code: MapImportErrorCode, path: string, message: string): never {
@@ -510,31 +522,44 @@ export function prepareGeoJsonMapPackage(input: PrepareGeoJsonMapPackageInput): 
   const regions = regionsWithNames(parsed.features, input.nameProperty)
   const parsedMetrics = input.metricsText === undefined ? null : parseMetrics(input.metricsText)
   const regionNames = new Set(regions.map((region) => region.name))
-  const metrics = new Map<string, MapRegionMetrics>()
-  if (parsedMetrics) {
-    for (const region of regions) {
-      const item = parsedMetrics.byName.get(region.name)
-      if (item) metrics.set(region.name, item)
-    }
-  }
-  const document: MapDocument = {
+  const baseDocument: MapDocument = {
     version: 1,
-    source: { kind: 'geojson', displayName: input.geometryFileName },
+    source: {
+      kind: 'geojson',
+      displayName: input.geometryFileName,
+      identity: geometryIdentity(input.geometryText, input.nameProperty)
+    },
     geometry: projectRegions(regions, MAP_PLANE_MAX),
-    metrics,
-    metricLabels: parsedMetrics?.labels ?? null,
+    metrics: new Map(),
+    metricLabels: null,
     appearance: { kind: 'tech-blue' },
     drilldown: false
   }
+  const visualization = createMapVisualizationDraft(baseDocument)
+  if (parsedMetrics) {
+    visualization.labels = parsedMetrics.labels
+    visualization.regions = visualization.regions.map((row) => {
+      const item = parsedMetrics.byName.get(row.regionKey)
+      return item
+        ? {
+            ...row,
+            enabled: true,
+            primary: item.primary,
+            secondary: item.secondary
+          }
+        : row
+    })
+  }
+  const document = composeMapVisualization(baseDocument, visualization)
   return {
     document,
     persisted: {
-      version: 1,
+      version: 2,
       geometryText: input.geometryText,
       geometryFileName: input.geometryFileName,
-      nameProperty: input.nameProperty,
-      ...(input.metricsText === undefined ? {} : { metricsText: input.metricsText })
+      nameProperty: input.nameProperty
     },
+    visualization,
     summary: {
       geometryFileName: input.geometryFileName,
       ...parsed.inspection,

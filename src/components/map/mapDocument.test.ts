@@ -55,7 +55,11 @@ describe('mapDocument', () => {
       nameProperty: 'name'
     })
 
-    expect(prepared.document.source).toEqual({ kind: 'geojson', displayName: 'mixed.geojson' })
+    expect(prepared.document.source).toMatchObject({
+      kind: 'geojson',
+      displayName: 'mixed.geojson',
+      identity: expect.stringMatching(/^geojson-v1:/)
+    })
     expect(prepared.document.appearance).toEqual({ kind: 'tech-blue' })
     expect(prepared.document.drilldown).toBe(false)
     expect(prepared.document.metrics.size).toBe(0)
@@ -89,7 +93,7 @@ describe('mapDocument', () => {
       metrics: null
     })
     expect(prepared.persisted).toEqual({
-      version: 1,
+      version: 2,
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
       nameProperty: 'name'
@@ -126,7 +130,19 @@ describe('mapDocument', () => {
       missingNames: ['区域 B'],
       extraNames: ['区域 C']
     })
-    expect(prepared.persisted.metricsText).toBe(metricsText)
+    expect(prepared.persisted).toEqual({
+      version: 2,
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    })
+    expect(prepared.visualization.regions.find((region) => region.regionKey === '区域 A')).toEqual({
+      regionKey: '区域 A',
+      displayName: '区域 A',
+      enabled: true,
+      primary: 120,
+      secondary: 45.6
+    })
   })
 
   it('以稳定分块 key 绑定指标，同时允许 hover 使用独立展示名称', () => {

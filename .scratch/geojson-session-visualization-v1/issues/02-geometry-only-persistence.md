@@ -4,15 +4,15 @@
 
 **Blocked by:** 01 — Separate stable region identity from display names.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] New persisted records contain only the geometry text, geometry filename, selected name property and record version.
-- [ ] No custom labels, units, display names, enabled states, numeric values or metrics JSON are written to IndexedDB, localStorage, sessionStorage, URL state or browser caches.
-- [ ] Same-page loader/home navigation preserves visualization for the matching active geometry.
-- [ ] A simulated or real full reload preserves custom geometry but yields original display names, zero enabled rows, no bars and no data panel.
-- [ ] Replacing the GeoJSON or resetting to the built-in map clears incompatible session visualization.
-- [ ] Legacy records with metrics still load their geometry, never expose stored metrics, and are rewritten geometry-only; rewrite failure returns a warning without exposing data or blanking the map.
-- [ ] Persistence failure remains atomic and cannot attach one geometry's session data to another geometry.
+- [x] New persisted records contain only the geometry text, geometry filename, selected name property and record version.
+- [x] No custom labels, units, display names, enabled states, numeric values or metrics JSON are written to IndexedDB, localStorage, sessionStorage, URL state or browser caches.
+- [x] Same-page loader/home navigation preserves visualization for the matching active geometry.
+- [x] A simulated or real full reload preserves custom geometry but yields original display names, zero enabled rows, no bars and no data panel.
+- [x] Replacing the GeoJSON or resetting to the built-in map clears incompatible session visualization.
+- [x] Legacy records with metrics still load their geometry, never expose stored metrics, and are rewritten geometry-only; rewrite failure returns a warning without exposing data or blanking the map.
+- [x] Persistence failure remains atomic and cannot attach one geometry's session data to another geometry.
 
 ## Comments
 

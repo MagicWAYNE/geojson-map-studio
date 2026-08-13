@@ -1259,7 +1259,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
   it('uses tech-blue materials without loading the terrain texture', async () => {
     const mapDocument = createTestMapDocument(1, {
-      source: { kind: 'geojson', displayName: 'custom.geojson' },
+      source: { kind: 'geojson', displayName: 'custom.geojson', identity: 'custom-geometry' },
       appearance: { kind: 'tech-blue' },
       drilldown: false
     })
@@ -1278,7 +1278,11 @@ describe('ChongqingMap3D effect wiring', () => {
 
   it('keeps effects but omits bars and overlay when a custom map has no business data', async () => {
     const mapDocument = createTestMapDocument(3, {
-      source: { kind: 'geojson', displayName: 'geometry-only.geojson' },
+      source: {
+        kind: 'geojson',
+        displayName: 'geometry-only.geojson',
+        identity: 'geometry-only'
+      },
       metrics: new Map(),
       metricLabels: null,
       appearance: { kind: 'tech-blue' },
@@ -1302,7 +1306,7 @@ describe('ChongqingMap3D effect wiring', () => {
 
   it('only allows built-in documents to navigate to district details', async () => {
     const customDocument = createTestMapDocument(1, {
-      source: { kind: 'geojson', displayName: 'custom.geojson' },
+      source: { kind: 'geojson', displayName: 'custom.geojson', identity: 'custom-geometry' },
       appearance: { kind: 'tech-blue' },
       drilldown: false
     })

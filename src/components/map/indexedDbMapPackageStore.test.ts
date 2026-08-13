@@ -5,7 +5,7 @@ import { createIndexedDbMapPackageStore } from './indexedDbMapPackageStore'
 import type { PersistedMapPackage } from './mapDocument'
 
 const firstPackage: PersistedMapPackage = {
-  version: 1,
+  version: 2,
   geometryText: '{"type":"FeatureCollection","features":[]}',
   geometryFileName: 'first.geojson',
   nameProperty: 'name'
@@ -24,7 +24,7 @@ describe('indexedDbMapPackageStore', () => {
 
     await expect(refreshedStore.writeActive({
       ...firstPackage,
-      metricsText: (() => undefined) as unknown as string
+      geometryText: (() => undefined) as unknown as string
     })).rejects.toThrow()
     await expect(firstStore.readActive()).resolves.toEqual(firstPackage)
 
