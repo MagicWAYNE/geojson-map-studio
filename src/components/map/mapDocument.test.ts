@@ -194,6 +194,40 @@ describe('mapDocument', () => {
     expect(base.metrics.size).toBe(0)
   })
 
+  it('按 Unicode 字符而非 UTF-16 码元限制展示名称', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.regions[0].displayName = '🚀'.repeat(40)
+
+    expect(composeMapVisualization(base, draft).metrics.size).toBe(0)
+
+    draft.regions[0].displayName = '🚀'.repeat(41)
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      code: 'invalid-visualization',
+      path: 'regions[0].displayName'
+    }))
+  })
+
+  it('未启用分块时仍校验两项全图指标定义', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.labels.primary.label = ''
+
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      code: 'invalid-metrics',
+      path: 'primaryMetric.label'
+    }))
+    expect(base.metricLabels).toBeNull()
+  })
+
   it('业务数据名称与 GeoJSON 区域名称使用未经修剪的精确匹配', () => {
     const geometryText = validMixedGeoJson.replace('区域 A', '区域 A ')
     const metricsText = JSON.stringify({

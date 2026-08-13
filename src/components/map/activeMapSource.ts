@@ -85,13 +85,34 @@ function failureMessage(cause: unknown): string {
 export function createActiveMapSource(
   dependencies: ActiveMapSourceDependencies
 ): ActiveMapSource {
+  let currentCustom: {
+    document: MapDocument
+    prepared: PreparedMapPackage
+    visualization: MapVisualizationDraft
+  } | null = null
+
   const loadBuiltin = async (warnings: MapSourceWarning[]): Promise<ActiveMapLoadResult> => {
+    const document = await dependencies.loadBuiltin()
     dependencies.session.clear()
+    currentCustom = null
     return {
-      document: await dependencies.loadBuiltin(),
+      document,
       warnings
     }
   }
+
+  const recoverFromFailure = async (
+    warnings: MapSourceWarning[]
+  ): Promise<ActiveMapLoadResult> => currentCustom
+    ? {
+        document: currentCustom.document,
+        warnings,
+        custom: {
+          prepared: currentCustom.prepared,
+          visualization: currentCustom.visualization
+        }
+      }
+    : loadBuiltin(warnings)
 
   return {
     async load(): Promise<ActiveMapLoadResult> {
@@ -99,21 +120,19 @@ export function createActiveMapSource(
       try {
         stored = await dependencies.store.readActive()
       } catch (cause) {
-        return loadBuiltin([{
+        return recoverFromFailure([{
           code: 'storage-read-failed',
-          message: `读取已保存地图失败，已回退内置地图：${failureMessage(cause)}`
+          message: `读取已保存地图失败，当前可用地图保持不变：${failureMessage(cause)}`
         }])
       }
       if (stored === null || stored === undefined) {
-        dependencies.session.clear()
         return loadBuiltin([])
       }
       const storedPackage = persistedPackage(stored)
       if (!storedPackage) {
-        dependencies.session.clear()
-        return loadBuiltin([{
+        return recoverFromFailure([{
           code: 'unsupported-record',
-          message: '已保存地图版本不受支持，已回退内置地图'
+          message: '已保存地图版本不受支持，当前可用地图保持不变'
         }])
       }
       try {
@@ -134,16 +153,17 @@ export function createActiveMapSource(
             })
           }
         }
+        const document = composeMapVisualization(prepared.document, visualization)
+        currentCustom = { document, prepared, visualization }
         return {
-          document: composeMapVisualization(prepared.document, visualization),
+          document,
           warnings,
           custom: { prepared, visualization }
         }
       } catch (cause) {
-        dependencies.session.clear()
-        return loadBuiltin([{
+        return recoverFromFailure([{
           code: 'invalid-record',
-          message: `已保存地图损坏，已回退内置地图：${failureMessage(cause)}`
+          message: `已保存地图损坏，当前可用地图保持不变：${failureMessage(cause)}`
         }])
       }
     },
@@ -155,13 +175,16 @@ export function createActiveMapSource(
       const document = composeMapVisualization(prepared.document, visualization)
       await dependencies.store.writeActive(prepared.persisted)
       dependencies.session.replace(prepared.document.source, visualization)
+      currentCustom = { document, prepared, visualization }
       return document
     },
 
     async resetToBuiltin(): Promise<MapDocument> {
+      const document = await dependencies.loadBuiltin()
       await dependencies.store.deleteActive()
       dependencies.session.clear()
-      return dependencies.loadBuiltin()
+      currentCustom = null
+      return document
     }
   }
 }

@@ -172,6 +172,9 @@ describe('MapLoaderView', () => {
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 2')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('缺失 1')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('多余 1')
+    expect(root.querySelector('[data-prefill="matched"]')?.textContent).toContain('区域 A、区域 B')
+    expect(root.querySelector('[data-prefill="missing"]')?.textContent).toContain('区域 C')
+    expect(root.querySelector('[data-prefill="extra"]')?.textContent).toContain('区域 D')
 
     const regionA = regionRow(root, '区域 A')
     expect(regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')?.checked).toBe(true)
@@ -221,6 +224,10 @@ describe('MapLoaderView', () => {
     expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
     expect(regionRow(root, '区域 A')
       .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
+    enter(regionRow(root, '区域 A').querySelector<HTMLInputElement>('[data-field="display-name"]')!, '错误后继续编辑')
+    await nextTick()
+    expect(root.textContent).toContain('new-invalid.json')
+    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
 
     const replacement = JSON.stringify({
       version: 1,

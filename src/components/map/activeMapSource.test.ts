@@ -131,7 +131,7 @@ describe('activeMapSource', () => {
     expect(loadBuiltin).toHaveBeenCalledTimes(1)
   })
 
-  it('写入失败保留旧 active record，损坏记录和读取失败都回退内置地图并给出 warning', async () => {
+  it('写入失败或后续读取异常时保留当前有效地图，新实例才回退内置地图', async () => {
     const store = new MemoryMapPackageStore()
     const loadBuiltin = vi.fn(async () => builtinDocument())
     const session = createMemoryMapVisualizationSession()
@@ -149,13 +149,25 @@ describe('activeMapSource', () => {
 
     store.active = { version: 99 }
     await expect(source.load()).resolves.toMatchObject({
+      document: { source: { displayName: '旧地图.geojson' } },
+      custom: { visualization: { regions: [expect.objectContaining({ displayName: '旧展示名' })] } },
+      warnings: [{ code: 'unsupported-record', message: expect.any(String) }]
+    })
+
+    const refreshedSource = createActiveMapSource({
+      store,
+      session: createMemoryMapVisualizationSession(),
+      loadBuiltin
+    })
+    await expect(refreshedSource.load()).resolves.toMatchObject({
       document: { source: { kind: 'builtin' } },
       warnings: [{ code: 'unsupported-record', message: expect.any(String) }]
     })
 
     store.failRead = true
     await expect(source.load()).resolves.toMatchObject({
-      document: { source: { kind: 'builtin' } },
+      document: { source: { displayName: '旧地图.geojson' } },
+      custom: { visualization: { regions: [expect.objectContaining({ displayName: '旧展示名' })] } },
       warnings: [{ code: 'storage-read-failed', message: expect.stringContaining('read failed') }]
     })
   })
@@ -175,6 +187,21 @@ describe('activeMapSource', () => {
       document: { source: { kind: 'builtin' } },
       warnings: []
     })
+  })
+
+  it('加载内置地图失败时 reset 不删除当前几何或会话', async () => {
+    const store = new MemoryMapPackageStore()
+    const session = createMemoryMapVisualizationSession()
+    const loadBuiltin = vi.fn(async () => builtinDocument())
+    const source = createActiveMapSource({ store, session, loadBuiltin })
+    const current = prepared('当前区域')
+    const draft = visualizationFor('当前区域', '当前展示名')
+    await source.activate(current, draft)
+    loadBuiltin.mockRejectedValueOnce(new Error('builtin failed'))
+
+    await expect(source.resetToBuiltin()).rejects.toThrow('builtin failed')
+    expect(store.active).toEqual(current.persisted)
+    expect(session.read(current.document.source)?.regions[0].displayName).toBe('当前展示名')
   })
 
   it('忽略 V1 持久化业务数据并把旧记录迁移为 geometry-only', async () => {

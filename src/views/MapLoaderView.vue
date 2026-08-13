@@ -27,6 +27,7 @@ const visualization = ref<MapVisualizationDraft>()
 const prefillSummary = shallowRef<MapMetricsSummary>()
 const warnings = ref<MapSourceWarning[]>([])
 const validationError = ref('')
+const metricsValidationError = ref('')
 const busy = ref(false)
 const metricsReading = ref(false)
 let geometryReadGeneration = 0
@@ -40,7 +41,8 @@ const canApply = computed(() =>
   visualization.value !== undefined &&
   !busy.value &&
   !metricsReading.value &&
-  !validationError.value
+  !validationError.value &&
+  !metricsValidationError.value
 )
 
 function errorMessage(cause: unknown, fileName = ''): string {
@@ -99,6 +101,7 @@ async function handleGeometryFile(event: Event): Promise<void> {
   metricsReading.value = false
   metricsFileName.value = ''
   prefillSummary.value = undefined
+  metricsValidationError.value = ''
   const file = (event.target as HTMLInputElement).files?.[0]
   geometryText.value = undefined
   geometryFileName.value = ''
@@ -128,7 +131,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
   const generation = ++metricsReadGeneration
   const file = (event.target as HTMLInputElement).files?.[0]
   metricsFileName.value = file?.name ?? ''
-  validationError.value = ''
+  metricsValidationError.value = ''
   if (!file) {
     metricsReading.value = false
     prefillSummary.value = undefined
@@ -136,7 +139,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
     return
   }
   if (!prepared.value) {
-    validationError.value = '请先上传并校验 GeoJSON 边界文件'
+    metricsValidationError.value = '请先上传并校验 GeoJSON 边界文件'
     return
   }
   metricsReading.value = true
@@ -148,7 +151,9 @@ async function handleMetricsFile(event: Event): Promise<void> {
     prefillSummary.value = prefill.summary
     validateVisualization()
   } catch (cause) {
-    if (generation === metricsReadGeneration) validationError.value = errorMessage(cause, file.name)
+    if (generation === metricsReadGeneration) {
+      metricsValidationError.value = errorMessage(cause, file.name)
+    }
   } finally {
     if (generation === metricsReadGeneration) metricsReading.value = false
   }
@@ -301,6 +306,20 @@ onMounted(async () => {
           缺失 {{ prefillSummary.missingNames.length }} ·
           多余 {{ prefillSummary.extraNames.length }}
         </p>
+        <dl v-if="prefillSummary" class="map-loader__prefill-details">
+          <div data-prefill="matched">
+            <dt>匹配</dt>
+            <dd>{{ prefillSummary.matchedNames.join('、') || '无' }}</dd>
+          </div>
+          <div data-prefill="missing">
+            <dt>缺失</dt>
+            <dd>{{ prefillSummary.missingNames.join('、') || '无' }}</dd>
+          </div>
+          <div data-prefill="extra">
+            <dt>多余</dt>
+            <dd>{{ prefillSummary.extraNames.join('、') || '无' }}</dd>
+          </div>
+        </dl>
         <p v-else data-summary="metrics">
           已启用 {{ enabledRegionCount }} / {{ visualization?.regions.length ?? 0 }} 个分块；
           未启用分块只显示地图效果。
@@ -319,19 +338,19 @@ onMounted(async () => {
         <div class="map-loader__metric-fields">
           <label for="primary-label">
             <span>主指标名称</span>
-            <input id="primary-label" v-model="visualization.labels.primary.label" maxlength="20" @input="validateVisualization" />
+            <input id="primary-label" v-model="visualization.labels.primary.label" @input="validateVisualization" />
           </label>
           <label for="primary-unit">
             <span>主指标单位</span>
-            <input id="primary-unit" v-model="visualization.labels.primary.unit" maxlength="8" @input="validateVisualization" />
+            <input id="primary-unit" v-model="visualization.labels.primary.unit" @input="validateVisualization" />
           </label>
           <label for="secondary-label">
             <span>次指标名称</span>
-            <input id="secondary-label" v-model="visualization.labels.secondary.label" maxlength="20" @input="validateVisualization" />
+            <input id="secondary-label" v-model="visualization.labels.secondary.label" @input="validateVisualization" />
           </label>
           <label for="secondary-unit">
             <span>次指标单位</span>
-            <input id="secondary-unit" v-model="visualization.labels.secondary.unit" maxlength="8" @input="validateVisualization" />
+            <input id="secondary-unit" v-model="visualization.labels.secondary.unit" @input="validateVisualization" />
           </label>
         </div>
 
@@ -368,7 +387,6 @@ onMounted(async () => {
               <input
                 v-model="region.displayName"
                 type="text"
-                maxlength="40"
                 data-field="display-name"
                 :aria-label="`${region.regionKey} 展示名称`"
                 @input="validateVisualization"
@@ -398,8 +416,8 @@ onMounted(async () => {
         </div>
       </section>
 
-      <p v-if="validationError" class="map-loader__error" role="alert">
-        {{ validationError }}
+      <p v-if="metricsValidationError || validationError" class="map-loader__error" role="alert">
+        {{ metricsValidationError || validationError }}
       </p>
 
       <footer class="map-loader__actions">
@@ -487,6 +505,10 @@ onMounted(async () => {
 }
 
 .map-loader__summary p + p { margin-top: 5px; }
+.map-loader__prefill-details { margin: 9px 0 0; }
+.map-loader__prefill-details div { display: grid; grid-template-columns: 46px 1fr; gap: 8px; }
+.map-loader__prefill-details dt { color: #6cdff8; }
+.map-loader__prefill-details dd { margin: 0; color: #98b6d8; overflow-wrap: anywhere; }
 .map-loader__editor {
   margin-top: 20px;
   padding: 18px 20px 20px;

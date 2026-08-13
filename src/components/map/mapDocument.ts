@@ -380,28 +380,18 @@ function regionsWithNames(features: ParsedFeature[], nameProperty: string): Regi
   return features.map((feature, index) => ({ name: names[index], outers: feature.regionOuters }))
 }
 
-function readMetricText(
+function readBoundedText(
   value: unknown,
   path: string,
-  maxLength: number
+  maxLength: number,
+  code: 'invalid-metrics' | 'invalid-visualization'
 ): string {
   if (typeof value !== 'string') {
-    fail('invalid-metrics', path, `${path} 必须是文本`)
+    fail(code, path, `${path} 必须是文本`)
   }
   const text = value.trim()
   if (!text || Array.from(text).length > maxLength) {
-    fail('invalid-metrics', path, `${path} 长度必须在 1 到 ${maxLength} 个字符之间`)
-  }
-  return text
-}
-
-function readVisualizationText(value: unknown, path: string, maxLength: number): string {
-  if (typeof value !== 'string') {
-    fail('invalid-visualization', path, `${path} 必须是文本`)
-  }
-  const text = value.trim()
-  if (!text || Array.from(text).length > maxLength) {
-    fail('invalid-visualization', path, `${path} 长度必须在 1 到 ${maxLength} 个字符之间`)
+    fail(code, path, `${path} 长度必须在 1 到 ${maxLength} 个字符之间`)
   }
   return text
 }
@@ -409,8 +399,8 @@ function readVisualizationText(value: unknown, path: string, maxLength: number):
 function readMetricLabel(value: unknown, path: string): { label: string; unit: string } {
   if (!isRecord(value)) fail('invalid-metrics', path, `${path} 必须包含 label 和 unit`)
   return {
-    label: readMetricText(value.label, `${path}.label`, 20),
-    unit: readMetricText(value.unit, `${path}.unit`, 8)
+    label: readBoundedText(value.label, `${path}.label`, 20, 'invalid-metrics'),
+    unit: readBoundedText(value.unit, `${path}.unit`, 8, 'invalid-metrics')
   }
 }
 
@@ -490,7 +480,12 @@ export function composeMapVisualization(
       fail('invalid-visualization', `${path}.regionKey`, `${path}.regionKey 必须对应唯一的地图分块`)
     }
     rowsByKey.set(row.regionKey, row)
-    const displayName = readVisualizationText(row.displayName, `${path}.displayName`, 40)
+    const displayName = readBoundedText(
+      row.displayName,
+      `${path}.displayName`,
+      40,
+      'invalid-visualization'
+    )
     if (displayNames.has(displayName)) {
       fail('invalid-visualization', `${path}.displayName`, `展示名称 ${displayName} 重复`)
     }
@@ -507,16 +502,14 @@ export function composeMapVisualization(
   if (rowsByKey.size !== expectedKeys.size) {
     fail('invalid-visualization', 'regions', '每个地图分块必须且只能有一条编辑记录')
   }
-  const labels = metrics.size === 0
-    ? null
-    : {
-        primary: readMetricLabel(draft.labels.primary, 'primaryMetric'),
-        secondary: readMetricLabel(draft.labels.secondary, 'secondaryMetric')
-      }
+  const labels = {
+    primary: readMetricLabel(draft.labels.primary, 'primaryMetric'),
+    secondary: readMetricLabel(draft.labels.secondary, 'secondaryMetric')
+  }
   return {
     ...document,
     metrics,
-    metricLabels: labels
+    metricLabels: metrics.size === 0 ? null : labels
   }
 }
 
