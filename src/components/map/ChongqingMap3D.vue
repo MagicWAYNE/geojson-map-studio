@@ -23,6 +23,7 @@ import {
   createDistrictBarLayer,
   disposeDistrictBarLayer,
   getDistrictBarTopSnapshots,
+  reconcileDistrictBarLayer,
   setDistrictBarFocus,
   setDistrictBarHoverProgress,
   updateDistrictBarLayer,
@@ -111,8 +112,10 @@ let mounted = false
 let initGeneration = 0
 let pendingInitCleanup: (() => void) | null = null
 let districtBars: DistrictBarLayer | null = null
+let mapRoot: THREE.Group | null = null
 let districtHoverCarousel: MapDistrictHoverCarousel | null = null
 let barAnimationStartedAt = 0
+let pendingBusinessDocument: MapDocument | null = null
 let districtBarOverlaySizes: DistrictBarOverlayMeasuredSizes | undefined
 const regionMeshes: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
@@ -782,6 +785,33 @@ function loop(now: number) {
   if (glowStatusChanged) publishGlowStatus()
   else if (!outwardGlow && currentMosaicState() !== previousMosaicState) publishMosaicStatus()
   controls?.update()
+  const pendingDocument = pendingBusinessDocument
+  pendingBusinessDocument = null
+  if (pendingDocument && mapRoot) {
+    try {
+      if (districtBars) {
+        reconcileDistrictBarLayer(
+          districtBars,
+          pendingDocument.geometry.regions,
+          pendingDocument.metrics,
+          effect.bars
+        )
+      } else if (pendingDocument.metrics.size > 0) {
+        districtBars = createDistrictBarLayer(
+          pendingDocument.geometry.regions,
+          pendingDocument.metrics,
+          effect.bars,
+          DEPTH
+        )
+        mapRoot.add(districtBars.group)
+        barAnimationStartedAt = now
+      }
+      if (districtBars) publishDistrictBarRuntimeStatus(districtBars)
+      else updateDistrictBarRuntimeStatus({ ...DEFAULT_MAP_DISTRICT_BAR_RUNTIME_STATUS })
+    } catch (cause) {
+      handleDistrictBarFailure(cause, '更新')
+    }
+  }
   const bars = districtBars
   if (bars) {
     try {
@@ -871,6 +901,7 @@ async function init(generation: number) {
     if (!isCurrentInit(generation)) return
     if (terrainTex) terrainTex.colorSpace = THREE.SRGBColorSpace
     const mapGroup = buildRegions(props.document, terrainTex)
+    mapRoot = mapGroup
     if (props.document.metrics.size > 0) {
       try {
         districtBars = createDistrictBarLayer(
@@ -924,6 +955,18 @@ async function init(generation: number) {
 }
 
 onMounted(() => {
+  startScene()
+})
+
+function documentGeometryKey(document: MapDocument): string {
+  return document.source.kind === 'geojson'
+    ? document.source.identity
+    : `builtin:${document.source.displayName}`
+}
+
+let currentGeometryKey = documentGeometryKey(props.document)
+
+function startScene(): void {
   mounted = true
   districtBarFailureWarned = false
   districtBarOverlayFailureWarned = false
@@ -938,6 +981,22 @@ onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
   const generation = ++initGeneration
   void init(generation)
+}
+
+const stopDocumentWatch = watch(() => props.document, (nextDocument) => {
+  const nextGeometryKey = documentGeometryKey(nextDocument)
+  if (nextGeometryKey === currentGeometryKey) {
+    pendingBusinessDocument = nextDocument
+    return
+  }
+  currentGeometryKey = nextGeometryKey
+  pendingBusinessDocument = null
+  if (!mounted) return
+  initGeneration += 1
+  pendingInitCleanup?.()
+  pendingInitCleanup = null
+  cleanupScene()
+  startScene()
 })
 
 function disposeSceneResources(root: THREE.Object3D): void {
@@ -1006,6 +1065,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   renderer?.domElement.remove()
   renderer = null
   scene = null
+  mapRoot = null
   camera = null
   staticGlow = null
   mapHud = null
@@ -1016,6 +1076,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   visualByName.clear()
   hoveredVisual = null
   barAnimationStartedAt = 0
+  pendingBusinessDocument = null
   frames = 0
   lastFpsAt = 0
   lastFrameAt = 0
@@ -1029,6 +1090,7 @@ onBeforeUnmount(() => {
   stopEffectWatch()
   stopHudWatch()
   stopDistrictCarouselWatch()
+  stopDocumentWatch()
   cleanupScene()
 })
 </script>

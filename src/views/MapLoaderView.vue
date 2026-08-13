@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { activeMapSource } from '@/components/map/mapSource'
 import {
-  composeMapVisualization,
   inspectGeoJsonMap,
   MapImportError,
   prefillMapVisualizationDraft,
@@ -10,10 +9,15 @@ import {
   type GeoJsonInspection,
   type MapDocument,
   type MapMetricsSummary,
-  type MapVisualizationDraft,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
 import type { MapSourceWarning } from '@/components/map/activeMapSource'
+import {
+  createMapAuthoringWorkspace,
+  type MapAuthoringCommitResult,
+  type MapAuthoringSnapshot,
+  type MapAuthoringWorkspace
+} from '@/components/map/mapAuthoringWorkspace'
 
 const emit = defineEmits<{
   mapActivated: [document: MapDocument]
@@ -23,7 +27,9 @@ const geometryFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
-const visualization = ref<MapVisualizationDraft>()
+const workspace = shallowRef<MapAuthoringWorkspace>()
+const workspaceSnapshot = shallowRef<MapAuthoringSnapshot>()
+const visualization = computed(() => workspaceSnapshot.value?.editable)
 const prefillSummary = shallowRef<MapMetricsSummary>()
 const warnings = ref<MapSourceWarning[]>([])
 const validationError = ref('')
@@ -46,23 +52,24 @@ function errorMessage(cause: unknown, fileName = ''): string {
   return fileName ? `${fileName}：${message}` : message
 }
 
-function visualizationErrorMessage(cause: unknown): string {
-  if (cause instanceof MapImportError) {
-    const match = /^regions\[(\d+)]/.exec(cause.path)
-    const region = match && visualization.value?.regions[Number(match[1])]
-    if (region) return `${region.regionKey}：${cause.userMessage}`
-  }
-  return errorMessage(cause)
+function refreshWorkspace(): void {
+  workspaceSnapshot.value = workspace.value?.read()
 }
 
-function validateVisualization(): void {
-  validationError.value = ''
-  if (!prepared.value || !visualization.value) return
-  try {
-    composeMapVisualization(prepared.value.document, visualization.value)
-  } catch (cause) {
-    validationError.value = visualizationErrorMessage(cause)
-  }
+function installWorkspace(
+  nextPrepared: PreparedMapPackage,
+  initialVisualization = nextPrepared.visualization
+): void {
+  workspace.value = createMapAuthoringWorkspace(
+    nextPrepared.document,
+    initialVisualization,
+    {
+      publishVisualization(visualization) {
+        return activeMapSource.updateVisualization(nextPrepared, visualization)
+      }
+    }
+  )
+  refreshWorkspace()
 }
 
 interface GeometryCandidate {
@@ -87,10 +94,9 @@ async function activateGeometry(candidate: GeometryCandidate): Promise<void> {
       inspection.value = candidate.inspection
       nameProperty.value = candidate.nameProperty
       prepared.value = candidate.prepared
-      visualization.value = candidate.prepared.visualization
+      installWorkspace(candidate.prepared)
       prefillSummary.value = undefined
       metricsValidationError.value = ''
-      validateVisualization()
       emit('mapActivated', document)
     } catch (cause) {
       if (generation === activationGeneration) {
@@ -164,7 +170,6 @@ async function handleMetricsFile(event: Event): Promise<void> {
   if (!file) {
     metricsReading.value = false
     prefillSummary.value = undefined
-    validateVisualization()
     return
   }
   if (!prepared.value) {
@@ -176,9 +181,9 @@ async function handleMetricsFile(event: Event): Promise<void> {
     const text = await file.text()
     if (generation !== metricsReadGeneration) return
     const prefill = prefillMapVisualizationDraft(prepared.value.document, text)
-    visualization.value = prefill.visualization
+    workspace.value?.prefill(prefill.visualization)
+    refreshWorkspace()
     prefillSummary.value = prefill.summary
-    validateVisualization()
   } catch (cause) {
     if (generation === metricsReadGeneration) {
       metricsValidationError.value = errorMessage(cause, file.name)
@@ -206,16 +211,50 @@ async function handleNameProperty(): Promise<void> {
   }
 }
 
-function setRegionNumber(
-  regionIndex: number,
-  field: 'primary' | 'secondary',
+function editMetric(
+  metric: 'primary' | 'secondary',
+  field: 'label' | 'unit',
   event: Event
 ): void {
-  const region = visualization.value?.regions[regionIndex]
-  if (!region) return
-  const value = (event.target as HTMLInputElement).value
-  region[field] = value === '' ? null : Number(value)
-  validateVisualization()
+  workspace.value?.editMetric(metric, { [field]: (event.target as HTMLInputElement).value })
+  refreshWorkspace()
+}
+
+function editRegion(
+  regionKey: string,
+  field: 'enabled' | 'displayName' | 'primary' | 'secondary',
+  event: Event
+): void {
+  const input = event.target as HTMLInputElement
+  workspace.value?.editRegion(regionKey, {
+    [field]: field === 'enabled' ? input.checked : input.value
+  })
+  refreshWorkspace()
+}
+
+function publishCommit(result: MapAuthoringCommitResult): void {
+  refreshWorkspace()
+  if (result.ok) {
+    validationError.value = ''
+    emit('mapActivated', result.document)
+  } else {
+    validationError.value = result.error
+  }
+}
+
+function commitRegion(regionKey: string): void {
+  const result = workspace.value?.commitRegion(regionKey)
+  if (result) publishCommit(result)
+}
+
+function commitMetrics(): void {
+  const result = workspace.value?.commitMetrics()
+  if (result) publishCommit(result)
+}
+
+function commitAll(): void {
+  const result = workspace.value?.commitAll()
+  if (result) publishCommit(result)
 }
 
 async function resetMap(): Promise<void> {
@@ -230,7 +269,8 @@ async function resetMap(): Promise<void> {
     nameProperty.value = ''
     inspection.value = undefined
     prepared.value = undefined
-    visualization.value = undefined
+    workspace.value = undefined
+    workspaceSnapshot.value = undefined
     prefillSummary.value = undefined
     metricsValidationError.value = ''
     emit('mapActivated', document)
@@ -252,8 +292,7 @@ onMounted(async () => {
       nameProperty.value = restored.prepared.persisted.nameProperty
       inspection.value = inspectGeoJsonMap(restored.prepared.persisted.geometryText)
       prepared.value = restored.prepared
-      visualization.value = restored.visualization
-      validateVisualization()
+      installWorkspace(restored.prepared, restored.visualization)
     }
   } catch (cause) {
     warnings.value = [{ code: 'storage-read-failed', message: errorMessage(cause) }]
@@ -373,23 +412,27 @@ onMounted(async () => {
         </header>
 
         <div class="map-loader__metric-fields">
-          <label for="primary-label">
+          <label for="primary-label" :data-dirty="workspaceSnapshot?.dirtyMetrics || undefined">
             <span>主指标名称</span>
-            <input id="primary-label" v-model="visualization.labels.primary.label" @input="validateVisualization" />
+            <input id="primary-label" :value="visualization.labels.primary.label" @input="editMetric('primary', 'label', $event)" />
           </label>
           <label for="primary-unit">
             <span>主指标单位</span>
-            <input id="primary-unit" v-model="visualization.labels.primary.unit" @input="validateVisualization" />
+            <input id="primary-unit" :value="visualization.labels.primary.unit" @input="editMetric('primary', 'unit', $event)" />
           </label>
           <label for="secondary-label">
             <span>次指标名称</span>
-            <input id="secondary-label" v-model="visualization.labels.secondary.label" @input="validateVisualization" />
+            <input id="secondary-label" :value="visualization.labels.secondary.label" @input="editMetric('secondary', 'label', $event)" />
           </label>
           <label for="secondary-unit">
             <span>次指标单位</span>
-            <input id="secondary-unit" v-model="visualization.labels.secondary.unit" @input="validateVisualization" />
+            <input id="secondary-unit" :value="visualization.labels.secondary.unit" @input="editMetric('secondary', 'unit', $event)" />
           </label>
+          <button type="button" data-action="update-metrics" @click="commitMetrics">更新指标</button>
         </div>
+        <p v-if="workspaceSnapshot?.metricError" class="map-loader__inline-error" role="alert">
+          {{ workspaceSnapshot.metricError }}
+        </p>
 
         <div class="map-loader__region-table" role="table" aria-label="已识别地图分块">
           <div class="map-loader__region-head" role="row">
@@ -398,23 +441,25 @@ onMounted(async () => {
             <span>展示名称</span>
             <span>主数值</span>
             <span>次数值</span>
+            <span>更新</span>
           </div>
           <div class="map-loader__region-scroll">
             <div
-              v-for="(region, regionIndex) in visualization.regions"
+              v-for="region in visualization.regions"
               :key="region.regionKey"
               class="map-loader__region-row"
               role="row"
               data-region-row
               :data-region-key="region.regionKey"
+              :data-dirty="workspaceSnapshot?.dirtyRegionKeys.includes(region.regionKey) || undefined"
             >
               <label class="map-loader__enable">
                 <input
-                  v-model="region.enabled"
                   type="checkbox"
                   data-field="enabled"
+                  :checked="region.enabled"
                   :aria-label="`启用 ${region.regionKey} 可视化`"
-                  @change="validateVisualization"
+                  @change="editRegion(region.regionKey, 'enabled', $event)"
                 />
                 <span>{{ region.enabled ? '启用' : '关闭' }}</span>
               </label>
@@ -422,32 +467,45 @@ onMounted(async () => {
                 {{ region.regionKey }}
               </span>
               <input
-                v-model="region.displayName"
                 type="text"
                 data-field="display-name"
+                :value="region.displayName"
                 :aria-label="`${region.regionKey} 展示名称`"
-                @input="validateVisualization"
+                @input="editRegion(region.regionKey, 'displayName', $event)"
               />
               <input
-                type="number"
-                min="0"
-                step="any"
+                type="text"
+                inputmode="decimal"
                 data-field="primary"
                 :disabled="!region.enabled"
-                :value="region.primary ?? ''"
+                :value="region.primary"
                 :aria-label="`${region.regionKey} 主数值`"
-                @input="setRegionNumber(regionIndex, 'primary', $event)"
+                @input="editRegion(region.regionKey, 'primary', $event)"
               />
               <input
-                type="number"
-                min="0"
-                step="any"
+                type="text"
+                inputmode="decimal"
                 data-field="secondary"
                 :disabled="!region.enabled"
-                :value="region.secondary ?? ''"
+                :value="region.secondary"
                 :aria-label="`${region.regionKey} 次数值`"
-                @input="setRegionNumber(regionIndex, 'secondary', $event)"
+                @input="editRegion(region.regionKey, 'secondary', $event)"
               />
+              <button
+                type="button"
+                data-action="update-region"
+                :aria-label="`更新 ${region.regionKey}`"
+                @click="commitRegion(region.regionKey)"
+              >
+                更新此分块
+              </button>
+              <p
+                v-if="workspaceSnapshot?.regionErrors[region.regionKey]"
+                class="map-loader__row-error"
+                role="alert"
+              >
+                {{ workspaceSnapshot.regionErrors[region.regionKey] }}
+              </p>
             </div>
           </div>
         </div>
@@ -460,6 +518,9 @@ onMounted(async () => {
       <footer class="map-loader__actions">
         <button type="button" data-action="reset" class="is-secondary" :disabled="busy" @click="resetMap">
           恢复内置重庆地图
+        </button>
+        <button type="button" data-action="update-all" :disabled="busy || !prepared" @click="commitAll">
+          全部更新
         </button>
       </footer>
     </section>
@@ -589,11 +650,21 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+.map-loader__metric-fields button {
+  grid-column: 1 / -1;
+  min-height: 36px;
+}
+
+.map-loader__metric-fields [data-dirty='true'] span,
+.map-loader__region-row[data-dirty='true'] .map-loader__region-key {
+  color: #ffe27a;
+}
+
 .map-loader__region-table { margin-top: 16px; }
 .map-loader__region-head,
 .map-loader__region-row {
   display: grid;
-  grid-template-columns: 74px minmax(92px, 0.8fr) minmax(128px, 1.2fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr);
+  grid-template-columns: 68px minmax(80px, 0.8fr) minmax(112px, 1.2fr) minmax(70px, 0.7fr) minmax(70px, 0.7fr) 92px;
   align-items: center;
   gap: 12px;
 }
@@ -627,6 +698,21 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .map-loader__region-row input:disabled { opacity: 0.42; }
+.map-loader__region-row button,
+.map-loader__metric-fields button {
+  padding: 7px 9px;
+  color: #dff9ff;
+  background: rgba(22, 111, 180, 0.58);
+  border: 1px solid rgba(75, 203, 255, 0.58);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.map-loader__row-error {
+  grid-column: 1 / -1;
+  color: #ffad99 !important;
+  font-size: 13px !important;
+}
+.map-loader__inline-error { margin-top: 8px !important; color: #ffad99 !important; }
 
 .map-loader__actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 22px; }
 .map-loader__actions button {

@@ -9,6 +9,7 @@ import {
   disposeDistrictBarLayer,
   getDistrictBarTopSnapshots,
   mapDistrictBarHeight,
+  reconcileDistrictBarLayer,
   setDistrictBarHoverProgress,
   setDistrictBarFocus,
   updateDistrictBarLayer
@@ -75,6 +76,45 @@ function items(entries: [string, number, number?][]): ReadonlyMap<string, MapReg
 }
 
 describe('mapDistrictBarLayer', () => {
+  it('同一几何内深度 reconcile 会复用同 key 资源、增删数据资源并重算全体高度', () => {
+    const config = { ...MAP_DISTRICT_BAR_DEFAULTS, enterMs: 0 }
+    const regionC: Region = {
+      name: 'C',
+      outers: [{ ring: [[10, 0], [14, 0], [14, 4], [10, 4]], holes: [] }]
+    }
+    const layer = createDistrictBarLayer(regions, items([['A', 25], ['B', 100]]), config, 4)
+    updateDistrictBarLayer(layer, config, 1000)
+    const aColumn = layer.byName.get('A')!.column
+    const bColumn = layer.byName.get('B')!.column
+    const beforeAHeight = layer.byName.get('A')!.baseHeight
+    threeFaults.disposalCounts.clear()
+
+    const result = reconcileDistrictBarLayer(
+      layer,
+      [...regions, regionC],
+      new Map([
+        ['A', { name: 'A', displayName: '创新 A', primary: 100, secondary: 8 }],
+        ['C', { name: 'C', displayName: '创新 C', primary: 25, secondary: 2 }]
+      ]),
+      config
+    )
+
+    expect(result).toEqual({ created: ['C'], updated: ['A'], removed: ['B'] })
+    expect(layer.byName.get('A')!.column).toBe(aColumn)
+    expect(layer.byName.has('B')).toBe(false)
+    expect(layer.byName.has('C')).toBe(true)
+    expect(threeFaults.disposalCounts.get(bColumn.geometry)).toBe(1)
+    expect(threeFaults.disposalCounts.get(bColumn.material)).toBe(1)
+    expect(layer.range).toEqual({ min: 25, max: 100 })
+    expect(layer.byName.get('A')!.baseHeight).toBeGreaterThan(beforeAHeight)
+    expect(getDistrictBarTopSnapshots(layer).map(({ name, displayName, primary }) => ({
+      name, displayName, primary
+    }))).toEqual([
+      { name: 'A', displayName: '创新 A', primary: 100 },
+      { name: 'C', displayName: '创新 C', primary: 25 }
+    ])
+  })
+
   it('通过通用 primary 指标创建柱体并公开 primary/secondary 快照', () => {
     const metrics: ReadonlyMap<string, MapRegionMetrics> = new Map([
       ['A', { name: 'A', displayName: '创业园 Alpha', primary: 25, secondary: 120.5 }]

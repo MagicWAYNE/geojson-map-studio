@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createApp, nextTick, reactive } from 'vue'
+import { createApp, defineComponent, h, nextTick, reactive, shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import { cloneMapEffectConfig, MAP_EFFECT_DEFAULTS, type MapEffectConfig } from './mapEffectConfig'
@@ -44,6 +44,7 @@ const carouselMocks = vi.hoisted(() => ({
 }))
 const districtBarMocks = vi.hoisted(() => ({
   create: vi.fn(),
+  reconcile: vi.fn(),
   applyConfig: vi.fn(),
   update: vi.fn(),
   getSnapshots: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock('./mapOutwardGlowPipeline', () => ({
 }))
 vi.mock('./mapDistrictBarLayer', () => ({
   createDistrictBarLayer: districtBarMocks.create,
+  reconcileDistrictBarLayer: districtBarMocks.reconcile,
   applyDistrictBarConfig: districtBarMocks.applyConfig,
   updateDistrictBarLayer: districtBarMocks.update,
   getDistrictBarTopSnapshots: districtBarMocks.getSnapshots,
@@ -356,7 +358,13 @@ async function mountInitializedMap(
 
   const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
   const root = document.createElement('div')
-  const app = createApp(ChongqingMap3D, { document: mapDocument })
+  const currentDocument = shallowRef(mapDocument)
+  const Host = defineComponent({
+    setup() {
+      return () => h(ChongqingMap3D, { document: currentDocument.value })
+    }
+  })
+  const app = createApp(Host)
   app.mount(root)
   afterMount?.(root)
   await vi.waitFor(() => expect(requestAnimationFrame).toHaveBeenCalled())
@@ -364,6 +372,10 @@ async function mountInitializedMap(
     app,
     root,
     renderer,
+    updateDocument: async (nextDocument: MapDocument) => {
+      currentDocument.value = nextDocument
+      await nextTick()
+    },
     runFrame: (now = 16) => frameCallback(now),
     runResize: () => resizeCallback([], {} as ResizeObserver)
   }
@@ -390,6 +402,73 @@ function expectDegradedGlowFallback(
 }
 
 describe('ChongqingMap3D effect wiring', () => {
+  it('coalesces same-geometry business documents into one bar reconcile without replacing renderer or canvas', async () => {
+    const initial = createTestMapDocument(2, {
+      source: { kind: 'geojson', displayName: 'custom.geojson', identity: 'same-geometry' },
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
+    const mounted = await mountInitializedMap(2, undefined, initial)
+    const canvas = mounted.root.querySelector('canvas')
+    const nextMetrics = new Map(initial.metrics)
+    nextMetrics.set('测试区0', {
+      name: '测试区0', displayName: '创新一区', primary: 88, secondary: 12
+    })
+    const labels = {
+      primary: { label: '入驻团队', unit: '家' },
+      secondary: { label: '导师服务', unit: '次' }
+    }
+
+    await mounted.updateDocument({ ...initial, metrics: nextMetrics, metricLabels: labels })
+    await mounted.updateDocument({
+      ...initial,
+      metrics: new Map(nextMetrics).set('测试区0', {
+        name: '测试区0', displayName: '创新一区', primary: 99, secondary: 14
+      }),
+      metricLabels: labels
+    })
+
+    expect(districtBarMocks.reconcile).not.toHaveBeenCalled()
+    mounted.runFrame(32)
+    expect(districtBarMocks.reconcile).toHaveBeenCalledTimes(1)
+    expect(districtBarMocks.reconcile).toHaveBeenCalledWith(
+      districtBarMocks.layer,
+      initial.geometry.regions,
+      expect.any(Map),
+      mapDebugMocks.effect!.bars
+    )
+    expect(districtBarMocks.reconcile.mock.calls[0][2].get('测试区0').primary).toBe(99)
+    expect(threeMocks.createRenderer).toHaveBeenCalledTimes(1)
+    expect(mounted.renderer.dispose).not.toHaveBeenCalled()
+    expect(mounted.root.querySelector('canvas')).toBe(canvas)
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledTimes(1)
+    mounted.app.unmount()
+  })
+
+  it('rebuilds the scene once when geometry identity changes', async () => {
+    const initial = createTestMapDocument(1, {
+      source: { kind: 'geojson', displayName: 'first.geojson', identity: 'geometry-first' },
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
+    const mounted = await mountInitializedMap(1, undefined, initial)
+    const replacement = createTestMapDocument(2, {
+      source: { kind: 'geojson', displayName: 'second.geojson', identity: 'geometry-second' },
+      appearance: { kind: 'tech-blue' },
+      drilldown: false
+    })
+
+    await mounted.updateDocument(replacement)
+    await vi.waitFor(() => expect(threeMocks.createRenderer).toHaveBeenCalledTimes(2))
+
+    expect(mounted.renderer.dispose).toHaveBeenCalledTimes(1)
+    expect(sceneSetupMocks.controlsDispose).toHaveBeenCalledTimes(1)
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledTimes(2)
+    expect(mounted.root.querySelectorAll('canvas')).toHaveLength(1)
+    expect(districtBarMocks.reconcile).not.toHaveBeenCalled()
+    mounted.app.unmount()
+  })
+
   it('wires district bars through setup, config, animation, hover, and teardown without picking them', async () => {
     const mounted = await mountInitializedMap()
     const layer = districtBarMocks.layer!

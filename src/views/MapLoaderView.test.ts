@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const sourceMocks = vi.hoisted(() => ({
   load: vi.fn(),
   activate: vi.fn(),
+  updateVisualization: vi.fn(),
   resetToBuiltin: vi.fn()
 }))
 const routerMocks = vi.hoisted(() => ({ push: vi.fn() }))
@@ -16,6 +17,7 @@ vi.mock('vue-router', () => ({ useRouter: () => routerMocks }))
 
 import MapLoaderView from './MapLoaderView.vue'
 import {
+  composeMapVisualization,
   prepareGeoJsonMapPackage,
   type MapVisualizationDraft
 } from '@/components/map/mapDocument'
@@ -53,6 +55,9 @@ async function mountView(props: Record<string, unknown> = {}) {
 beforeEach(() => {
   sourceMocks.load.mockResolvedValue({ document: {}, warnings: [] })
   sourceMocks.activate.mockImplementation(async (prepared) => prepared.document)
+  sourceMocks.updateVisualization.mockImplementation((prepared, visualization) =>
+    composeMapVisualization(prepared.document, visualization)
+  )
   sourceMocks.resetToBuiltin.mockResolvedValue({})
 })
 
@@ -136,7 +141,8 @@ describe('MapLoaderView', () => {
 
     row.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
     await nextTick()
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('区域 A')
+    expect(row.dataset.dirty).toBe('true')
+    expect(sourceMocks.updateVisualization).not.toHaveBeenCalled()
 
     enter(root.querySelector<HTMLInputElement>('#primary-label')!, '扶持企业')
     enter(root.querySelector<HTMLInputElement>('#primary-unit')!, '家')
@@ -151,7 +157,60 @@ describe('MapLoaderView', () => {
     expect(sourceMocks.activate.mock.calls[0][1]).toBeUndefined()
     expect(row.querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('创新一区')
     expect(row.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('120')
+    expect(sourceMocks.updateVisualization).not.toHaveBeenCalled()
+
+    row.querySelector<HTMLButtonElement>('[data-action="update-region"]')!.click()
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+    const [, committedVisualization] = sourceMocks.updateVisualization.mock.calls[0]
+    expect((committedVisualization as MapVisualizationDraft).regions.find((item) => item.regionKey === '区域 A'))
+      .toEqual({
+        regionKey: '区域 A',
+        displayName: '创新一区',
+        enabled: true,
+        primary: 120,
+        secondary: 45.6
+      })
+    expect(row.dataset.dirty).toBeUndefined()
     expect(routerMocks.push).not.toHaveBeenCalled()
+    app.unmount()
+  })
+
+  it('指标更新与全部更新各自原子发布，非法草稿不改变已提交地图', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    enter(root.querySelector<HTMLInputElement>('#primary-label')!, '入驻团队')
+    enter(root.querySelector<HTMLInputElement>('#primary-unit')!, '家')
+    enter(root.querySelector<HTMLInputElement>('#secondary-label')!, '导师服务')
+    enter(root.querySelector<HTMLInputElement>('#secondary-unit')!, '次')
+    expect(sourceMocks.updateVisualization).not.toHaveBeenCalled()
+    root.querySelector<HTMLButtonElement>('[data-action="update-metrics"]')!.click()
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+
+    const regionA = regionRow(root, '区域 A')
+    regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '12')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '')
+    root.querySelector<HTMLButtonElement>('[data-action="update-all"]')!.click()
+    await nextTick()
+    expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1)
+    expect(regionA.querySelector('[role="alert"]')?.textContent).toContain('区域 A')
+
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '3')
+    root.querySelector<HTMLButtonElement>('[data-action="update-all"]')!.click()
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(2))
+    const [, visualization] = sourceMocks.updateVisualization.mock.calls[1]
+    expect((visualization as MapVisualizationDraft).labels).toEqual({
+      primary: { label: '入驻团队', unit: '家' },
+      secondary: { label: '导师服务', unit: '次' }
+    })
+    expect((visualization as MapVisualizationDraft).regions[0]).toMatchObject({
+      regionKey: '区域 A', enabled: true, primary: 12, secondary: 3
+    })
     app.unmount()
   })
 
@@ -221,6 +280,7 @@ describe('MapLoaderView', () => {
     enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '121')
 
     await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    expect(sourceMocks.updateVisualization).not.toHaveBeenCalled()
     const [prepared, visualization] = sourceMocks.activate.mock.calls[0]
     expect(prepared.document.geometry.regions).toHaveLength(3)
     expect(prepared.persisted).not.toHaveProperty('metricsText')

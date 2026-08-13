@@ -37,6 +37,7 @@ export interface ActiveMapLoadResult {
 export interface ActiveMapSource {
   load(): Promise<ActiveMapLoadResult>
   activate(prepared: PreparedMapPackage, visualization?: MapVisualizationDraft): Promise<MapDocument>
+  updateVisualization(prepared: PreparedMapPackage, visualization: MapVisualizationDraft): MapDocument
   resetToBuiltin(): Promise<MapDocument>
 }
 
@@ -176,6 +177,29 @@ export function createActiveMapSource(
       await dependencies.store.writeActive(prepared.persisted)
       dependencies.session.replace(prepared.document.source, visualization)
       currentCustom = { document, prepared, visualization }
+      return document
+    },
+
+    updateVisualization(
+      prepared: PreparedMapPackage,
+      visualization: MapVisualizationDraft
+    ): MapDocument {
+      const requestedIdentity = prepared.document.source.kind === 'geojson'
+        ? prepared.document.source.identity
+        : null
+      const activeIdentity = currentCustom?.prepared.document.source.kind === 'geojson'
+        ? currentCustom.prepared.document.source.identity
+        : null
+      if (requestedIdentity === null || requestedIdentity !== activeIdentity || !currentCustom) {
+        throw new Error('业务数据只能更新当前激活地图')
+      }
+      const document = composeMapVisualization(currentCustom.prepared.document, visualization)
+      dependencies.session.replace(currentCustom.prepared.document.source, visualization)
+      currentCustom = {
+        document,
+        prepared: currentCustom.prepared,
+        visualization
+      }
       return document
     },
 

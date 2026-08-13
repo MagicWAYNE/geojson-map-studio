@@ -40,6 +40,12 @@ export interface DistrictBarTopSnapshot {
   readonly worldPosition: readonly [number, number, number]
 }
 
+export interface DistrictBarReconcileResult {
+  created: string[]
+  updated: string[]
+  removed: string[]
+}
+
 interface LayerDatum {
   displayName: string
   primary: number
@@ -310,6 +316,106 @@ export function createDistrictBarLayer(
 
   applyDistrictBarConfig(layer, config)
   return layer
+}
+
+function disposeDistrictBarVisual(layer: DistrictBarLayer, visual: DistrictBarVisual): void {
+  layer.group.remove(visual.column, visual.ring, visual.pulseRing)
+  visual.column.geometry.dispose()
+  visual.column.material.dispose()
+  visual.ring.geometry.dispose()
+  visual.ring.material.dispose()
+  visual.pulseRing.geometry.dispose()
+  visual.pulseRing.material.dispose()
+}
+
+export function reconcileDistrictBarLayer(
+  layer: DistrictBarLayer,
+  regions: Region[],
+  dataByName: ReadonlyMap<string, MapRegionMetrics>,
+  config: Readonly<MapDistrictBarConfig>
+): DistrictBarReconcileResult {
+  const state = layerStates.get(layer)
+  if (!state || disposedLayers.has(layer)) {
+    return { created: [], updated: [], removed: [] }
+  }
+
+  const regionByName = new Map(regions.map((region) => [region.name, region]))
+  const desired = new Map<string, MapRegionMetrics>()
+  for (const [name, item] of dataByName) {
+    if (!regionByName.has(name)) continue
+    if (!Number.isFinite(item.primary) || item.primary < 0) {
+      warnDistrictBarIssue(name, '无效 primary')
+      continue
+    }
+    desired.set(name, item)
+  }
+
+  const removed: string[] = []
+  for (const [name, visual] of [...layer.byName]) {
+    if (desired.has(name)) continue
+    disposeDistrictBarVisual(layer, visual)
+    layer.byName.delete(name)
+    state.dataByName.delete(name)
+    removed.push(name)
+  }
+
+  const created: string[] = []
+  const updated: string[] = []
+  for (const [order, region] of regions.entries()) {
+    const item = desired.get(region.name)
+    if (!item) continue
+    const existing = layer.byName.get(region.name)
+    if (existing) {
+      existing.order = order
+      state.dataByName.set(region.name, {
+        displayName: item.displayName,
+        primary: item.primary,
+        secondary: item.secondary
+      })
+      updated.push(region.name)
+      continue
+    }
+
+    const temporary = createDistrictBarLayer(
+      [region],
+      new Map([[region.name, item]]),
+      config,
+      state.depth
+    )
+    const visual = temporary.byName.get(region.name)
+    if (!visual) {
+      layerStates.delete(temporary)
+      continue
+    }
+    temporary.group.remove(visual.column, visual.ring, visual.pulseRing)
+    temporary.byName.clear()
+    layerStates.delete(temporary)
+    visual.group = layer.group
+    visual.order = order
+    visual.delayMs = state.elapsedMs
+    layer.group.add(visual.column, visual.ring, visual.pulseRing)
+    layer.byName.set(region.name, visual)
+    state.dataByName.set(region.name, {
+      displayName: item.displayName,
+      primary: item.primary,
+      secondary: item.secondary
+    })
+    created.push(region.name)
+  }
+
+  if (state.focusedName !== null && !layer.byName.has(state.focusedName)) {
+    state.focusedName = null
+  }
+  const values = [...layer.byName.keys()]
+    .flatMap((name) => {
+      const datum = state.dataByName.get(name)
+      return datum ? [datum.primary] : []
+    })
+  layer.range = values.length
+    ? Object.freeze({ min: Math.min(...values), max: Math.max(...values) })
+    : null
+  applyDistrictBarConfig(layer, config)
+  return { created, updated, removed }
 }
 
 export function applyDistrictBarConfig(

@@ -15,6 +15,7 @@ class MemoryMapPackageStore implements MapPackageStore {
   active: unknown = null
   failRead = false
   failWrite = false
+  writeCount = 0
 
   async readActive(): Promise<unknown> {
     if (this.failRead) throw new Error('read failed')
@@ -23,6 +24,7 @@ class MemoryMapPackageStore implements MapPackageStore {
 
   async writeActive(value: PersistedMapPackage): Promise<void> {
     if (this.failWrite) throw new Error('write failed')
+    this.writeCount += 1
     this.active = structuredClone(value)
   }
 
@@ -79,6 +81,26 @@ function visualizationFor(name: string, displayName: string) {
 }
 
 describe('activeMapSource', () => {
+  it('同一几何的业务更新只替换页面内存会话，不重写 geometry-only 记录', async () => {
+    const store = new MemoryMapPackageStore()
+    const session = createMemoryMapVisualizationSession()
+    const source = createActiveMapSource({ store, session, loadBuiltin: async () => builtinDocument() })
+    const current = prepared('区域 A')
+    await source.activate(current)
+    expect(store.writeCount).toBe(1)
+
+    const visualization = visualizationFor('区域 A', '创新一区')
+    const document = source.updateVisualization(current, visualization)
+
+    expect(document.metrics.get('区域 A')?.displayName).toBe('创新一区')
+    expect(session.read(current.document.source)?.regions[0].primary).toBe(88)
+    expect(store.writeCount).toBe(1)
+    expect(store.active).toEqual(current.persisted)
+    expect(() => source.updateVisualization(prepared('其他区域'), visualization))
+      .toThrow('当前激活地图')
+    expect(store.writeCount).toBe(1)
+  })
+
   it('空存储加载内置地图，激活后由新实例恢复最后成功的自定义地图', async () => {
     const store = new MemoryMapPackageStore()
     const loadBuiltin = vi.fn(async () => builtinDocument())
