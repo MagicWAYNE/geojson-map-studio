@@ -132,7 +132,7 @@ watch(() => props.modelValue, () => {
 <template>
   <section class="inward-controls">
     <div class="inward-status">运行状态：{{ stateLabel }}</div>
-    <div class="field">
+    <div class="field" :data-control-path="`${channel}.inwardGlow.enabled`">
       <div class="field-head">
         <label :for="fieldId('enabled', 'checkbox')">启用内扩柔光</label>
         <input
@@ -144,7 +144,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div class="field">
+    <div class="field" :data-control-path="`${channel}.inwardGlow.color`">
       <div class="field-head">
         <label :for="fieldId('color', 'color')">内扩颜色</label>
         <input
@@ -164,7 +164,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div v-for="field in FIELDS" :key="field.key" class="field">
+    <div v-for="field in FIELDS" :key="field.key" class="field" :data-control-path="`${channel}.inwardGlow.${field.key}`">
       <div class="field-head">
         <label :for="fieldId(field.key, 'number')">{{ field.label }}</label>
         <input
@@ -193,8 +193,8 @@ watch(() => props.modelValue, () => {
       />
     </div>
     <div class="effect-actions group-actions">
-      <button class="btn" @click="applyB1Preset">应用 B1 预设</button>
-      <button class="btn ghost" @click="resetGroup">重置本组</button>
+      <button class="btn" :data-visual-action="`effect.${channel}.inward-preset`" @click="applyB1Preset">应用 B1 预设</button>
+      <button class="btn ghost" :data-visual-action="`effect.${channel}.inward-reset`" @click="resetGroup">重置本组</button>
     </div>
   </section>
 </template>

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Establish the visual workspace and composition session.
 
-Status: ready-for-agent
+Status: ready-for-human
 
 - [ ] Every legacy HUD anchor, static-disc and rotating-disc field and action has an equivalent reachable control; an inventory test prevents silent omissions.
 - [ ] HUD live preview, explicit draft, apply, discard, reset and normalized JSON copy preserve current behavior.

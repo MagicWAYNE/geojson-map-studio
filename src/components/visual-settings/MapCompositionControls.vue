@@ -43,7 +43,7 @@ onMounted(() => {
     <section class="setting-group">
       <h2>画布构图</h2>
       <p>数字框用于精确输入，滑杆用于快速调节。工程值允许越界或遮挡，系统只给出风险提示。</p>
-      <div v-for="field in FIELDS" :key="field.key" class="composition-field">
+      <div v-for="field in FIELDS" :key="field.key" class="composition-field" :data-control-path="`layout.${field.key}`">
         <div class="field-heading">
           <label :for="`composition-${field.key}-number`">{{ field.label }}</label>
           <input
@@ -80,7 +80,7 @@ onMounted(() => {
     <section class="setting-group">
       <div class="group-heading">
         <h2>当前 CSS</h2>
-        <button type="button" @click="session.copyVisualText('composition-css', session.compositionCss.value)">
+        <button type="button" data-visual-action="layout.copy-css" @click="session.copyVisualText('composition-css', session.compositionCss.value)">
           {{ session.copyLabel('composition-css', '复制 CSS') }}
         </button>
       </div>
@@ -90,7 +90,7 @@ onMounted(() => {
     <section class="setting-group">
       <div class="group-heading">
         <h2>OrbitControls 视角</h2>
-        <button type="button" @click="session.copyVisualText('camera', session.cameraView.value)">
+        <button type="button" data-visual-action="layout.copy-camera" @click="session.copyVisualText('camera', session.cameraView.value)">
           {{ session.copyLabel('camera', '复制相机参数') }}
         </button>
       </div>
@@ -98,7 +98,7 @@ onMounted(() => {
       <pre>{{ session.cameraView.value }}</pre>
     </section>
 
-    <button type="button" class="reset-button" data-action="reset-composition" @click="session.resetLayout">
+    <button type="button" class="reset-button" data-action="reset-composition" data-visual-action="layout.reset" @click="session.resetLayout">
       恢复当前工具构图
     </button>
   </div>

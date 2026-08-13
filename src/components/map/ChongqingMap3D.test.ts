@@ -36,7 +36,9 @@ const mapDebugMocks = vi.hoisted(() => ({
   hud: null as MapHudConfig | null,
   effectRuntimeStatus: null as typeof runtimeStatusDefault | null,
   updateEffectRuntimeStatus: vi.fn(),
-  updateDistrictBarRuntimeStatus: vi.fn()
+  updateDistrictBarRuntimeStatus: vi.fn(),
+  updateCameraView: vi.fn(),
+  updateFps: vi.fn()
 }))
 const carouselMocks = vi.hoisted(() => ({
   enabled: null as import('vue').Ref<boolean> | null,
@@ -182,7 +184,9 @@ vi.mock('@/composables/useMapDebug', () => ({
       effectRuntimeStatus,
       updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus,
       districtBarRuntimeStatus: { renderedCount: 0, dataMin: null, dataMax: null, degraded: false },
-      updateDistrictBarRuntimeStatus: mapDebugMocks.updateDistrictBarRuntimeStatus
+      updateDistrictBarRuntimeStatus: mapDebugMocks.updateDistrictBarRuntimeStatus,
+      updateCameraView: mapDebugMocks.updateCameraView,
+      updateFps: mapDebugMocks.updateFps
     }
   }
 }))

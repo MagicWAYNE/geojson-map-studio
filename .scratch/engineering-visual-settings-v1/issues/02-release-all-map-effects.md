@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Establish the visual workspace and composition session.
 
-Status: ready-for-agent
+Status: ready-for-human
 
 - [ ] Every control descriptor and action from the fixed-point legacy effect page has an equivalent reachable control; an inventory test prevents silent omissions.
 - [ ] Normal boundary, outer core, normal outward glow and normal inward glow expose all existing fields and enable switches.

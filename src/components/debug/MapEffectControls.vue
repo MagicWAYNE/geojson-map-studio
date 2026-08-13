@@ -470,12 +470,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="effect-controls">
+  <div class="effect-controls" data-visual-page-content="effects">
     <section class="session-editing">
       <div class="field-head">
         <label for="effect-live-preview">实时预览</label>
         <input
           id="effect-live-preview"
+          data-visual-action="effect.live-preview"
           class="checkbox"
           type="checkbox"
           :checked="livePreview"
@@ -484,15 +485,15 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="!livePreview" class="editing-hint">草稿模式：切回实时预览会放弃未应用草稿。</p>
       <div v-if="!livePreview" class="effect-actions">
-        <button class="btn" @click="applyDraft">应用参数</button>
-        <button class="btn ghost" @click="discardDraft">放弃草稿</button>
+        <button class="btn" data-visual-action="effect.apply" @click="applyDraft">应用参数</button>
+        <button class="btn ghost" data-visual-action="effect.discard" @click="discardDraft">放弃草稿</button>
       </div>
     </section>
 
     <template v-for="group in GROUPS" :key="group.title">
       <section class="effect-group">
         <h3>{{ group.title }}</h3>
-        <div v-for="field in group.fields" :key="field.key" class="field">
+        <div v-for="field in group.fields" :key="field.key" class="field" :data-control-path="`${field.section}.${field.key}`">
           <div class="field-head">
             <label :for="fieldId(field, field.kind === 'color' ? 'color' : field.kind === 'number' ? 'number' : field.kind === 'boolean' ? 'checkbox' : 'select')">
               {{ field.label }}
@@ -559,8 +560,8 @@ onBeforeUnmount(() => {
           />
         </div>
         <div v-if="group.glowChannel" class="effect-actions group-actions">
-          <button class="btn" @click="runB3Preset(group.glowChannel)">应用 B3 参考预设</button>
-          <button class="btn ghost" @click="resetGroup(group.glowChannel)">重置本组</button>
+          <button class="btn" :data-visual-action="`effect.${group.glowChannel}.b3-preset`" @click="runB3Preset(group.glowChannel)">应用 B3 参考预设</button>
+          <button class="btn ghost" :data-visual-action="`effect.${group.glowChannel}.reset`" @click="resetGroup(group.glowChannel)">重置本组</button>
         </div>
         <div v-if="group.title === '渲染质量与性能'" class="runtime-status" role="status" aria-live="polite">
           <span>RenderTarget: {{ effectRuntimeStatus.targetWidth }} × {{ effectRuntimeStatus.targetHeight }}</span>
@@ -610,8 +611,8 @@ onBeforeUnmount(() => {
       <h3>可复制参数</h3>
       <pre class="json-out">{{ editableJson }}</pre>
       <div class="effect-actions">
-        <button class="btn" @click="copyEffect">{{ copyLabel() }}</button>
-        <button class="btn ghost" @click="resetCurrentTarget">恢复全部默认值</button>
+        <button class="btn" data-visual-action="effect.copy" @click="copyEffect">{{ copyLabel() }}</button>
+        <button class="btn ghost" data-visual-action="effect.reset-all" @click="resetCurrentTarget">恢复全部默认值</button>
       </div>
     </section>
   </div>

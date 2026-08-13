@@ -23,6 +23,10 @@ const configSections = computed(() => [
   { key: 'overlay' as const, label: '数值标签与指标浮层参数', value: overlayJson.value },
   { key: 'hud' as const, label: 'HUD 参数', value: session.hudJson.value }
 ])
+
+function updateCarousel(event: Event): void {
+  carousel.enabled.value = (event.target as HTMLInputElement).checked
+}
 </script>
 
 <template>
@@ -45,7 +49,13 @@ const configSections = computed(() => [
       </dl>
       <label class="carousel-switch" for="engineering-carousel">
         <span>自动区域轮播</span>
-        <input id="engineering-carousel" v-model="carousel.enabled.value" type="checkbox" />
+        <input
+          id="engineering-carousel"
+          data-visual-action="engineering.carousel"
+          type="checkbox"
+          :checked="carousel.enabled.value"
+          @change="updateCarousel"
+        />
       </label>
     </section>
 

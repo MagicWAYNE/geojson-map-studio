@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Establish the visual workspace and composition session.
 
-Status: ready-for-agent
+Status: ready-for-human
 
 - [ ] “区级扶持企业柱状图” and “数据调试” are replaced by generic “区域数据柱体” and “图表样式” language without dropping behavior.
 - [ ] Every legacy bar control is reachable, including enablement, colors, width, anchors, base offset, height range, exponent, glow, base ring, pulse ring, animation and Hover response.

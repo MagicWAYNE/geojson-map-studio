@@ -152,7 +152,7 @@ watch(() => props.modelValue, () => {
       <span>脉冲环：{{ modelValue.pulseEnabled ? '启用' : '已关闭' }}</span>
       <span>柱体层：{{ runtimeStatus.degraded ? '已降级关闭' : '正常' }}</span>
     </div>
-    <div class="field">
+    <div class="field" data-control-path="bars.enabled">
       <div class="field-head">
         <label :for="fieldId('enabled', 'checkbox')">启用区域数据柱体</label>
         <input
@@ -164,7 +164,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div class="field">
+    <div class="field" data-control-path="bars.color">
       <div class="field-head">
         <label :for="fieldId('color', 'color')">柱体颜色</label>
         <input
@@ -184,7 +184,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div class="field">
+    <div class="field" data-control-path="bars.pulseEnabled">
       <div class="field-head">
         <label :for="fieldId('pulseEnabled', 'checkbox')">启用脉冲光环</label>
         <input
@@ -196,7 +196,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div class="field">
+    <div class="field" data-control-path="bars.pulseColor">
       <div class="field-head">
         <label :for="fieldId('pulseColor', 'color')">脉冲环颜色</label>
         <input
@@ -216,7 +216,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div v-for="field in NUMBER_FIELDS" :key="field.key" class="field">
+    <div v-for="field in NUMBER_FIELDS" :key="field.key" class="field" :data-control-path="`bars.${field.key}`">
       <div class="field-head">
         <label :for="fieldId(field.key, 'number')">{{ field.label }}</label>
         <input

@@ -72,7 +72,7 @@ function resetOverlay(): void {
 </script>
 
 <template>
-  <div class="data-controls">
+  <div class="data-controls" data-visual-page-content="charts">
     <section class="data-group">
       <h3>区域数据柱体</h3>
       <p class="hint">柱体主体固定为不透明；稳定底环与向内收缩的脉冲环可独立调节。</p>
@@ -96,10 +96,10 @@ function resetOverlay(): void {
       <h3>可复制浮层参数</h3>
       <pre class="json-out" data-testid="overlay-json">{{ overlayJson }}</pre>
       <div class="actions">
-        <button class="btn" data-testid="copy-overlay" @click="copyOverlay">
+        <button class="btn" data-testid="copy-overlay" data-visual-action="overlay.copy" @click="copyOverlay">
           {{ visualSettings.copyLabel('overlay', '复制浮层参数') }}
         </button>
-        <button class="btn ghost" data-testid="reset-overlay" @click="resetOverlay">
+        <button class="btn ghost" data-testid="reset-overlay" data-visual-action="overlay.reset" @click="resetOverlay">
           恢复浮层默认值
         </button>
       </div>
@@ -109,10 +109,10 @@ function resetOverlay(): void {
       <h3>可复制柱体参数</h3>
       <pre class="json-out" data-testid="bars-json">{{ barJson }}</pre>
       <div class="actions">
-        <button class="btn" data-testid="copy-bars" @click="copyBars">
+        <button class="btn" data-testid="copy-bars" data-visual-action="bars.copy" @click="copyBars">
           {{ visualSettings.copyLabel('bars', '复制柱体参数') }}
         </button>
-        <button class="btn ghost" data-testid="reset-bars" @click="resetBars">
+        <button class="btn ghost" data-testid="reset-bars" data-visual-action="bars.reset" @click="resetBars">
           恢复柱体默认值
         </button>
       </div>

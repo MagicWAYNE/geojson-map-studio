@@ -154,7 +154,7 @@ watch(() => props.modelValue, () => {
 
 <template>
   <section class="mosaic-controls">
-    <div class="field">
+    <div class="field" data-control-path="hover.mosaicParticles.enabled">
       <div class="field-head">
         <label :for="fieldId('enabled', 'checkbox')">启用马赛克粒子</label>
         <input
@@ -170,7 +170,7 @@ watch(() => props.modelValue, () => {
       { key: 'primaryColor' as const, label: '主色' },
       { key: 'accentColor' as const, label: '强调色' },
       { key: 'gapColor' as const, label: '间隙颜色' }
-    ]" :key="colorField.key" class="field">
+    ]" :key="colorField.key" class="field" :data-control-path="`hover.mosaicParticles.${colorField.key}`">
       <div class="field-head">
         <label :for="fieldId(colorField.key, 'color')">{{ colorField.label }}</label>
         <input
@@ -190,7 +190,7 @@ watch(() => props.modelValue, () => {
         />
       </div>
     </div>
-    <div v-for="field in FIELDS" :key="field.key" class="field">
+    <div v-for="field in FIELDS" :key="field.key" class="field" :data-control-path="`hover.mosaicParticles.${field.key}`">
       <div class="field-head">
         <label :for="fieldId(field.key, 'number')">{{ field.label }}</label>
         <input
@@ -218,7 +218,7 @@ watch(() => props.modelValue, () => {
         @input="updateRange(field, $event)"
       />
     </div>
-    <div class="field">
+    <div class="field" data-control-path="hover.mosaicParticles.reseedOnEnter">
       <div class="field-head">
         <label :for="fieldId('reseedOnEnter', 'checkbox')">每次进入重新组合</label>
         <input
@@ -231,9 +231,9 @@ watch(() => props.modelValue, () => {
       </div>
     </div>
     <div class="effect-actions group-actions">
-      <button class="btn" type="button" @click="applyBluePurplePreset">应用蓝紫参考预设</button>
-      <button class="btn ghost" type="button" @click="randomizeSeed">随机种子</button>
-      <button class="btn ghost" type="button" @click="resetGroup">恢复固化默认</button>
+      <button class="btn" type="button" data-visual-action="effect.mosaic.preset" @click="applyBluePurplePreset">应用蓝紫参考预设</button>
+      <button class="btn ghost" type="button" data-visual-action="effect.mosaic.randomize" @click="randomizeSeed">随机种子</button>
+      <button class="btn ghost" type="button" data-visual-action="effect.mosaic.reset" @click="resetGroup">恢复固化默认</button>
     </div>
   </section>
 </template>

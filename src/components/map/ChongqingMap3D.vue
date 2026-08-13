@@ -85,12 +85,13 @@ const districtBarOverlayLayout = shallowRef<DistrictBarOverlayLayout>(EMPTY_LAYO
 
 const router = useRouter()
 const {
-  cameraView,
   effect,
   hud: hudConfig,
   effectRuntimeStatus,
   updateEffectRuntimeStatus,
-  updateDistrictBarRuntimeStatus
+  updateDistrictBarRuntimeStatus,
+  updateCameraView,
+  updateFps
 } = useMapDebug()
 const { enabled: districtCarouselEnabled } = useMapDistrictCarousel()
 
@@ -649,9 +650,10 @@ function setupScene(mapGroup: THREE.Group) {
       if (!camera || !controls) return
       const p = camera.position
       const t = controls.target
-      cameraView.value =
+      updateCameraView(
         `{ "pos": [${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}], ` +
         `"target": [${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}] }`
+      )
       markCurrentGlowCameraDirty()
     }
     controls.addEventListener('change', syncCamView)
@@ -832,6 +834,7 @@ function loop(now: number) {
   frames++
   if (now - lastFpsAt >= 1000) {
     fps.value = frames
+    updateFps(frames)
     frames = 0
     lastFpsAt = now
   }
@@ -1070,7 +1073,8 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   camera = null
   staticGlow = null
   mapHud = null
-  cameraView.value = ''
+  updateCameraView('')
+  updateFps(0)
   regionMeshes.length = 0
   regionVisuals.length = 0
   visualByMesh.clear()

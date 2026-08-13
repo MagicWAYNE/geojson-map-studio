@@ -381,7 +381,7 @@ watch(() => props.modelValue, () => {
     >
       <summary>{{ group.label }}</summary>
       <div class="group-fields">
-        <div v-for="field in group.fields" :key="pathKey(field.path)" class="field">
+        <div v-for="field in group.fields" :key="pathKey(field.path)" class="field" :data-control-path="`overlay.${field.path.join('.')}`">
           <div class="field-head">
             <label :for="fieldId(field, field.kind === 'bool' ? 'checkbox' : field.kind)">
               {{ field.label }}

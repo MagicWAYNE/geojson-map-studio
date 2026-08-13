@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { watch } from 'vue'
 import {
   MAP_HUD_DEFAULTS,
   assignMapHudConfig,
-  cloneMapHudConfig,
-  formatMapHudConfig,
-  normalizeMapHudConfig,
   type MapHudConfig
 } from '@/components/map/mapHudConfig'
-import { useMapDebug } from '@/composables/useMapDebug'
-import { copyTextToClipboard } from '@/utils/copyText'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 
 type Section = 'anchor' | 'static' | 'rotating'
 type Field = {
@@ -59,15 +55,14 @@ const GROUPS: readonly Group[] = [
   }
 ]
 
-const { hud, resetHud } = useMapDebug()
-const livePreview = ref(true)
-const draft = reactive<MapHudConfig>(cloneMapHudConfig(hud))
-const editTarget = computed<MapHudConfig>(() => livePreview.value ? hud : draft)
-const numberDrafts = reactive<Record<string, string>>({})
-const committedNumbers = new Map<string, string>()
-const copyStatus = ref<'idle' | 'success' | 'error'>('idle')
-let copiedTimer = 0
-let applyingDraft = false
+const visualSettings = useMapVisualSettings()
+const {
+  hud,
+  hudDraft: draft,
+  hudEditTarget: editTarget,
+  hudLivePreview: livePreview,
+  resetHud
+} = visualSettings
 
 function fieldId(field: Field, control: 'checkbox' | 'number' | 'range'): string {
   return `map-hud-${field.section}-${field.key}-${control}`
@@ -98,36 +93,27 @@ function writeValue(target: MapHudConfig, field: Field, value: number | boolean)
   }
 }
 
-function syncDraft(config: MapHudConfig = hud): void {
-  assignMapHudConfig(draft, cloneMapHudConfig(config))
-}
-
 function changeLivePreview(event: Event): void {
-  const next = (event.target as HTMLInputElement).checked
-  syncDraft(hud)
-  livePreview.value = next
+  visualSettings.setHudLivePreview((event.target as HTMLInputElement).checked)
 }
 
 function applyDraft(): void {
-  const normalized = normalizeMapHudConfig(draft)
-  applyingDraft = true
-  assignMapHudConfig(hud, normalized)
-  applyingDraft = false
-  syncDraft(normalized)
+  visualSettings.applyHudDraft()
 }
 
 function discardDraft(): void {
-  syncDraft(hud)
+  visualSettings.discardHudDraft()
 }
 
 function numberDraft(field: Field): string {
-  return numberDrafts[fieldName(field)] ?? String(valueOf(field))
+  return visualSettings.readNumericDraft(`hud.${fieldName(field)}`, Number(valueOf(field)))
 }
 
 function updateNumberDraft(field: Field, event: Event): void {
-  const name = fieldName(field)
-  numberDrafts[name] = (event.target as HTMLInputElement).value
-  committedNumbers.delete(name)
+  visualSettings.editNumericDraft(
+    `hud.${fieldName(field)}`,
+    (event.target as HTMLInputElement).value
+  )
 }
 
 function normalizedNumber(field: Field, raw: string): number {
@@ -143,13 +129,14 @@ function normalizedNumber(field: Field, raw: string): number {
 }
 
 function commitNumber(field: Field, event: Event): void {
-  const value = normalizedNumber(field, (event.target as HTMLInputElement).value)
-  const name = fieldName(field)
-  const normalized = String(value)
-  numberDrafts[name] = normalized
-  if (committedNumbers.get(name) === normalized || value === valueOf(field)) return
-  committedNumbers.set(name, normalized)
-  writeValue(editTarget.value, field, value)
+  const current = Number(valueOf(field))
+  const result = visualSettings.commitNumericDraft(
+    `hud.${fieldName(field)}`,
+    (event.target as HTMLInputElement).value,
+    current,
+    (value) => normalizedNumber(field, String(value))
+  )
+  if (result.changed) writeValue(editTarget.value, field, result.value)
 }
 
 function updateRange(field: Field, event: Event): void {
@@ -168,49 +155,34 @@ function resetCurrentTarget(): void {
   }
 }
 
-const editableJson = computed(() => formatMapHudConfig(editTarget.value))
+const editableJson = visualSettings.editableHudJson
 
 async function copyHud(): Promise<void> {
-  copyStatus.value = await copyTextToClipboard(editableJson.value) ? 'success' : 'error'
-  clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1500)
+  await visualSettings.copyVisualText('hud', editableJson.value)
 }
 
 function copyLabel(): string {
-  if (copyStatus.value === 'success') return '已复制 ✓'
-  if (copyStatus.value === 'error') return '复制失败，请重试'
-  return '复制 HUD 参数'
+  return visualSettings.copyLabel('hud', '复制 HUD 参数')
 }
 
-const stopDraftSync = watch(hud, () => {
-  if (!livePreview.value && !applyingDraft) syncDraft(hud)
-}, { deep: true, flush: 'sync' })
-
-watch(editTarget, (target) => {
+watch(editTarget, () => {
   for (const group of GROUPS) {
     for (const field of group.fields) {
       if (field.kind !== 'number') continue
-      const name = fieldName(field)
-      const value = String(valueOf(field))
-      numberDrafts[name] = value
-      if (committedNumbers.get(name) !== value) committedNumbers.delete(name)
+      visualSettings.syncNumericDraft(`hud.${fieldName(field)}`, Number(valueOf(field)))
     }
   }
 }, { deep: true, immediate: true })
-
-onBeforeUnmount(() => {
-  stopDraftSync()
-  clearTimeout(copiedTimer)
-})
 </script>
 
 <template>
-  <div class="hud-controls">
+  <div class="hud-controls" data-visual-page-content="hud">
     <section class="session-editing">
       <div class="field-head">
         <label for="map-hud-live-preview">实时预览</label>
         <input
           id="map-hud-live-preview"
+          data-visual-action="hud.live-preview"
           class="checkbox"
           type="checkbox"
           :checked="livePreview"
@@ -219,14 +191,14 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="!livePreview" class="editing-hint">草稿模式：切回实时预览会放弃未应用草稿。</p>
       <div v-if="!livePreview" class="actions">
-        <button class="btn" @click="applyDraft">应用参数</button>
-        <button class="btn ghost" @click="discardDraft">放弃草稿</button>
+        <button class="btn" data-visual-action="hud.apply" @click="applyDraft">应用参数</button>
+        <button class="btn ghost" data-visual-action="hud.discard" @click="discardDraft">放弃草稿</button>
       </div>
     </section>
 
     <section v-for="group in GROUPS" :key="group.title" class="hud-group">
       <h3>{{ group.title }}</h3>
-      <div v-for="field in group.fields" :key="fieldName(field)" class="field">
+      <div v-for="field in group.fields" :key="fieldName(field)" class="field" :data-control-path="`hud.${field.section}.${field.key}`">
         <div class="field-head">
           <label :for="fieldId(field, field.kind === 'boolean' ? 'checkbox' : 'number')">{{ field.label }}</label>
           <input
@@ -270,8 +242,8 @@ onBeforeUnmount(() => {
       <h3>可复制参数</h3>
       <pre class="json-out">{{ editableJson }}</pre>
       <div class="actions">
-        <button class="btn" @click="copyHud">{{ copyLabel() }}</button>
-        <button class="btn ghost" @click="resetCurrentTarget">恢复 HUD 默认值</button>
+        <button class="btn" data-visual-action="hud.copy" @click="copyHud">{{ copyLabel() }}</button>
+        <button class="btn ghost" data-visual-action="hud.reset" @click="resetCurrentTarget">恢复 HUD 默认值</button>
       </div>
     </section>
   </div>
