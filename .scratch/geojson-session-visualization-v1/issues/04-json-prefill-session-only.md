@@ -1,0 +1,19 @@
+# 04 — Use business JSON as session-only editor prefill
+
+**What to build:** Keep the existing optional business JSON input as a bulk-entry convenience: valid data prefills the same labels, units and matched region rows, unmatched data is summarized, and the user can correct the draft before applying. The uploaded JSON never becomes persisted state.
+
+**Blocked by:** 03 — Edit visualization data for detected regions.
+
+**Status:** ready-for-agent
+
+- [ ] Valid JSON prefills both metric definitions and enables only exactly matched region rows.
+- [ ] Matched, missing and extra region names are summarized before Apply.
+- [ ] Manual edits made after prefill are used by the next Apply operation.
+- [ ] Selecting a different JSON explicitly replaces the prior prefill draft only after the new file validates.
+- [ ] Invalid or slow JSON reads disable Apply, preserve the last active map and report the filename and precise error.
+- [ ] JSON labels, units, display names and values are absent from the persisted geometry record and disappear after reload.
+- [ ] Existing file-size, row-count, exact-name and numeric validation limits remain enforced.
+
+## Comments
+
+This retains bulk import compatibility without weakening the free non-persistence boundary.
