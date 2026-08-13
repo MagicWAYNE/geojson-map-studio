@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — Commit editor data through atomic update actions.
 
-**Status:** ready-for-human
+Status: ready-for-human
 
 - [x] Focusing the checkbox, display-name input, either numeric input or row update action immediately highlights that row's stable region key.
 - [x] A region with no committed values still receives surface lift, emissive, glow and mosaic hover, but no fabricated badge or data panel.

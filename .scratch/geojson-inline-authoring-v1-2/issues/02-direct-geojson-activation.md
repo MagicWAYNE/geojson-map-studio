@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Move map authoring into the homepage shell.
 
-**Status:** ready-for-human
+Status: ready-for-human
 
 - [x] Selecting a valid Polygon/MultiPolygon/hole fixture directly changes the visible map and creates one editor row per detected region.
 - [x] The default unique `name` property is selected when available; otherwise the first usable unique property is selected.

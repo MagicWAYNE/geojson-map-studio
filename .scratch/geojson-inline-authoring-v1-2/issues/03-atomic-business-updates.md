@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Move map authoring into the homepage shell; 02 — Activate valid GeoJSON directly from the side panel.
 
-**Status:** ready-for-human
+Status: ready-for-human
 
 - [x] Each region row exposes one “更新此分块” action that atomically commits enabled state, display name, primary value and secondary value.
 - [x] The metric section exposes one “更新指标” action that atomically commits both labels and both units.

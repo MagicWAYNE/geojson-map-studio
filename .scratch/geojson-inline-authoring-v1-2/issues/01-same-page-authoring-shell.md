@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-human
+Status: ready-for-human
 
 - [x] At 1920×1080 the map keeps its current canvas size, camera position and target while moving left enough for a non-overlapping right panel.
 - [x] The right panel contains the existing GeoJSON file, optional JSON file, name-property, summary, region-editor and reset capabilities without introducing a second background or canvas.
