@@ -21,8 +21,17 @@ vi.mock('@/components/map/ChongqingMap3D.vue', () => ({
 }))
 vi.mock('@/views/MapLoaderView.vue', () => ({
   default: defineComponent({
-    setup() {
-      return () => h('aside', { class: 'authoring-panel-stub' }, '地图创作面板')
+    emits: ['mapActivated'],
+    setup(_, { emit }) {
+      return () => h('aside', { class: 'authoring-panel-stub' }, [
+        '地图创作面板',
+        h('button', {
+          class: 'activate-stub-map',
+          onClick: () => emit('mapActivated', {
+            source: { kind: 'geojson', displayName: 'new.geojson' }
+          })
+        }, '激活')
+      ])
     }
   })
 }))
@@ -64,7 +73,25 @@ describe('HomeView same-page map authoring', () => {
     await nextTick()
     expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('custom.geojson')
     expect(root.querySelectorAll('.home > *')).toHaveLength(4)
-    expect(root.querySelector('.authoring-panel-stub')?.textContent).toBe('地图创作面板')
+    expect(root.querySelector('.authoring-panel-stub')?.textContent).toContain('地图创作面板')
+    app.unmount()
+  })
+
+  it('面板直接激活新几何时在当前页面替换地图文档', async () => {
+    sourceMocks.load.mockResolvedValue({
+      document: { source: { kind: 'builtin', displayName: '内置地图' } },
+      warnings: []
+    })
+    const root = document.createElement('div')
+    const app = createApp(HomeView)
+    app.mount(root)
+    await vi.waitFor(() => expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('内置地图'))
+
+    root.querySelector<HTMLButtonElement>('.activate-stub-map')!.click()
+    await nextTick()
+
+    expect(root.querySelector('.map-stub')?.getAttribute('data-source')).toBe('new.geojson')
+    expect(root.querySelectorAll('.map-stub')).toHaveLength(1)
     app.unmount()
   })
 })

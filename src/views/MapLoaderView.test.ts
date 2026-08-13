@@ -41,10 +41,10 @@ function regionRow(root: HTMLElement, key: string): HTMLElement {
   return row
 }
 
-async function mountView() {
+async function mountView(props: Record<string, unknown> = {}) {
   const root = document.createElement('div')
   document.body.append(root)
-  const app = createApp(MapLoaderView)
+  const app = createApp(MapLoaderView, props)
   app.mount(root)
   await nextTick()
   return { app, root }
@@ -72,6 +72,54 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
+  it('有效 GeoJSON 校验后直接激活并把新文档交给同页地图', async () => {
+    const onMapActivated = vi.fn()
+    const { app, root } = await mountView({ onMapActivated })
+
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    const [nextPrepared, visualization] = sourceMocks.activate.mock.calls[0]
+    expect(nextPrepared.document.geometry.regions).toHaveLength(3)
+    expect(visualization).toBeUndefined()
+    expect(onMapActivated).toHaveBeenCalledWith(nextPrepared.document)
+    expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
+    expect(root.querySelector('[data-action="apply"]')).toBeNull()
+    expect(routerMocks.push).not.toHaveBeenCalled()
+    app.unmount()
+  })
+
+  it('名称字段切换只有在几何激活成功后才替换当前分块会话', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    const select = root.querySelector<HTMLSelectElement>('#name-property')!
+    expect(select.value).toBe('name')
+
+    sourceMocks.activate.mockRejectedValueOnce(new Error('disk full'))
+    select.value = 'code'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+
+    await vi.waitFor(() => expect(root.textContent).toContain('disk full'))
+    expect(select.value).toBe('name')
+    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
+      .map((row) => row.dataset.regionKey)).toEqual(['区域 A', '区域 B', '区域 C'])
+
+    select.value = 'code'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(3))
+    expect(select.value).toBe('code')
+    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
+      .map((row) => row.dataset.regionKey)).toEqual(['A', 'B', 'C'])
+    app.unmount()
+  })
+
   it('列出每个分块并可手动配置展示名、启用状态与两项指标', async () => {
     const { app, root } = await mountView()
     chooseFile(
@@ -88,7 +136,6 @@ describe('MapLoaderView', () => {
 
     row.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
     await nextTick()
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('区域 A')
 
     enter(root.querySelector<HTMLInputElement>('#primary-label')!, '扶持企业')
@@ -99,28 +146,12 @@ describe('MapLoaderView', () => {
     enter(row.querySelector<HTMLInputElement>('[data-field="primary"]')!, '120')
     enter(row.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '45.6')
 
-    await vi.waitFor(() => {
-      expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(false)
-    })
-    root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.click()
-    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
-    const [prepared, visualization] = sourceMocks.activate.mock.calls[0]
-    expect(prepared.document.geometry.regions).toHaveLength(3)
-    expect(visualization).toMatchObject({
-      labels: {
-        primary: { label: '扶持企业', unit: '家' },
-        secondary: { label: '服务资源', unit: '项' }
-      }
-    })
-    expect((visualization as MapVisualizationDraft).regions.find((item) => item.regionKey === '区域 A'))
-      .toEqual({
-        regionKey: '区域 A',
-        displayName: '创新一区',
-        enabled: true,
-        primary: 120,
-        secondary: 45.6
-      })
-    expect(routerMocks.push).toHaveBeenCalledWith('/')
+    await nextTick()
+    expect(sourceMocks.activate).toHaveBeenCalledTimes(1)
+    expect(sourceMocks.activate.mock.calls[0][1]).toBeUndefined()
+    expect(row.querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('创新一区')
+    expect(row.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('120')
+    expect(routerMocks.push).not.toHaveBeenCalled()
     app.unmount()
   })
 
@@ -152,14 +183,13 @@ describe('MapLoaderView', () => {
     expect(row.querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('创新一区')
     expect(row.querySelector<HTMLInputElement>('[data-field="enabled"]')?.checked).toBe(true)
     expect(row.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('12')
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')?.disabled).toBe(false)
+    expect(root.querySelector('[data-action="apply"]')).toBeNull()
     app.unmount()
   })
 
-  it('上传 GeoJSON 和可选业务数据后展示摘要并激活地图', async () => {
+  it('上传 GeoJSON 后直接激活，可选业务数据只预填草稿', async () => {
     const { app, root } = await mountView()
-    const applyButton = root.querySelector<HTMLButtonElement>('[data-action="apply"]')!
-    expect(applyButton.disabled).toBe(true)
+    expect(root.querySelector('[data-action="apply"]')).toBeNull()
     expect(root.querySelector('canvas')).toBeNull()
 
     chooseFile(
@@ -175,7 +205,6 @@ describe('MapLoaderView', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 2')
     })
-    expect(applyButton.disabled).toBe(false)
     expect(root.querySelector('[data-summary="geometry"]')?.textContent).toContain('3 个区域')
     expect(root.querySelector('[data-summary="geometry"]')?.textContent).toContain('名称字段 name')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 2')
@@ -191,15 +220,15 @@ describe('MapLoaderView', () => {
     enter(regionA.querySelector<HTMLInputElement>('[data-field="display-name"]')!, '手工修正 A')
     enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '121')
 
-    applyButton.click()
     await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
     const [prepared, visualization] = sourceMocks.activate.mock.calls[0]
     expect(prepared.document.geometry.regions).toHaveLength(3)
     expect(prepared.persisted).not.toHaveProperty('metricsText')
     expect(prepared.document.metrics.size).toBe(0)
-    expect((visualization as MapVisualizationDraft).regions.find((item) => item.regionKey === '区域 A'))
-      .toMatchObject({ displayName: '手工修正 A', enabled: true, primary: 121, secondary: 45.6 })
-    expect(routerMocks.push).toHaveBeenCalledWith('/')
+    expect(visualization).toBeUndefined()
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('手工修正 A')
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')?.value).toBe('121')
+    expect(routerMocks.push).not.toHaveBeenCalled()
     app.unmount()
   })
 
@@ -225,7 +254,7 @@ describe('MapLoaderView', () => {
       { name: 'new-invalid.json', text: () => invalidText } as File
     )
     await nextTick()
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLInputElement>('#metrics-file')!.disabled).toBe(true)
     expect(regionRow(root, '区域 A')
       .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
     resolveInvalid('{')
@@ -236,7 +265,7 @@ describe('MapLoaderView', () => {
     enter(regionRow(root, '区域 A').querySelector<HTMLInputElement>('[data-field="display-name"]')!, '错误后继续编辑')
     await nextTick()
     expect(root.textContent).toContain('new-invalid.json')
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLInputElement>('#metrics-file')!.disabled).toBe(false)
 
     const replacement = JSON.stringify({
       version: 1,
@@ -259,7 +288,7 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
-  it('没有唯一名称字段时阻止应用，并可恢复内置地图', async () => {
+  it('没有唯一名称字段时不激活，并可恢复内置地图', async () => {
     sourceMocks.load.mockResolvedValue({
       document: {},
       warnings: [{ code: 'invalid-record', message: '已保存地图损坏，已回退内置地图' }]
@@ -273,24 +302,21 @@ describe('MapLoaderView', () => {
     )
     await vi.waitFor(() => expect(root.textContent).toContain('没有可用的唯一名称字段'))
     expect(root.querySelector('[data-name-conflicts]')?.textContent).toContain('name：重复区域')
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
     expect(sourceMocks.activate).not.toHaveBeenCalled()
 
     root.querySelector<HTMLButtonElement>('[data-action="reset"]')!.click()
     await vi.waitFor(() => expect(sourceMocks.resetToBuiltin).toHaveBeenCalledTimes(1))
-    expect(routerMocks.push).toHaveBeenCalledWith('/')
+    expect(routerMocks.push).not.toHaveBeenCalled()
     app.unmount()
   })
 
-  it('读取新业务文件期间立即禁用旧准备结果，并在失败时显示文件与 feature 上下文', async () => {
+  it('读取新业务文件期间禁用输入，并让无效新几何保留当前编辑会话', async () => {
     const { app, root } = await mountView()
     chooseFile(
       root.querySelector<HTMLInputElement>('#geometry-file')!,
       new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
     )
-    await vi.waitFor(() => {
-      expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(false)
-    })
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
 
     let resolveMetrics!: (text: string) => void
     const metricsText = new Promise<string>((resolve) => { resolveMetrics = resolve })
@@ -299,10 +325,10 @@ describe('MapLoaderView', () => {
       { name: 'slow-invalid-metrics.json', text: () => metricsText } as File
     )
     await nextTick()
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLInputElement>('#metrics-file')!.disabled).toBe(true)
     resolveMetrics('{')
     await vi.waitFor(() => expect(root.textContent).toContain('slow-invalid-metrics.json'))
-    expect(root.querySelector<HTMLButtonElement>('[data-action="apply"]')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLInputElement>('#metrics-file')!.disabled).toBe(false)
 
     chooseFile(
       root.querySelector<HTMLInputElement>('#geometry-file')!,
@@ -311,7 +337,8 @@ describe('MapLoaderView', () => {
     await vi.waitFor(() => expect(root.textContent).toContain('invalid-coordinate.geojson'))
     expect(root.textContent).toContain('features[0]')
     expect(root.textContent).toContain('越界区域')
-    expect(sourceMocks.activate).not.toHaveBeenCalled()
+    expect(sourceMocks.activate).toHaveBeenCalledTimes(1)
+    expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
     app.unmount()
   })
 })

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { useRouter } from 'vue-router'
 import { activeMapSource } from '@/components/map/mapSource'
 import {
   composeMapVisualization,
@@ -9,13 +8,16 @@ import {
   prefillMapVisualizationDraft,
   prepareGeoJsonMapPackage,
   type GeoJsonInspection,
+  type MapDocument,
   type MapMetricsSummary,
   type MapVisualizationDraft,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
 import type { MapSourceWarning } from '@/components/map/activeMapSource'
 
-const router = useRouter()
+const emit = defineEmits<{
+  mapActivated: [document: MapDocument]
+}>()
 const geometryText = ref<string>()
 const geometryFileName = ref('')
 const nameProperty = ref('')
@@ -30,17 +32,11 @@ const busy = ref(false)
 const metricsReading = ref(false)
 let geometryReadGeneration = 0
 let metricsReadGeneration = 0
+let activationGeneration = 0
+let activationQueue = Promise.resolve()
 
 const enabledRegionCount = computed(() =>
   visualization.value?.regions.filter((region) => region.enabled).length ?? 0
-)
-const canApply = computed(() =>
-  prepared.value !== undefined &&
-  visualization.value !== undefined &&
-  !busy.value &&
-  !metricsReading.value &&
-  !validationError.value &&
-  !metricsValidationError.value
 )
 
 function errorMessage(cause: unknown, fileName = ''): string {
@@ -69,58 +65,95 @@ function validateVisualization(): void {
   }
 }
 
-function validatePackage(): void {
-  prepared.value = undefined
-  visualization.value = undefined
-  prefillSummary.value = undefined
+interface GeometryCandidate {
+  text: string
+  fileName: string
+  nameProperty: string
+  inspection: GeoJsonInspection
+  prepared: PreparedMapPackage
+}
+
+async function activateGeometry(candidate: GeometryCandidate): Promise<void> {
+  const generation = ++activationGeneration
+  busy.value = true
   validationError.value = ''
-  if (geometryText.value === undefined) return
-  if (!nameProperty.value) {
-    validationError.value = '没有可用的唯一名称字段'
-    return
-  }
-  try {
-    const nextPrepared = prepareGeoJsonMapPackage({
-      geometryText: geometryText.value,
-      geometryFileName: geometryFileName.value,
-      nameProperty: nameProperty.value
+  const run = activationQueue.then(async () => {
+    if (generation !== activationGeneration) return
+    try {
+      const document = await activeMapSource.activate(candidate.prepared)
+      if (generation !== activationGeneration) return
+      geometryText.value = candidate.text
+      geometryFileName.value = candidate.fileName
+      inspection.value = candidate.inspection
+      nameProperty.value = candidate.nameProperty
+      prepared.value = candidate.prepared
+      visualization.value = candidate.prepared.visualization
+      prefillSummary.value = undefined
+      metricsValidationError.value = ''
+      validateVisualization()
+      emit('mapActivated', document)
+    } catch (cause) {
+      if (generation === activationGeneration) {
+        validationError.value = errorMessage(cause, candidate.fileName)
+      }
+    } finally {
+      if (generation === activationGeneration) busy.value = false
+    }
+  })
+  activationQueue = run.catch(() => undefined)
+  await run
+}
+
+function prepareCandidate(input: {
+  text: string
+  fileName: string
+  nameProperty: string
+  inspection: GeoJsonInspection
+}): GeometryCandidate {
+  return {
+    ...input,
+    prepared: prepareGeoJsonMapPackage({
+      geometryText: input.text,
+      geometryFileName: input.fileName,
+      nameProperty: input.nameProperty
     })
-    prepared.value = nextPrepared
-    visualization.value = nextPrepared.visualization
-    validateVisualization()
-  } catch (cause) {
-    validationError.value = errorMessage(cause, geometryFileName.value)
   }
 }
 
 async function handleGeometryFile(event: Event): Promise<void> {
   const generation = ++geometryReadGeneration
+  let activationStarted = false
+  activationGeneration += 1
   metricsReadGeneration += 1
   metricsReading.value = false
-  prefillSummary.value = undefined
   metricsValidationError.value = ''
   const file = (event.target as HTMLInputElement).files?.[0]
-  geometryText.value = undefined
-  geometryFileName.value = ''
-  inspection.value = undefined
-  nameProperty.value = ''
-  prepared.value = undefined
-  visualization.value = undefined
   validationError.value = ''
   if (!file) return
-  geometryFileName.value = file.name
+  busy.value = true
   try {
     const text = await file.text()
     if (generation !== geometryReadGeneration) return
     const nextInspection = inspectGeoJsonMap(text)
-    geometryText.value = text
-    inspection.value = nextInspection
-    nameProperty.value = nextInspection.usableNameProperties.includes('name')
+    const nextNameProperty = nextInspection.usableNameProperties.includes('name')
       ? 'name'
       : nextInspection.usableNameProperties[0] ?? ''
-    validatePackage()
+    if (!nextNameProperty) {
+      inspection.value = nextInspection
+      validationError.value = '没有可用的唯一名称字段'
+      return
+    }
+    activationStarted = true
+    await activateGeometry(prepareCandidate({
+      text,
+      fileName: file.name,
+      nameProperty: nextNameProperty,
+      inspection: nextInspection
+    }))
   } catch (cause) {
     if (generation === geometryReadGeneration) validationError.value = errorMessage(cause, file.name)
+  } finally {
+    if (generation === geometryReadGeneration && !activationStarted) busy.value = false
   }
 }
 
@@ -155,8 +188,22 @@ async function handleMetricsFile(event: Event): Promise<void> {
   }
 }
 
-function handleNameProperty(): void {
-  validatePackage()
+async function handleNameProperty(): Promise<void> {
+  if (!geometryText.value || !geometryFileName.value || !inspection.value || !nameProperty.value) return
+  const requestedNameProperty = nameProperty.value
+  try {
+    await activateGeometry(prepareCandidate({
+      text: geometryText.value,
+      fileName: geometryFileName.value,
+      nameProperty: requestedNameProperty,
+      inspection: inspection.value
+    }))
+    if (prepared.value?.persisted.nameProperty !== requestedNameProperty) {
+      nameProperty.value = prepared.value?.persisted.nameProperty ?? ''
+    }
+  } catch (cause) {
+    validationError.value = errorMessage(cause, geometryFileName.value)
+  }
 }
 
 function setRegionNumber(
@@ -171,27 +218,22 @@ function setRegionNumber(
   validateVisualization()
 }
 
-async function applyMap(): Promise<void> {
-  if (!prepared.value || !visualization.value || busy.value) return
-  busy.value = true
-  validationError.value = ''
-  try {
-    await activeMapSource.activate(prepared.value, visualization.value)
-    await router.push('/')
-  } catch (cause) {
-    validationError.value = errorMessage(cause)
-  } finally {
-    busy.value = false
-  }
-}
-
 async function resetMap(): Promise<void> {
   if (busy.value) return
   busy.value = true
   validationError.value = ''
   try {
-    await activeMapSource.resetToBuiltin()
-    await router.push('/')
+    const document = await activeMapSource.resetToBuiltin()
+    activationGeneration += 1
+    geometryText.value = undefined
+    geometryFileName.value = ''
+    nameProperty.value = ''
+    inspection.value = undefined
+    prepared.value = undefined
+    visualization.value = undefined
+    prefillSummary.value = undefined
+    metricsValidationError.value = ''
+    emit('mapActivated', document)
   } catch (cause) {
     validationError.value = errorMessage(cause)
   } finally {
@@ -418,9 +460,6 @@ onMounted(async () => {
       <footer class="map-loader__actions">
         <button type="button" data-action="reset" class="is-secondary" :disabled="busy" @click="resetMap">
           恢复内置重庆地图
-        </button>
-        <button type="button" data-action="apply" :disabled="!canApply" @click="applyMap">
-          {{ busy ? '处理中…' : '应用并查看地图' }}
         </button>
       </footer>
     </section>

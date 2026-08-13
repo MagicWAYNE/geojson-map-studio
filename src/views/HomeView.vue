@@ -31,7 +31,7 @@ onBeforeUnmount(() => {
     <img class="bg-terrain" :src="bgTerrain" alt="" />
     <ChongqingMap3D v-if="mapDocument" class="pos-map" :document="mapDocument" />
     <div v-else-if="loadError" class="map-load-error" role="alert">{{ loadError }}</div>
-    <MapLoaderView />
+    <MapLoaderView @map-activated="mapDocument = $event" />
   </div>
 </template>
 
