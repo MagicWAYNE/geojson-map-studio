@@ -81,7 +81,7 @@ describe('MapCompositionControls', () => {
     app.unmount()
   })
 
-  it('uploads and resets one session-only raster background with visible validation feedback', async () => {
+  it('uploads each layer independently and makes its current file downloadable', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:background')
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const root = document.createElement('div')
@@ -89,33 +89,40 @@ describe('MapCompositionControls', () => {
     app.mount(root)
     await nextTick()
     const session = useMapVisualSettings()
-    const input = root.querySelector<HTMLInputElement>('[data-background-upload]')!
+    const mainRow = root.querySelector<HTMLElement>('[data-background-layer="main"]')!
+    const terrainRow = root.querySelector<HTMLElement>('[data-background-layer="terrain"]')!
+    const input = mainRow.querySelector<HTMLInputElement>('[data-background-upload="main"]')!
+    const inputClick = vi.spyOn(input, 'click')
+
+    mainRow.querySelector<HTMLButtonElement>('[data-action="upload-background-main"]')!.click()
+    expect(inputClick).toHaveBeenCalledTimes(1)
 
     Object.defineProperty(input, 'files', {
       configurable: true,
       value: [new File(['image'], 'custom.png', { type: 'image/png' })]
     })
     input.dispatchEvent(new Event('change', { bubbles: true }))
-    await vi.waitFor(() => expect(session.backgroundImageUrl.value).toBe('blob:background'))
-    expect(session.backgroundImageUrl.value).toBe('blob:background')
-    expect(root.textContent).toContain('custom.png')
+    await vi.waitFor(() => expect(session.backgroundLayerSources.value.main.url).toBe('blob:background'))
+    expect(session.backgroundLayerSources.value.terrain.custom).toBe(false)
+    expect(mainRow.textContent).toContain('当前文件：custom.png')
+    expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toBe('blob:background')
+    expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('download')).toBe('custom.png')
     expect(input.value).toBe('')
+    expect(root.querySelector('#background-image-file')).toBeNull()
+    expect(root.querySelector('[data-action="reset-background"]')).toBeNull()
 
-    const reset = root.querySelector<HTMLButtonElement>('[data-action="reset-background"]')!
-    expect(reset.disabled).toBe(false)
-    reset.click()
-    await nextTick()
-    expect(session.backgroundImageUrl.value).toBe('')
-    expect(root.textContent).toContain('当前使用默认双层科技背景')
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:background')
-
-    Object.defineProperty(input, 'files', {
+    const terrainInput = terrainRow.querySelector<HTMLInputElement>('[data-background-upload="terrain"]')!
+    Object.defineProperty(terrainInput, 'files', {
       configurable: true,
       value: [new File(['text'], 'notes.txt', { type: 'text/plain' })]
     })
-    input.dispatchEvent(new Event('change', { bubbles: true }))
+    terrainInput.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('PNG')
+    expect(terrainRow.querySelector('[role="alert"]')?.textContent).toContain('PNG')
+    expect(session.backgroundLayerSources.value.main.url).toBe('blob:background')
+
+    session.resetVisualSession()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:background')
     app.unmount()
   })
 
@@ -132,6 +139,8 @@ describe('MapCompositionControls', () => {
 
     expect(mainToggle.checked).toBe(true)
     expect(terrainToggle.checked).toBe(true)
+    expect(mainRow.textContent).toContain('上传背景文件')
+    expect(mainRow.textContent).toContain('下载源文件')
     expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toContain('bg-main')
     expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('download')).toBe('bg-main.png')
     expect(terrainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toContain('bg-terrain')
@@ -140,14 +149,14 @@ describe('MapCompositionControls', () => {
     terrainToggle.checked = false
     terrainToggle.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(session.defaultBackgroundVisibility.terrain).toBe(false)
+    expect(session.backgroundLayerVisibility.terrain).toBe(false)
     expect(root.textContent).toContain('当前仅显示主背景')
 
     mainToggle.checked = false
     mainToggle.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
-    expect(session.defaultBackgroundVisibility.main).toBe(false)
-    expect(root.textContent).toContain('默认背景两层均已关闭')
+    expect(session.backgroundLayerVisibility.main).toBe(false)
+    expect(root.textContent).toContain('背景两层均已关闭')
     app.unmount()
   })
 })

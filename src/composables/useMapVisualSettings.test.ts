@@ -96,47 +96,58 @@ describe('visual-settings session', () => {
     expect(session.effectiveMapLayout.value).toEqual({ left: 81, top: 93, width: 1000, height: 800 })
   })
 
-  it('owns one session-only custom background URL and revokes replaced or reset files', async () => {
+  it('owns independent session-only files for both background layers and revokes replaced or reset files', async () => {
     const createObjectURL = vi.spyOn(URL, 'createObjectURL')
       .mockReturnValueOnce('blob:first')
       .mockReturnValueOnce('blob:second')
+      .mockReturnValueOnce('blob:terrain')
+      .mockReturnValueOnce('blob:broken')
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const { useMapVisualSettings } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
     session.resetVisualSession()
 
-    expect(await session.replaceBackgroundImage(
+    expect(await session.replaceBackgroundLayerImage('main',
       new File(['first'], 'first.png', { type: 'image/png' })
     )).toEqual({ ok: true, message: '' })
-    expect(session.backgroundImageUrl.value).toBe('blob:first')
-    expect(session.backgroundImageName.value).toBe('first.png')
+    expect(session.backgroundLayerSources.value.main).toEqual({
+      url: 'blob:first', filename: 'first.png', custom: true
+    })
+    expect(session.backgroundLayerSources.value.terrain.custom).toBe(false)
     expect(session.visualDirty.value).toBe(true)
 
-    await session.replaceBackgroundImage(new File(['second'], 'second.webp', { type: 'image/webp' }))
-    expect(session.backgroundImageUrl.value).toBe('blob:second')
+    await session.replaceBackgroundLayerImage('main', new File(['second'], 'second.webp', { type: 'image/webp' }))
+    expect(session.backgroundLayerSources.value.main.url).toBe('blob:second')
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:first')
 
-    const rejected = await session.replaceBackgroundImage(
+    await session.replaceBackgroundLayerImage('terrain', new File(['terrain'], 'terrain.png', { type: 'image/png' }))
+    expect(session.backgroundLayerSources.value.terrain.url).toBe('blob:terrain')
+
+    const rejected = await session.replaceBackgroundLayerImage('main',
       new File(['text'], 'notes.txt', { type: 'text/plain' })
     )
     expect(rejected.ok).toBe(false)
-    expect(session.backgroundImageUrl.value).toBe('blob:second')
+    expect(session.backgroundLayerSources.value.main.url).toBe('blob:second')
+    expect(session.backgroundLayerSources.value.terrain.url).toBe('blob:terrain')
 
     vi.spyOn(Image.prototype, 'decode').mockRejectedValueOnce(new Error('broken image'))
-    createObjectURL.mockReturnValueOnce('blob:broken')
-    const broken = await session.replaceBackgroundImage(
+    const broken = await session.replaceBackgroundLayerImage('main',
       new File(['broken'], 'broken.png', { type: 'image/png' })
     )
     expect(broken).toEqual({ ok: false, message: '无法读取背景图片，请重新选择文件' })
-    expect(session.backgroundImageUrl.value).toBe('blob:second')
+    expect(session.backgroundLayerSources.value.main.url).toBe('blob:second')
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:broken')
 
-    session.resetVisualSession()
+    session.resetBackgroundLayerImage('main')
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:second')
-    expect(session.backgroundImageUrl.value).toBe('')
-    expect(session.backgroundImageName.value).toBe('')
+    expect(session.backgroundLayerSources.value.main.custom).toBe(false)
+    expect(session.backgroundLayerSources.value.terrain.url).toBe('blob:terrain')
+
+    session.resetVisualSession()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:terrain')
+    expect(session.backgroundLayerSources.value.terrain.custom).toBe(false)
     expect(session.sidebarCollapsed.value).toBe(false)
-    expect(createObjectURL).toHaveBeenCalledTimes(3)
+    expect(createObjectURL).toHaveBeenCalledTimes(4)
   })
 
   it('owns independent session-only visibility for both default background layers', async () => {
@@ -144,16 +155,16 @@ describe('visual-settings session', () => {
     const session = useMapVisualSettings()
     session.resetVisualSession()
 
-    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: true })
-    session.setDefaultBackgroundLayerVisibility('terrain', false)
-    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: false })
+    expect({ ...session.backgroundLayerVisibility }).toEqual({ main: true, terrain: true })
+    session.setBackgroundLayerVisibility('terrain', false)
+    expect({ ...session.backgroundLayerVisibility }).toEqual({ main: true, terrain: false })
     expect(session.visualDirty.value).toBe(true)
 
-    session.setDefaultBackgroundLayerVisibility('main', false)
-    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: false, terrain: false })
+    session.setBackgroundLayerVisibility('main', false)
+    expect({ ...session.backgroundLayerVisibility }).toEqual({ main: false, terrain: false })
 
     session.resetVisualSession()
-    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: true })
+    expect({ ...session.backgroundLayerVisibility }).toEqual({ main: true, terrain: true })
   })
 
   it('preserves unpublished effect drafts while chart styling updates both bar subtrees', async () => {

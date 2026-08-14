@@ -19,9 +19,16 @@ export const DEFAULT_BACKGROUND_LAYERS = [
 ] as const
 
 export type DefaultBackgroundLayerId = typeof DEFAULT_BACKGROUND_LAYERS[number]['id']
+export type DefaultBackgroundLayer = typeof DEFAULT_BACKGROUND_LAYERS[number]
 
-export function createDefaultBackgroundVisibility(): Record<DefaultBackgroundLayerId, boolean> {
+export function createDefaultBackgroundLayerRecord<Value>(
+  createValue: (layer: DefaultBackgroundLayer) => Value
+): Record<DefaultBackgroundLayerId, Value> {
   return Object.fromEntries(
-    DEFAULT_BACKGROUND_LAYERS.map((layer) => [layer.id, layer.defaultVisible])
-  ) as Record<DefaultBackgroundLayerId, boolean>
+    DEFAULT_BACKGROUND_LAYERS.map((layer) => [layer.id, createValue(layer)])
+  ) as Record<DefaultBackgroundLayerId, Value>
+}
+
+export function createBackgroundLayerVisibility(): Record<DefaultBackgroundLayerId, boolean> {
+  return createDefaultBackgroundLayerRecord((layer) => layer.defaultVisible)
 }

@@ -59,7 +59,7 @@ describe('HomeView same-page map authoring', () => {
   it('keeps one map shell and places the authoring panel beside it', () => {
     expect(homeViewSource).toContain('DEFAULT_BACKGROUND_LAYERS')
     expect(homeViewSource).toContain(':class="`bg-${layer.id}`"')
-    expect(homeViewSource).toContain('visualSettings.defaultBackgroundVisibility[layer.id]')
+    expect(homeViewSource).toContain('visualSettings.backgroundLayerVisibility[layer.id]')
     expect(homeViewSource).toContain('<ChongqingMap3D')
     expect(homeViewSource).toContain('<MapLoaderView')
     expect(homeViewSource).not.toContain('<HeaderBar')
@@ -103,12 +103,12 @@ describe('HomeView same-page map authoring', () => {
     expect(session.layout.width).toBe(1120)
   })
 
-  it('uses one uploaded image instead of the two default background layers for this session', async () => {
+  it('replaces only the uploaded background layer file for this session', async () => {
     sourceMocks.load.mockResolvedValue({
       document: { source: { kind: 'builtin', displayName: '内置地图' } },
       warnings: []
     })
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:custom-background')
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:custom-main')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const session = useMapVisualSettings()
     session.resetVisualSession()
@@ -117,19 +117,17 @@ describe('HomeView same-page map authoring', () => {
     app.mount(root)
     await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
 
-    expect(root.querySelector('.bg-main')).not.toBeNull()
-    expect(root.querySelector('.bg-terrain')).not.toBeNull()
-    await session.replaceBackgroundImage(new File(['image'], 'studio.png', { type: 'image/png' }))
+    const originalTerrainSrc = root.querySelector<HTMLImageElement>('.bg-terrain')!.src
+    await session.replaceBackgroundLayerImage('main', new File(['image'], 'studio.png', { type: 'image/png' }))
     await nextTick()
-    expect(root.querySelector<HTMLImageElement>('.bg-custom')?.src).toContain('blob:custom-background')
-    expect(root.querySelector('.bg-main')).toBeNull()
-    expect(root.querySelector('.bg-terrain')).toBeNull()
-
-    session.resetBackgroundImage()
-    await nextTick()
+    expect(root.querySelector<HTMLImageElement>('.bg-main')?.src).toContain('blob:custom-main')
+    expect(root.querySelector<HTMLImageElement>('.bg-terrain')?.src).toBe(originalTerrainSrc)
     expect(root.querySelector('.bg-custom')).toBeNull()
-    expect(root.querySelector('.bg-main')).not.toBeNull()
-    expect(root.querySelector('.bg-terrain')).not.toBeNull()
+
+    session.resetBackgroundLayerImage('main')
+    await nextTick()
+    expect(root.querySelector<HTMLImageElement>('.bg-main')?.src).toContain('bg-main')
+    expect(root.querySelector<HTMLImageElement>('.bg-terrain')?.src).toBe(originalTerrainSrc)
     app.unmount()
   })
 
@@ -145,13 +143,13 @@ describe('HomeView same-page map authoring', () => {
     app.mount(root)
     await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
 
-    session.setDefaultBackgroundLayerVisibility('terrain', false)
+    session.setBackgroundLayerVisibility('terrain', false)
     await nextTick()
     expect(root.querySelector('.bg-main')).not.toBeNull()
     expect(root.querySelector('.bg-terrain')).toBeNull()
 
-    session.setDefaultBackgroundLayerVisibility('main', false)
-    session.setDefaultBackgroundLayerVisibility('terrain', true)
+    session.setBackgroundLayerVisibility('main', false)
+    session.setBackgroundLayerVisibility('terrain', true)
     await nextTick()
     expect(root.querySelector('.bg-main')).toBeNull()
     expect(root.querySelector('.bg-terrain')).not.toBeNull()

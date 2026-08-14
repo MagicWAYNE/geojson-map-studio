@@ -52,7 +52,8 @@ import {
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
 import {
   DEFAULT_BACKGROUND_LAYERS,
-  createDefaultBackgroundVisibility,
+  createBackgroundLayerVisibility,
+  createDefaultBackgroundLayerRecord,
   type DefaultBackgroundLayerId
 } from '@/components/map/defaultBackgroundLayers'
 import { copyTextToClipboard } from '@/utils/copyText'
@@ -80,9 +81,15 @@ export interface MapLayoutFieldBounds {
   safetyMin?: number
 }
 
-export interface BackgroundImageUpdateResult {
+export interface BackgroundLayerImageUpdateResult {
   ok: boolean
   message: string
+}
+
+export interface BackgroundLayerImageSource {
+  url: string
+  filename: string
+  custom: boolean
 }
 
 export const MAP_LAYOUT_FIELD_BOUNDS: Readonly<Record<keyof MapLayout, MapLayoutFieldBounds>> = {
@@ -200,11 +207,13 @@ const workspaceMode = ref<VisualWorkspaceMode>('data')
 const activeVisualPage = ref<VisualSettingsPageId>('composition')
 const sidebarCollapsed = ref(false)
 const layout = reactive<MapLayout>({ ...MAP_LAYOUT_DEFAULT })
-const defaultBackgroundVisibility = reactive(createDefaultBackgroundVisibility())
-const backgroundImageUrl = ref('')
-const backgroundImageName = ref('')
-const backgroundImageError = ref('')
-let backgroundImageRequestId = 0
+const backgroundLayerVisibility = reactive(createBackgroundLayerVisibility())
+const backgroundLayerOverrides = reactive<Partial<Record<DefaultBackgroundLayerId, {
+  url: string
+  filename: string
+}>>>({})
+const backgroundLayerErrors = reactive(createDefaultBackgroundLayerRecord(() => ''))
+const backgroundLayerRequestIds = createDefaultBackgroundLayerRecord(() => 0)
 const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
 const hud = reactive<MapHudConfig>(cloneMapHudConfig(MAP_HUD_DEFAULTS))
 const effectDraft = reactive<MapEffectConfig>(cloneMapEffectConfig(effect))
@@ -254,6 +263,14 @@ const effectiveMapLayout = computed<MapLayout>(() => {
     height: layout.height
   }
 })
+const backgroundLayerSources = computed<Record<DefaultBackgroundLayerId, BackgroundLayerImageSource>>(
+  () => createDefaultBackgroundLayerRecord((layer) => {
+    const override = backgroundLayerOverrides[layer.id]
+    return override
+      ? { ...override, custom: true }
+      : { url: layer.url, filename: layer.filename, custom: false }
+  })
+)
 const compositionCss = computed(() =>
   `.pos-map { left: ${layout.left}px; top: ${layout.top}px; width: ${layout.width}px; height: ${layout.height}px; }`
 )
@@ -267,9 +284,9 @@ const visualDirty = computed(() =>
   || effectJson.value !== formatMapEffectConfig(MAP_EFFECT_DEFAULTS)
   || hudJson.value !== formatMapHudConfig(MAP_HUD_DEFAULTS)
   || DEFAULT_BACKGROUND_LAYERS.some(
-    (layer) => defaultBackgroundVisibility[layer.id] !== layer.defaultVisible
+    (layer) => backgroundLayerVisibility[layer.id] !== layer.defaultVisible
   )
-  || Boolean(backgroundImageUrl.value)
+  || Object.keys(backgroundLayerOverrides).length > 0
 )
 
 const compositionWarnings = computed<string[]>(() => {
@@ -389,11 +406,11 @@ function toggleSidebar(): void {
   setSidebarCollapsed(!sidebarCollapsed.value)
 }
 
-function setDefaultBackgroundLayerVisibility(
+function setBackgroundLayerVisibility(
   layer: DefaultBackgroundLayerId,
   visible: boolean
 ): void {
-  defaultBackgroundVisibility[layer] = visible
+  backgroundLayerVisibility[layer] = visible
 }
 
 function isSupportedBackgroundImage(file: File): boolean {
@@ -416,47 +433,53 @@ function decodeBackgroundImage(url: string): Promise<void> {
   })
 }
 
-async function replaceBackgroundImage(file: File): Promise<BackgroundImageUpdateResult> {
-  const requestId = ++backgroundImageRequestId
+async function replaceBackgroundLayerImage(
+  layer: DefaultBackgroundLayerId,
+  file: File
+): Promise<BackgroundLayerImageUpdateResult> {
+  const requestId = ++backgroundLayerRequestIds[layer]
   if (!isSupportedBackgroundImage(file)) {
     const message = '请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片'
-    backgroundImageError.value = message
+    backgroundLayerErrors[layer] = message
     return { ok: false, message }
   }
   if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
     const message = '背景图片不能超过 25 MB'
-    backgroundImageError.value = message
+    backgroundLayerErrors[layer] = message
     return { ok: false, message }
   }
   let nextUrl = ''
   try {
     nextUrl = URL.createObjectURL(file)
     await decodeBackgroundImage(nextUrl)
-    if (requestId !== backgroundImageRequestId) {
+    if (requestId !== backgroundLayerRequestIds[layer]) {
       URL.revokeObjectURL(nextUrl)
       return { ok: false, message: '' }
     }
-    const previousUrl = backgroundImageUrl.value
-    backgroundImageUrl.value = nextUrl
-    backgroundImageName.value = file.name
-    backgroundImageError.value = ''
+    const previousUrl = backgroundLayerOverrides[layer]?.url
+    backgroundLayerOverrides[layer] = { url: nextUrl, filename: file.name }
+    backgroundLayerErrors[layer] = ''
     if (previousUrl) URL.revokeObjectURL(previousUrl)
     return { ok: true, message: '' }
   } catch {
     if (nextUrl) URL.revokeObjectURL(nextUrl)
-    if (requestId !== backgroundImageRequestId) return { ok: false, message: '' }
+    if (requestId !== backgroundLayerRequestIds[layer]) return { ok: false, message: '' }
     const message = '无法读取背景图片，请重新选择文件'
-    backgroundImageError.value = message
+    backgroundLayerErrors[layer] = message
     return { ok: false, message }
   }
 }
 
-function resetBackgroundImage(): void {
-  backgroundImageRequestId += 1
-  if (backgroundImageUrl.value) URL.revokeObjectURL(backgroundImageUrl.value)
-  backgroundImageUrl.value = ''
-  backgroundImageName.value = ''
-  backgroundImageError.value = ''
+function resetBackgroundLayerImage(layer: DefaultBackgroundLayerId): void {
+  backgroundLayerRequestIds[layer] += 1
+  const override = backgroundLayerOverrides[layer]
+  if (override) URL.revokeObjectURL(override.url)
+  delete backgroundLayerOverrides[layer]
+  backgroundLayerErrors[layer] = ''
+}
+
+function resetBackgroundLayerImages(): void {
+  for (const layer of DEFAULT_BACKGROUND_LAYERS) resetBackgroundLayerImage(layer.id)
 }
 
 function resetEffect(): void {
@@ -799,8 +822,8 @@ function resetVisualSession(): void {
   effectLivePreview.value = true
   hudLivePreview.value = true
   resetLayout()
-  Object.assign(defaultBackgroundVisibility, createDefaultBackgroundVisibility())
-  resetBackgroundImage()
+  Object.assign(backgroundLayerVisibility, createBackgroundLayerVisibility())
+  resetBackgroundLayerImages()
   resetEffect()
   resetHud()
   lastEffectiveEffect = cloneMapEffectConfig(effect)
@@ -827,10 +850,9 @@ export function useMapVisualSettings() {
     sidebarCollapsed,
     layout,
     effectiveMapLayout,
-    defaultBackgroundVisibility,
-    backgroundImageUrl,
-    backgroundImageName,
-    backgroundImageError,
+    backgroundLayerVisibility,
+    backgroundLayerSources,
+    backgroundLayerErrors,
     effect,
     effectDraft,
     effectEditTarget,
@@ -865,9 +887,9 @@ export function useMapVisualSettings() {
     resetLayout,
     setSidebarCollapsed,
     toggleSidebar,
-    setDefaultBackgroundLayerVisibility,
-    replaceBackgroundImage,
-    resetBackgroundImage,
+    setBackgroundLayerVisibility,
+    replaceBackgroundLayerImage,
+    resetBackgroundLayerImage,
     resetEffect,
     resetHud,
     resetVisualSession,

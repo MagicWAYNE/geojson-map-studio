@@ -43,21 +43,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="home">
-    <img
-      v-if="visualSettings.backgroundImageUrl.value"
-      class="bg-custom"
-      :src="visualSettings.backgroundImageUrl.value"
-      alt=""
-    />
-    <template v-else>
-      <template v-for="layer in defaultBackgroundLayers" :key="layer.id">
-        <img
-          v-if="visualSettings.defaultBackgroundVisibility[layer.id]"
-          :class="`bg-${layer.id}`"
-          :src="layer.url"
-          alt=""
-        />
-      </template>
+    <template v-for="layer in defaultBackgroundLayers" :key="layer.id">
+      <img
+        v-if="visualSettings.backgroundLayerVisibility[layer.id]"
+        :class="`bg-${layer.id}`"
+        :src="visualSettings.backgroundLayerSources.value[layer.id].url"
+        alt=""
+      />
     </template>
     <ChongqingMap3D
       v-if="mapDocument"
@@ -80,14 +72,6 @@ onBeforeUnmount(() => {
 .home { position: absolute; inset: 0; overflow: hidden; }
 .bg-main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
-.bg-custom {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1920px;
-  height: 1080px;
-  object-fit: cover;
-}
 
 .pos-map { position: absolute; z-index: 1; }
 .map-load-error {

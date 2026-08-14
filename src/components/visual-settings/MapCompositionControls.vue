@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import {
   MAP_LAYOUT_FIELD_BOUNDS,
   useMapVisualSettings,
@@ -11,15 +11,14 @@ import {
 } from '@/components/map/defaultBackgroundLayers'
 
 const session = useMapVisualSettings()
-const backgroundFileInput = ref<HTMLInputElement>()
 const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
+const backgroundFileInputs: Partial<Record<DefaultBackgroundLayerId, HTMLInputElement>> = {}
 const backgroundStatus = computed(() => {
-  if (session.backgroundImageName.value) return session.backgroundImageName.value
-  const { main, terrain } = session.defaultBackgroundVisibility
-  if (main && terrain) return '当前使用默认双层科技背景'
+  const { main, terrain } = session.backgroundLayerVisibility
+  if (main && terrain) return '当前显示主背景与地形纹理'
   if (main) return '当前仅显示主背景'
   if (terrain) return '当前仅显示地形纹理'
-  return '默认背景两层均已关闭'
+  return '背景两层均已关闭'
 })
 const FIELDS: ReadonlyArray<{
   key: keyof MapLayout
@@ -57,20 +56,24 @@ function rangeMax(field: typeof FIELDS[number]): number {
   return Math.max(MAP_LAYOUT_FIELD_BOUNDS[field.key].rangeMax, session.layout[field.key])
 }
 
-async function uploadBackground(event: Event): Promise<void> {
+function setBackgroundFileInput(layer: DefaultBackgroundLayerId, element: unknown): void {
+  if (element instanceof HTMLInputElement) backgroundFileInputs[layer] = element
+  else delete backgroundFileInputs[layer]
+}
+
+function openBackgroundUpload(layer: DefaultBackgroundLayerId): void {
+  backgroundFileInputs[layer]?.click()
+}
+
+async function uploadBackground(layer: DefaultBackgroundLayerId, event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (file) await session.replaceBackgroundImage(file)
+  if (file) await session.replaceBackgroundLayerImage(layer, file)
 }
 
-function resetBackground(): void {
-  session.resetBackgroundImage()
-  if (backgroundFileInput.value) backgroundFileInput.value.value = ''
-}
-
-function updateDefaultBackgroundLayer(layer: DefaultBackgroundLayerId, event: Event): void {
-  session.setDefaultBackgroundLayerVisibility(layer, (event.target as HTMLInputElement).checked)
+function updateBackgroundLayerVisibility(layer: DefaultBackgroundLayerId, event: Event): void {
+  session.setBackgroundLayerVisibility(layer, (event.target as HTMLInputElement).checked)
 }
 
 onMounted(() => {
@@ -82,57 +85,59 @@ onMounted(() => {
   <div class="composition-controls" data-visual-page-content="composition">
     <section class="setting-group">
       <h2>画布背景</h2>
-      <p>默认背景由底层主背景与地形纹理两层叠加。上传一张图片后将整体替换这两层，刷新页面后恢复默认。</p>
-      <div class="background-layer-list" aria-label="默认背景图层">
+      <p>主背景与地形纹理可以分别开关或替换文件。上传内容仅在当前创作会话生效，刷新页面后恢复内置源文件。</p>
+      <div class="background-layer-list" aria-label="背景图层">
         <div
           v-for="layer in defaultBackgroundLayers"
           :key="layer.id"
           class="background-layer"
           :data-background-layer="layer.id"
         >
-          <label class="background-layer__toggle">
+          <div class="background-layer__heading">
+            <label class="background-layer__toggle">
+              <input
+                type="checkbox"
+                :checked="session.backgroundLayerVisibility[layer.id]"
+                :aria-label="`${layer.label}显示开关`"
+                @change="updateBackgroundLayerVisibility(layer.id, $event)"
+              />
+              <span>{{ layer.label }}</span>
+            </label>
+            <span class="background-layer__source">
+              当前文件：{{ session.backgroundLayerSources.value[layer.id].filename }}
+            </span>
+          </div>
+          <div class="background-layer__actions">
             <input
-              type="checkbox"
-              :checked="session.defaultBackgroundVisibility[layer.id]"
-              :aria-label="`${layer.label}显示开关`"
-              @change="updateDefaultBackgroundLayer(layer.id, $event)"
+              :id="`background-layer-file-${layer.id}`"
+              :ref="(element) => setBackgroundFileInput(layer.id, element)"
+              class="background-layer__file-input"
+              :data-background-upload="layer.id"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+              @change="uploadBackground(layer.id, $event)"
             />
-            <span>{{ layer.label }}</span>
-          </label>
-          <a
-            class="background-layer__download"
-            :href="layer.url"
-            :download="layer.filename"
-            :aria-label="`下载${layer.label}背景文件`"
-          >下载原文件</a>
+            <button
+              type="button"
+              class="background-layer__upload"
+              :data-action="`upload-background-${layer.id}`"
+              @click="openBackgroundUpload(layer.id)"
+            >上传背景文件</button>
+            <a
+              class="background-layer__download"
+              :href="session.backgroundLayerSources.value[layer.id].url"
+              :download="session.backgroundLayerSources.value[layer.id].filename"
+              :aria-label="`下载${layer.label}当前背景文件`"
+            >下载源文件</a>
+          </div>
+          <p v-if="session.backgroundLayerErrors[layer.id]" class="background-layer__error" role="alert">
+            {{ session.backgroundLayerErrors[layer.id] }}
+          </p>
         </div>
       </div>
-      <p v-if="session.backgroundImageUrl.value">自定义背景生效期间，默认图层设置会保留，并在移除自定义背景后应用。</p>
-      <label class="background-upload" for="background-image-file">
-        <span>背景图片</span>
-        <input
-          id="background-image-file"
-          ref="backgroundFileInput"
-          data-background-upload
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
-          @change="uploadBackground"
-        />
-      </label>
       <p class="background-status" aria-live="polite">
         {{ backgroundStatus }}
       </p>
-      <p v-if="session.backgroundImageError.value" class="background-error" role="alert">
-        {{ session.backgroundImageError.value }}
-      </p>
-      <button
-        type="button"
-        data-action="reset-background"
-        :disabled="!session.backgroundImageUrl.value"
-        @click="resetBackground"
-      >
-        恢复默认背景
-      </button>
     </section>
 
     <section class="setting-group">
@@ -204,24 +209,22 @@ onMounted(() => {
 .setting-group { display: flex; flex-direction: column; gap: 12px; padding: 14px; background: rgba(36, 131, 255, 0.05); border: 1px solid rgba(36, 131, 255, 0.28); border-radius: 6px; }
 .setting-group h2 { margin: 0; color: #fff; font-size: 16px; }
 .setting-group p { margin: 0; color: #8fd9ff; font-size: 13px; line-height: 1.6; }
-.background-upload { display: grid; gap: 8px; color: #cfe6ff; font-size: 14px; }
 .background-layer-list { display: grid; gap: 8px; }
 .background-layer {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  min-height: 38px; padding: 0 10px;
+  display: grid; gap: 9px; padding: 10px;
   background: rgba(36, 131, 255, 0.08); border: 1px solid rgba(36, 131, 255, 0.32); border-radius: 4px;
 }
+.background-layer__heading, .background-layer__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .background-layer__toggle { display: inline-flex; align-items: center; gap: 8px; color: #cfe6ff; font-size: 14px; }
 .background-layer__toggle input { width: 16px; height: 16px; accent-color: #00deff; }
+.background-layer__source { min-width: 0; overflow: hidden; color: #78bde7; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.background-layer__actions { justify-content: flex-end; }
+.background-layer__file-input { display: none; }
+.background-layer__upload { padding: 5px 9px; font-size: 13px; }
 .background-layer__download { color: #67dcff; font-size: 13px; text-decoration: none; }
 .background-layer__download:hover { color: #fff; text-decoration: underline; }
-.background-upload input {
-  box-sizing: border-box; width: 100%; min-height: 40px; padding: 7px 9px;
-  color: #dff9ff; background: rgba(36, 131, 255, 0.12);
-  border: 1px solid rgba(36, 131, 255, 0.5); border-radius: 4px;
-}
+.background-layer__error { color: #ffad99 !important; }
 .background-status { overflow-wrap: anywhere; }
-.background-error { color: #ffad99 !important; }
 .composition-field { display: flex; flex-direction: column; gap: 7px; }
 .field-heading, .group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #cfe6ff; font-size: 14px; }
 .number-input { width: 96px; padding: 5px 8px; color: #00deff; text-align: right; background: rgba(36, 131, 255, 0.12); border: 1px solid rgba(36, 131, 255, 0.5); border-radius: 4px; }
