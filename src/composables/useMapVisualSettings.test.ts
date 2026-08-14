@@ -17,7 +17,7 @@ describe('visual-settings session', () => {
     const { MAP_LAYOUT_DEFAULT, VISUAL_SETTINGS_PAGES, useMapVisualSettings } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
 
-    expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 24, top: 132, width: 1120, height: 948 })
+    expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 0, top: 80, width: 1280, height: 1000 })
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)
     expect(VISUAL_SETTINGS_PAGES.map((page) => [page.id, page.label])).toEqual([
       ['composition', '构图与视角'],
@@ -36,7 +36,7 @@ describe('visual-settings session', () => {
 
     session.numericField('layout.left').edit('-')
     expect(session.numericField('layout.left').read(session.layout.left)).toBe('-')
-    expect(session.layout.left).toBe(24)
+    expect(session.layout.left).toBe(0)
 
     session.commitLayoutField('left', '-40')
     expect(session.layout.left).toBe(-40)

@@ -171,10 +171,10 @@ export const VISUAL_SETTINGS_PAGES: readonly VisualSettingsPage[] = [
 
 /** Home rendering and reset intentionally consume this single source of truth. */
 export const MAP_LAYOUT_DEFAULT: Readonly<MapLayout> = {
-  left: 24,
-  top: 132,
-  width: 1120,
-  height: 948
+  left: 0,
+  top: 80,
+  width: 1280,
+  height: 1000
 }
 
 export const MAP_CAMERA_DEFAULT = {

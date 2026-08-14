@@ -31,7 +31,7 @@ describe('MapCompositionControls', () => {
 
     number.value = '1180'
     number.dispatchEvent(new Event('input', { bubbles: true }))
-    expect(session.layout.left).toBe(24)
+    expect(session.layout.left).toBe(0)
     number.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(session.layout.left).toBe(1180)
@@ -59,7 +59,7 @@ describe('MapCompositionControls', () => {
     root.querySelector<HTMLButtonElement>('[data-action="reset-composition"]')!.click()
     await nextTick()
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)
-    expect(number.value).toBe('24')
+    expect(number.value).toBe('0')
     app.unmount()
   })
 
@@ -72,7 +72,7 @@ describe('MapCompositionControls', () => {
 
     buttons.find((button) => button.textContent?.includes('复制 CSS'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '.pos-map { left: 24px; top: 132px; width: 1120px; height: 948px; }'
+      '.pos-map { left: 0px; top: 80px; width: 1280px; height: 1000px; }'
     ))
     buttons.find((button) => button.textContent?.includes('复制相机参数'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
