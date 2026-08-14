@@ -1,13 +1,26 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   MAP_LAYOUT_FIELD_BOUNDS,
   useMapVisualSettings,
   type MapLayout
 } from '@/composables/useMapVisualSettings'
+import {
+  DEFAULT_BACKGROUND_LAYERS,
+  type DefaultBackgroundLayerId
+} from '@/components/map/defaultBackgroundLayers'
 
 const session = useMapVisualSettings()
 const backgroundFileInput = ref<HTMLInputElement>()
+const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
+const backgroundStatus = computed(() => {
+  if (session.backgroundImageName.value) return session.backgroundImageName.value
+  const { main, terrain } = session.defaultBackgroundVisibility
+  if (main && terrain) return '当前使用默认双层科技背景'
+  if (main) return '当前仅显示主背景'
+  if (terrain) return '当前仅显示地形纹理'
+  return '默认背景两层均已关闭'
+})
 const FIELDS: ReadonlyArray<{
   key: keyof MapLayout
   label: string
@@ -56,6 +69,10 @@ function resetBackground(): void {
   if (backgroundFileInput.value) backgroundFileInput.value.value = ''
 }
 
+function updateDefaultBackgroundLayer(layer: DefaultBackgroundLayerId, event: Event): void {
+  session.setDefaultBackgroundLayerVisibility(layer, (event.target as HTMLInputElement).checked)
+}
+
 onMounted(() => {
   for (const field of FIELDS) session.numericField(`layout.${field.key}`).sync(session.layout[field.key])
 })
@@ -66,6 +83,31 @@ onMounted(() => {
     <section class="setting-group">
       <h2>画布背景</h2>
       <p>默认背景由底层主背景与地形纹理两层叠加。上传一张图片后将整体替换这两层，刷新页面后恢复默认。</p>
+      <div class="background-layer-list" aria-label="默认背景图层">
+        <div
+          v-for="layer in defaultBackgroundLayers"
+          :key="layer.id"
+          class="background-layer"
+          :data-background-layer="layer.id"
+        >
+          <label class="background-layer__toggle">
+            <input
+              type="checkbox"
+              :checked="session.defaultBackgroundVisibility[layer.id]"
+              :aria-label="`${layer.label}显示开关`"
+              @change="updateDefaultBackgroundLayer(layer.id, $event)"
+            />
+            <span>{{ layer.label }}</span>
+          </label>
+          <a
+            class="background-layer__download"
+            :href="layer.url"
+            :download="layer.filename"
+            :aria-label="`下载${layer.label}背景文件`"
+          >下载原文件</a>
+        </div>
+      </div>
+      <p v-if="session.backgroundImageUrl.value">自定义背景生效期间，默认图层设置会保留，并在移除自定义背景后应用。</p>
       <label class="background-upload" for="background-image-file">
         <span>背景图片</span>
         <input
@@ -78,7 +120,7 @@ onMounted(() => {
         />
       </label>
       <p class="background-status" aria-live="polite">
-        {{ session.backgroundImageName.value || '当前使用默认双层科技背景' }}
+        {{ backgroundStatus }}
       </p>
       <p v-if="session.backgroundImageError.value" class="background-error" role="alert">
         {{ session.backgroundImageError.value }}
@@ -163,6 +205,16 @@ onMounted(() => {
 .setting-group h2 { margin: 0; color: #fff; font-size: 16px; }
 .setting-group p { margin: 0; color: #8fd9ff; font-size: 13px; line-height: 1.6; }
 .background-upload { display: grid; gap: 8px; color: #cfe6ff; font-size: 14px; }
+.background-layer-list { display: grid; gap: 8px; }
+.background-layer {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 38px; padding: 0 10px;
+  background: rgba(36, 131, 255, 0.08); border: 1px solid rgba(36, 131, 255, 0.32); border-radius: 4px;
+}
+.background-layer__toggle { display: inline-flex; align-items: center; gap: 8px; color: #cfe6ff; font-size: 14px; }
+.background-layer__toggle input { width: 16px; height: 16px; accent-color: #00deff; }
+.background-layer__download { color: #67dcff; font-size: 13px; text-decoration: none; }
+.background-layer__download:hover { color: #fff; text-decoration: underline; }
 .background-upload input {
   box-sizing: border-box; width: 100%; min-height: 40px; padding: 7px 9px;
   color: #dff9ff; background: rgba(36, 131, 255, 0.12);

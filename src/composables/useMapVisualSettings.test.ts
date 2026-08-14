@@ -139,6 +139,23 @@ describe('visual-settings session', () => {
     expect(createObjectURL).toHaveBeenCalledTimes(3)
   })
 
+  it('owns independent session-only visibility for both default background layers', async () => {
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+
+    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: true })
+    session.setDefaultBackgroundLayerVisibility('terrain', false)
+    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: false })
+    expect(session.visualDirty.value).toBe(true)
+
+    session.setDefaultBackgroundLayerVisibility('main', false)
+    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: false, terrain: false })
+
+    session.resetVisualSession()
+    expect({ ...session.defaultBackgroundVisibility }).toEqual({ main: true, terrain: true })
+  })
+
   it('preserves unpublished effect drafts while chart styling updates both bar subtrees', async () => {
     const { useMapVisualSettings } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()

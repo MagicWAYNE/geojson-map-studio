@@ -57,8 +57,9 @@ afterEach(() => {
 
 describe('HomeView same-page map authoring', () => {
   it('keeps one map shell and places the authoring panel beside it', () => {
-    expect(homeViewSource).toContain('<img class="bg-main"')
-    expect(homeViewSource).toContain('<img class="bg-terrain"')
+    expect(homeViewSource).toContain('DEFAULT_BACKGROUND_LAYERS')
+    expect(homeViewSource).toContain(':class="`bg-${layer.id}`"')
+    expect(homeViewSource).toContain('visualSettings.defaultBackgroundVisibility[layer.id]')
     expect(homeViewSource).toContain('<ChongqingMap3D')
     expect(homeViewSource).toContain('<MapLoaderView')
     expect(homeViewSource).not.toContain('<HeaderBar')
@@ -129,6 +130,32 @@ describe('HomeView same-page map authoring', () => {
     expect(root.querySelector('.bg-custom')).toBeNull()
     expect(root.querySelector('.bg-main')).not.toBeNull()
     expect(root.querySelector('.bg-terrain')).not.toBeNull()
+    app.unmount()
+  })
+
+  it('renders each default background layer only while its session switch is enabled', async () => {
+    sourceMocks.load.mockResolvedValue({
+      document: { source: { kind: 'builtin', displayName: '内置地图' } },
+      warnings: []
+    })
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+    const root = document.createElement('div')
+    const app = createApp(HomeView)
+    app.mount(root)
+    await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
+
+    session.setDefaultBackgroundLayerVisibility('terrain', false)
+    await nextTick()
+    expect(root.querySelector('.bg-main')).not.toBeNull()
+    expect(root.querySelector('.bg-terrain')).toBeNull()
+
+    session.setDefaultBackgroundLayerVisibility('main', false)
+    session.setDefaultBackgroundLayerVisibility('terrain', true)
+    await nextTick()
+    expect(root.querySelector('.bg-main')).toBeNull()
+    expect(root.querySelector('.bg-terrain')).not.toBeNull()
+
     app.unmount()
   })
 

@@ -118,4 +118,36 @@ describe('MapCompositionControls', () => {
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('PNG')
     app.unmount()
   })
+
+  it('exposes independent default-layer switches and downloadable source files', async () => {
+    const root = document.createElement('div')
+    const app = createApp(MapCompositionControls)
+    app.mount(root)
+    await nextTick()
+    const session = useMapVisualSettings()
+    const mainRow = root.querySelector<HTMLElement>('[data-background-layer="main"]')!
+    const terrainRow = root.querySelector<HTMLElement>('[data-background-layer="terrain"]')!
+    const mainToggle = mainRow.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    const terrainToggle = terrainRow.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+
+    expect(mainToggle.checked).toBe(true)
+    expect(terrainToggle.checked).toBe(true)
+    expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toContain('bg-main')
+    expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('download')).toBe('bg-main.png')
+    expect(terrainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toContain('bg-terrain')
+    expect(terrainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('download')).toBe('bg-terrain.png')
+
+    terrainToggle.checked = false
+    terrainToggle.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(session.defaultBackgroundVisibility.terrain).toBe(false)
+    expect(root.textContent).toContain('当前仅显示主背景')
+
+    mainToggle.checked = false
+    mainToggle.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(session.defaultBackgroundVisibility.main).toBe(false)
+    expect(root.textContent).toContain('默认背景两层均已关闭')
+    app.unmount()
+  })
 })

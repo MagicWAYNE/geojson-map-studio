@@ -5,15 +5,15 @@ import MapLoaderView from '@/views/MapLoaderView.vue'
 import { activeMapSource } from '@/components/map/mapSource'
 import type { ActiveMapLoadResult } from '@/components/map/activeMapSource'
 import type { MapDocument } from '@/components/map/mapDocument'
+import { DEFAULT_BACKGROUND_LAYERS } from '@/components/map/defaultBackgroundLayers'
 import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
-import bgMain from '@/assets/images/bg-main.png'
-import bgTerrain from '@/assets/images/bg-terrain.png'
 
 const mapDocument = shallowRef<MapDocument | null>(null)
 const initialLoad = shallowRef<ActiveMapLoadResult | null>(null)
 const authoringFocus = ref('')
 const loadError = ref('')
 const visualSettings = useMapVisualSettings()
+const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
 const { effectiveMapLayout } = visualSettings
 const mapStyle = computed(() => ({
   left: `${effectiveMapLayout.value.left}px`,
@@ -50,8 +50,14 @@ onBeforeUnmount(() => {
       alt=""
     />
     <template v-else>
-      <img class="bg-main" :src="bgMain" alt="" />
-      <img class="bg-terrain" :src="bgTerrain" alt="" />
+      <template v-for="layer in defaultBackgroundLayers" :key="layer.id">
+        <img
+          v-if="visualSettings.defaultBackgroundVisibility[layer.id]"
+          :class="`bg-${layer.id}`"
+          :src="layer.url"
+          alt=""
+        />
+      </template>
     </template>
     <ChongqingMap3D
       v-if="mapDocument"

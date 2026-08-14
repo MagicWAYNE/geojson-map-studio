@@ -50,6 +50,11 @@ import {
   type MapHudStaticLayerConfig
 } from '@/components/map/mapHudConfig'
 import type { MapOutwardGlowPipelineStatus } from '@/components/map/mapOutwardGlowPipeline'
+import {
+  DEFAULT_BACKGROUND_LAYERS,
+  createDefaultBackgroundVisibility,
+  type DefaultBackgroundLayerId
+} from '@/components/map/defaultBackgroundLayers'
 import { copyTextToClipboard } from '@/utils/copyText'
 
 export type VisualSettingsPageId = 'composition' | 'effects' | 'charts' | 'hud' | 'engineering'
@@ -195,6 +200,7 @@ const workspaceMode = ref<VisualWorkspaceMode>('data')
 const activeVisualPage = ref<VisualSettingsPageId>('composition')
 const sidebarCollapsed = ref(false)
 const layout = reactive<MapLayout>({ ...MAP_LAYOUT_DEFAULT })
+const defaultBackgroundVisibility = reactive(createDefaultBackgroundVisibility())
 const backgroundImageUrl = ref('')
 const backgroundImageName = ref('')
 const backgroundImageError = ref('')
@@ -260,6 +266,9 @@ const visualDirty = computed(() =>
   || layout.height !== MAP_LAYOUT_DEFAULT.height
   || effectJson.value !== formatMapEffectConfig(MAP_EFFECT_DEFAULTS)
   || hudJson.value !== formatMapHudConfig(MAP_HUD_DEFAULTS)
+  || DEFAULT_BACKGROUND_LAYERS.some(
+    (layer) => defaultBackgroundVisibility[layer.id] !== layer.defaultVisible
+  )
   || Boolean(backgroundImageUrl.value)
 )
 
@@ -378,6 +387,13 @@ function setSidebarCollapsed(next: boolean): void {
 
 function toggleSidebar(): void {
   setSidebarCollapsed(!sidebarCollapsed.value)
+}
+
+function setDefaultBackgroundLayerVisibility(
+  layer: DefaultBackgroundLayerId,
+  visible: boolean
+): void {
+  defaultBackgroundVisibility[layer] = visible
 }
 
 function isSupportedBackgroundImage(file: File): boolean {
@@ -783,6 +799,7 @@ function resetVisualSession(): void {
   effectLivePreview.value = true
   hudLivePreview.value = true
   resetLayout()
+  Object.assign(defaultBackgroundVisibility, createDefaultBackgroundVisibility())
   resetBackgroundImage()
   resetEffect()
   resetHud()
@@ -810,6 +827,7 @@ export function useMapVisualSettings() {
     sidebarCollapsed,
     layout,
     effectiveMapLayout,
+    defaultBackgroundVisibility,
     backgroundImageUrl,
     backgroundImageName,
     backgroundImageError,
@@ -847,6 +865,7 @@ export function useMapVisualSettings() {
     resetLayout,
     setSidebarCollapsed,
     toggleSidebar,
+    setDefaultBackgroundLayerVisibility,
     replaceBackgroundImage,
     resetBackgroundImage,
     resetEffect,
