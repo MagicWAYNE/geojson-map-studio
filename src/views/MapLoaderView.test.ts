@@ -199,9 +199,12 @@ describe('MapLoaderView', () => {
     const row = regionRow(root, '区域 A')
     expect(row.querySelector('[data-original-key]')?.textContent).toContain('区域 A')
     expect(row.querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('区域 A')
-    expect(row.querySelector<HTMLInputElement>('[data-field="enabled"]')?.checked).toBe(false)
+    const enabledInput = row.querySelector<HTMLInputElement>('[data-field="enabled"]')!
+    expect(enabledInput.checked).toBe(false)
+    expect(enabledInput.getAttribute('aria-label')).toBe('启用 区域 A 可视化')
+    expect(row.querySelector('.map-loader__enable')?.textContent?.trim()).toBe('')
 
-    row.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enabledInput.click()
     await nextTick()
     expect(row.dataset.dirty).toBe('true')
     expect(sourceMocks.updateVisualization).not.toHaveBeenCalled()

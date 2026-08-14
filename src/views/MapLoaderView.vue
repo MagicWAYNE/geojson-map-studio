@@ -529,7 +529,6 @@ onMounted(() => {
                   :aria-label="`启用 ${region.regionKey} 可视化`"
                   @change="editRegion(region.regionKey, 'enabled', $event)"
                 />
-                <span>{{ region.enabled ? '启用' : '关闭' }}</span>
               </label>
               <span class="map-loader__region-key" data-original-key :title="region.regionKey">
                 {{ region.regionKey }}
@@ -830,8 +829,8 @@ onMounted(() => {
 }
 
 .map-loader__region-row:last-child { border-bottom: 0; }
-.map-loader__enable { display: flex; align-items: center; gap: 7px; color: #9fb9d5; font-size: 13px; }
-.map-loader__enable input { accent-color: #2edcff; }
+.map-loader__enable { display: flex; align-items: center; justify-content: center; }
+.map-loader__enable input { width: 16px; height: 16px; margin: 0; accent-color: #2edcff; }
 .map-loader__region-key {
   overflow: hidden;
   color: #bcd7f2;
