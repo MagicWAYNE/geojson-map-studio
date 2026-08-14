@@ -33,7 +33,7 @@ export interface DistrictBarTopSnapshot {
   readonly name: string
   readonly displayName: string
   readonly primary: number
-  readonly secondary: number
+  readonly secondary: number | null
   readonly order: number
   readonly visible: boolean
   readonly hoverProgress: number
@@ -49,7 +49,7 @@ export interface DistrictBarReconcileResult {
 interface LayerDatum {
   displayName: string
   primary: number
-  secondary: number
+  secondary: number | null
 }
 
 interface LayerState {

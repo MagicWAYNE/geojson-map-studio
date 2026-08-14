@@ -42,12 +42,17 @@ export interface MapRegionMetrics {
   name: string
   displayName: string
   primary: number
-  secondary: number
+  secondary: number | null
+}
+
+export interface MapVisualizationMetricLabels {
+  primary: { label: string; unit: string }
+  secondary: { label: string; unit: string }
 }
 
 export interface MapMetricLabels {
   primary: { label: string; unit: string }
-  secondary: { label: string; unit: string }
+  secondary: { label: string; unit: string } | null
 }
 
 export interface MapVisualizationRegionDraft {
@@ -59,7 +64,7 @@ export interface MapVisualizationRegionDraft {
 }
 
 export interface MapVisualizationDraft {
-  labels: MapMetricLabels
+  labels: MapVisualizationMetricLabels
   regions: MapVisualizationRegionDraft[]
 }
 
@@ -142,7 +147,7 @@ interface ParsedGeoJson {
 }
 
 interface ParsedMetrics {
-  labels: MapMetricLabels
+  labels: MapVisualizationMetricLabels
   byName: Map<string, MapRegionMetrics>
 }
 
@@ -419,7 +424,7 @@ function parseMetrics(text: string): ParsedMetrics {
   if (root.regions.length > METRICS_MAX_REGIONS) {
     fail('invalid-metrics', 'regions', `业务数据区域数不能超过 ${METRICS_MAX_REGIONS}`)
   }
-  const labels: MapMetricLabels = {
+  const labels: MapVisualizationMetricLabels = {
     primary: readMetricLabel(root.primaryMetric, 'primaryMetric'),
     secondary: readMetricLabel(root.secondaryMetric, 'secondaryMetric')
   }
@@ -473,6 +478,17 @@ export function composeMapVisualization(
   const rowsByKey = new Map<string, MapVisualizationRegionDraft>()
   const displayNames = new Set<string>()
   const metrics = new Map<string, MapRegionMetrics>()
+  const secondaryDefinitionEmpty =
+    draft.labels.secondary.label.trim() === '' && draft.labels.secondary.unit.trim() === ''
+  const hasSecondaryValues = draft.regions.some((row) => row.enabled && row.secondary !== null)
+  if (secondaryDefinitionEmpty && hasSecondaryValues) {
+    fail(
+      'invalid-visualization',
+      'secondaryMetric',
+      '清空副指标名称和单位前，请先清空所有已启用区域的副数值'
+    )
+  }
+  const secondaryOmitted = secondaryDefinitionEmpty && !hasSecondaryValues
 
   for (const [index, row] of draft.regions.entries()) {
     const path = `regions[${index}]`
@@ -495,7 +511,7 @@ export function composeMapVisualization(
       name: row.regionKey,
       displayName,
       primary: readMetricNumber(row.primary, `${path}.primary`),
-      secondary: readMetricNumber(row.secondary, `${path}.secondary`)
+      secondary: secondaryOmitted ? null : readMetricNumber(row.secondary, `${path}.secondary`)
     })
   }
 
@@ -504,7 +520,7 @@ export function composeMapVisualization(
   }
   const labels = {
     primary: readMetricLabel(draft.labels.primary, 'primaryMetric'),
-    secondary: readMetricLabel(draft.labels.secondary, 'secondaryMetric')
+    secondary: secondaryOmitted ? null : readMetricLabel(draft.labels.secondary, 'secondaryMetric')
   }
   return {
     ...document,

@@ -251,6 +251,36 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
+  it('清空副指标定义和全部副数值后只发布主指标', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    const regionA = regionRow(root, '区域 A')
+    regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '12')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '')
+    enter(root.querySelector<HTMLInputElement>('#secondary-label')!, '')
+    enter(root.querySelector<HTMLInputElement>('#secondary-unit')!, '')
+    root.querySelector<HTMLButtonElement>('[data-action="update-all"]')!.click()
+
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+    const publishedDocument = sourceMocks.updateVisualization.mock.results[0].value
+    expect(publishedDocument.metricLabels).toEqual({
+      primary: { label: '扶持企业', unit: '家' },
+      secondary: null
+    })
+    expect(publishedDocument.metrics.get('区域 A')).toMatchObject({
+      primary: 12,
+      secondary: null
+    })
+    expect(root.textContent).not.toContain('清空副指标名称和单位前')
+    app.unmount()
+  })
+
   it('指标更新与全部更新各自原子发布，非法草稿不改变已提交地图', async () => {
     const { app, root } = await mountView()
     chooseFile(

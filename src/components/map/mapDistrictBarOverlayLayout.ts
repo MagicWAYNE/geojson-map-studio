@@ -100,7 +100,8 @@ function validSize(value: DistrictBarOverlaySize | undefined): value is District
     Number.isFinite(value.height) && value.height > 0
 }
 
-function formatNumber(value: number, decimals: number, useGrouping: boolean): string {
+function formatNumber(value: number | null, decimals: number, useGrouping: boolean): string {
+  if (value === null) return '—'
   if (!Number.isFinite(value)) return '—'
   const roundedDecimals = Number.isFinite(decimals) ? Math.round(decimals) : 0
   const digits = Math.min(4, Math.max(0, roundedDecimals))

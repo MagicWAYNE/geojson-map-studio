@@ -210,6 +210,23 @@ describe('MapDistrictBarOverlay', () => {
     app.unmount()
   })
 
+  it('omits the secondary row when the document publishes only a primary metric', async () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const { app, root } = await mountOverlay(
+      { badges: [], panel: panel('区域 A') },
+      cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS),
+      {
+        primary: { label: '扶持企业', unit: '家' },
+        secondary: null
+      }
+    )
+
+    expect(root.textContent).toContain('扶持企业：123 家')
+    expect(root.textContent).not.toContain('45.67')
+    expect(root.querySelectorAll('.district-bar-panel-row')).toHaveLength(1)
+    app.unmount()
+  })
+
   it('pins the exact formal title SVG bytes', () => {
     const asset = readFileSync(resolve(
       process.cwd(),

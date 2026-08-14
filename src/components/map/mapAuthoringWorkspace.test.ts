@@ -141,6 +141,25 @@ describe('map authoring workspace', () => {
     expect(workspace.read().dirtyMetrics).toBe(false)
   })
 
+  it('完全清空副指标后原子发布仅含主指标的地图', () => {
+    const prepared = preparedMap()
+    const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
+    workspace.editMetric('secondary', { label: '', unit: '' })
+    workspace.editRegion('区域 A', { enabled: true, primary: '12', secondary: '' })
+
+    const committed = workspace.commitAll()
+
+    expect(committed.ok).toBe(true)
+    if (!committed.ok) throw new Error(committed.error)
+    expect(committed.document.metricLabels?.secondary).toBeNull()
+    expect(committed.document.metrics.get('区域 A')).toMatchObject({
+      primary: 12,
+      secondary: null
+    })
+    expect(workspace.read().metricError).toBe('')
+    expect(workspace.read().regionErrors).toEqual({})
+  })
+
   it('全部更新先校验完整草稿，任何一行失败都不会部分提交', () => {
     const prepared = preparedMap()
     const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)

@@ -549,15 +549,16 @@ onMounted(() => {
             <input id="primary-unit" :value="visualization.labels.primary.unit" @input="editMetric('primary', 'unit', $event)" />
           </label>
           <label for="secondary-label">
-            <span>次指标名称</span>
+            <span>副指标名称（可选）</span>
             <input id="secondary-label" :value="visualization.labels.secondary.label" @input="editMetric('secondary', 'label', $event)" />
           </label>
           <label for="secondary-unit">
-            <span>次指标单位</span>
+            <span>副指标单位</span>
             <input id="secondary-unit" :value="visualization.labels.secondary.unit" @input="editMetric('secondary', 'unit', $event)" />
           </label>
           <button type="button" data-action="update-metrics" @click="commitMetrics">更新指标</button>
         </div>
+        <p class="map-loader__optional-hint">如不展示副指标，请清空副指标名称、单位和所有副数值，再点击“全部更新”。</p>
         <p v-if="workspaceSnapshot?.metricError" class="map-loader__inline-error" role="alert">
           {{ workspaceSnapshot.metricError }}
         </p>
@@ -568,7 +569,7 @@ onMounted(() => {
             <span>原始标识</span>
             <span>展示名称</span>
             <span>主数值</span>
-            <span>次数值</span>
+            <span>副数值</span>
             <span>更新</span>
           </div>
           <div class="map-loader__region-scroll">
@@ -617,7 +618,7 @@ onMounted(() => {
                 data-field="secondary"
                 :disabled="!region.enabled"
                 :value="region.secondary"
-                :aria-label="`${region.regionKey} 次数值`"
+                :aria-label="`${region.regionKey} 副数值`"
                 @input="editRegion(region.regionKey, 'secondary', $event)"
               />
               <button
@@ -858,6 +859,12 @@ onMounted(() => {
 .map-loader__metric-fields [data-dirty='true'] span,
 .map-loader__region-row[data-dirty='true'] .map-loader__region-key {
   color: #ffe27a;
+}
+
+.map-loader__optional-hint {
+  margin-top: 8px !important;
+  color: #7899bc !important;
+  font-size: 13px !important;
 }
 
 .map-loader__region-table { margin-top: 16px; }

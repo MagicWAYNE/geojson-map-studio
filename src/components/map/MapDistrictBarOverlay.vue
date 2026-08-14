@@ -307,7 +307,7 @@ function panelStyle(): StyleWithVariables {
         <div class="district-bar-panel-row">
           <span class="district-bar-panel-label">{{ metricLabels.primary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.primary.unit}` }}</span>
         </div>
-        <div class="district-bar-panel-row">
+        <div v-if="metricLabels.secondary" class="district-bar-panel-row">
           <span class="district-bar-panel-label">{{ metricLabels.secondary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.secondary.unit}` }}</span>
         </div>
       </section>

@@ -174,6 +174,52 @@ describe('mapDocument', () => {
     ])
   })
 
+  it('副指标定义和所有次数值完全清空时只发布主指标', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.labels.secondary = { label: '', unit: '' }
+    draft.regions[0] = {
+      ...draft.regions[0],
+      enabled: true,
+      primary: 120,
+      secondary: null
+    }
+
+    const composed = composeMapVisualization(base, draft)
+
+    expect(composed.metricLabels).toEqual({
+      primary: { label: '扶持企业', unit: '家' },
+      secondary: null
+    })
+    expect(composed.metrics.get('区域 A')).toMatchObject({ primary: 120, secondary: null })
+  })
+
+  it('副指标仍有定义或数值时拒绝半清空状态', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.regions[0] = { ...draft.regions[0], enabled: true, primary: 120, secondary: null }
+
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      code: 'invalid-metrics',
+      path: 'regions[0].secondary'
+    }))
+
+    draft.labels.secondary = { label: '', unit: '' }
+    draft.regions[0].secondary = 3
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      code: 'invalid-visualization',
+      path: 'secondaryMetric'
+    }))
+  })
+
   it.each([
     { displayNames: ['', '区域 B'], path: 'regions[0].displayName' },
     { displayNames: ['重复名', '重复名'], path: 'regions[1].displayName' },
