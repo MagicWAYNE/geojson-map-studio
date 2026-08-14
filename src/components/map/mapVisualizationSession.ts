@@ -15,6 +15,7 @@ function sourceKey(source: MapDocument['source']): string | null {
 
 function cloneDraft(draft: MapVisualizationDraft): MapVisualizationDraft {
   return {
+    secondaryEnabled: draft.secondaryEnabled,
     labels: {
       primary: { ...draft.labels.primary },
       secondary: { ...draft.labels.secondary }

@@ -278,6 +278,11 @@ function editMetric(
   refreshWorkspace()
 }
 
+function editSecondaryEnabled(event: Event): void {
+  authoringSession.setSecondaryEnabled((event.target as HTMLInputElement).checked)
+  refreshWorkspace()
+}
+
 function editRegion(
   regionKey: string,
   field: 'enabled' | 'displayName' | 'primary' | 'secondary',
@@ -548,17 +553,32 @@ onMounted(() => {
             <span>主指标单位</span>
             <input id="primary-unit" :value="visualization.labels.primary.unit" @input="editMetric('primary', 'unit', $event)" />
           </label>
+          <label class="map-loader__secondary-toggle" for="secondary-enabled">
+            <input
+              id="secondary-enabled"
+              type="checkbox"
+              role="switch"
+              :checked="visualization.secondaryEnabled"
+              aria-describedby="secondary-enabled-help"
+              @change="editSecondaryEnabled"
+            />
+            <span>展示副指标</span>
+          </label>
           <label for="secondary-label">
-            <span>副指标名称（可选）</span>
-            <input id="secondary-label" :value="visualization.labels.secondary.label" @input="editMetric('secondary', 'label', $event)" />
+            <span>副指标名称</span>
+            <input id="secondary-label" :disabled="!visualization.secondaryEnabled" :value="visualization.labels.secondary.label" @input="editMetric('secondary', 'label', $event)" />
           </label>
           <label for="secondary-unit">
             <span>副指标单位</span>
-            <input id="secondary-unit" :value="visualization.labels.secondary.unit" @input="editMetric('secondary', 'unit', $event)" />
+            <input id="secondary-unit" :disabled="!visualization.secondaryEnabled" :value="visualization.labels.secondary.unit" @input="editMetric('secondary', 'unit', $event)" />
           </label>
           <button type="button" data-action="update-metrics" @click="commitMetrics">更新指标</button>
         </div>
-        <p class="map-loader__optional-hint">如不展示副指标，请清空副指标名称、单位和所有副数值，再点击“全部更新”。</p>
+        <p id="secondary-enabled-help" class="map-loader__optional-hint">
+          {{ visualization.secondaryEnabled
+            ? '副指标已开启；名称、单位和已启用区域的副数值均参与校验。'
+            : '副指标已关闭；相关输入暂不可用，点击“更新指标”后地图仅展示主指标。' }}
+        </p>
         <p v-if="workspaceSnapshot?.metricError" class="map-loader__inline-error" role="alert">
           {{ workspaceSnapshot.metricError }}
         </p>
@@ -616,7 +636,7 @@ onMounted(() => {
                 type="text"
                 inputmode="decimal"
                 data-field="secondary"
-                :disabled="!region.enabled"
+                :disabled="!region.enabled || !visualization.secondaryEnabled"
                 :value="region.secondary"
                 :aria-label="`${region.regionKey} 副数值`"
                 @input="editRegion(region.regionKey, 'secondary', $event)"
@@ -837,6 +857,15 @@ onMounted(() => {
   font-size: 14px;
 }
 
+.map-loader__metric-fields .map-loader__secondary-toggle {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  cursor: pointer;
+}
+
 .map-loader__metric-fields input,
 .map-loader__region-row input[type='text'],
 .map-loader__region-row input[type='number'] {
@@ -851,9 +880,55 @@ onMounted(() => {
   border-radius: 4px;
 }
 
+.map-loader__metric-fields input:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .map-loader__metric-fields button {
   grid-column: 1 / -1;
   min-height: 36px;
+}
+
+.map-loader__metric-fields .map-loader__secondary-toggle input {
+  position: relative;
+  width: 34px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: rgba(55, 96, 137, 0.9);
+  border: 1px solid rgba(119, 164, 204, 0.65);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.map-loader__secondary-toggle input::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  content: '';
+  background: #c3d3e5;
+  border-radius: 50%;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.map-loader__secondary-toggle input:checked {
+  background: rgba(32, 177, 213, 0.72);
+  border-color: #4ee7ff;
+}
+
+.map-loader__secondary-toggle input:checked::after {
+  background: #eaffff;
+  transform: translateX(16px);
+}
+
+.map-loader__secondary-toggle input:focus-visible {
+  outline: 2px solid #8feeff;
+  outline-offset: 2px;
 }
 
 .map-loader__metric-fields [data-dirty='true'] span,

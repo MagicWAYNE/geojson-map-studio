@@ -251,7 +251,52 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
-  it('清空副指标定义和全部副数值后只发布主指标', async () => {
+  it('副指标开关关闭时禁用输入、保留草稿并只发布主指标', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    const regionA = regionRow(root, '区域 A')
+    regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '12')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '3')
+    regionA.querySelector<HTMLButtonElement>('[data-action="update-region"]')!.click()
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+    const secondaryToggle = root.querySelector<HTMLInputElement>('#secondary-enabled')!
+    expect(secondaryToggle.checked).toBe(true)
+    expect(secondaryToggle.getAttribute('role')).toBe('switch')
+    expect(secondaryToggle.getAttribute('aria-describedby')).toBe('secondary-enabled-help')
+    secondaryToggle.click()
+    await nextTick()
+    expect(root.querySelector<HTMLInputElement>('#secondary-label')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLInputElement>('#secondary-unit')!.disabled).toBe(true)
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.disabled).toBe(true)
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.value).toBe('3')
+    expect(root.querySelector('#secondary-enabled-help')?.textContent).toContain('地图仅展示主指标')
+    root.querySelector<HTMLButtonElement>('[data-action="update-metrics"]')!.click()
+
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(2))
+    const publishedDocument = sourceMocks.updateVisualization.mock.results[1].value
+    expect(publishedDocument.metricLabels).toEqual({
+      primary: { label: '扶持企业', unit: '家' },
+      secondary: null
+    })
+    expect(publishedDocument.metrics.get('区域 A')).toMatchObject({
+      primary: 12,
+      secondary: null
+    })
+    secondaryToggle.click()
+    await nextTick()
+    expect(root.querySelector<HTMLInputElement>('#secondary-label')!.disabled).toBe(false)
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.disabled).toBe(false)
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.value).toBe('3')
+    app.unmount()
+  })
+
+  it('关闭副指标时移除已经失效的副数值错误', async () => {
     const { app, root } = await mountView()
     chooseFile(
       root.querySelector<HTMLInputElement>('#geometry-file')!,
@@ -263,21 +308,14 @@ describe('MapLoaderView', () => {
     regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
     enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '12')
     enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '')
-    enter(root.querySelector<HTMLInputElement>('#secondary-label')!, '')
-    enter(root.querySelector<HTMLInputElement>('#secondary-unit')!, '')
-    root.querySelector<HTMLButtonElement>('[data-action="update-all"]')!.click()
+    regionA.querySelector<HTMLButtonElement>('[data-action="update-region"]')!.click()
+    await nextTick()
+    expect(regionA.querySelector('[role="alert"]')?.textContent).toContain('secondary')
 
-    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
-    const publishedDocument = sourceMocks.updateVisualization.mock.results[0].value
-    expect(publishedDocument.metricLabels).toEqual({
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: null
-    })
-    expect(publishedDocument.metrics.get('区域 A')).toMatchObject({
-      primary: 12,
-      secondary: null
-    })
-    expect(root.textContent).not.toContain('清空副指标名称和单位前')
+    root.querySelector<HTMLInputElement>('#secondary-enabled')!.click()
+    await nextTick()
+    expect(regionA.querySelector('[role="alert"]')).toBeNull()
+    expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.disabled).toBe(true)
     app.unmount()
   })
 
@@ -349,6 +387,7 @@ describe('MapLoaderView', () => {
       nameProperty: 'name'
     })
     const visualization: MapVisualizationDraft = {
+      secondaryEnabled: true,
       labels: {
         primary: { label: '孵化项目', unit: '个' },
         secondary: { label: '导师服务', unit: '次' }

@@ -174,19 +174,19 @@ describe('mapDocument', () => {
     ])
   })
 
-  it('副指标定义和所有次数值完全清空时只发布主指标', () => {
+  it('关闭副指标时保留草稿内容但只发布主指标', () => {
     const base = prepareGeoJsonMapPackage({
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
       nameProperty: 'name'
     }).document
     const draft = createMapVisualizationDraft(base)
-    draft.labels.secondary = { label: '', unit: '' }
+    draft.secondaryEnabled = false
     draft.regions[0] = {
       ...draft.regions[0],
       enabled: true,
       primary: 120,
-      secondary: null
+      secondary: 45.6
     }
 
     const composed = composeMapVisualization(base, draft)
@@ -198,7 +198,7 @@ describe('mapDocument', () => {
     expect(composed.metrics.get('区域 A')).toMatchObject({ primary: 120, secondary: null })
   })
 
-  it('副指标仍有定义或数值时拒绝半清空状态', () => {
+  it('开启副指标时继续校验定义和每个已启用区域的副数值', () => {
     const base = prepareGeoJsonMapPackage({
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
@@ -215,8 +215,8 @@ describe('mapDocument', () => {
     draft.labels.secondary = { label: '', unit: '' }
     draft.regions[0].secondary = 3
     expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
-      code: 'invalid-visualization',
-      path: 'secondaryMetric'
+      code: 'invalid-metrics',
+      path: 'secondaryMetric.label'
     }))
   })
 

@@ -17,6 +17,7 @@ export interface MapAuthoringRegionDraft {
 }
 
 export interface MapAuthoringEditableDraft {
+  secondaryEnabled: boolean
   labels: MapVisualizationDraft['labels']
   regions: MapAuthoringRegionDraft[]
 }
@@ -39,6 +40,7 @@ export type MapAuthoringCommitResult =
 export interface MapAuthoringWorkspace {
   read(): MapAuthoringSnapshot
   prefill(draft: MapVisualizationDraft): void
+  setSecondaryEnabled(enabled: boolean): void
   editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
   editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
   focusRegion(regionKey: string | null): void
@@ -87,6 +89,7 @@ export interface MapAuthoringSession {
     intent: MapAuthoringGeometryIntent
   ): Promise<MapDocument>
   prefill(draft: MapVisualizationDraft): void
+  setSecondaryEnabled(enabled: boolean): void
   editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
   editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
   focusRegion(regionKey: string | null): void
@@ -98,6 +101,7 @@ export interface MapAuthoringSession {
 
 function cloneVisualization(draft: MapVisualizationDraft): MapVisualizationDraft {
   return {
+    secondaryEnabled: draft.secondaryEnabled,
     labels: {
       primary: { ...draft.labels.primary },
       secondary: { ...draft.labels.secondary }
@@ -108,6 +112,7 @@ function cloneVisualization(draft: MapVisualizationDraft): MapVisualizationDraft
 
 function toEditable(draft: MapVisualizationDraft): MapAuthoringEditableDraft {
   return {
+    secondaryEnabled: draft.secondaryEnabled,
     labels: {
       primary: { ...draft.labels.primary },
       secondary: { ...draft.labels.secondary }
@@ -140,7 +145,8 @@ function rowIsDirty(editable: MapAuthoringRegionDraft, committed: MapVisualizati
 }
 
 function metricsAreDirty(editable: MapAuthoringEditableDraft, committed: MapVisualizationDraft): boolean {
-  return editable.labels.primary.label !== committed.labels.primary.label ||
+  return editable.secondaryEnabled !== committed.secondaryEnabled ||
+    editable.labels.primary.label !== committed.labels.primary.label ||
     editable.labels.primary.unit !== committed.labels.primary.unit ||
     editable.labels.secondary.label !== committed.labels.secondary.label ||
     editable.labels.secondary.unit !== committed.labels.secondary.unit
@@ -154,6 +160,7 @@ function errorMessage(cause: unknown): string {
 
 function allCandidate(editable: MapAuthoringEditableDraft): MapVisualizationDraft {
   return {
+    secondaryEnabled: editable.secondaryEnabled,
     labels: {
       primary: { ...editable.labels.primary },
       secondary: { ...editable.labels.secondary }
@@ -171,8 +178,18 @@ export function createMapAuthoringWorkspace(
   let document = composeMapVisualization(baseDocument, committed)
   const editable = toEditable(committed)
   const regionErrors: Record<string, string> = {}
+  const regionErrorPaths: Record<string, string> = {}
   let metricError = ''
   let authoringFocus: string | null = null
+
+  function clearRegionError(regionKey: string): void {
+    delete regionErrors[regionKey]
+    delete regionErrorPaths[regionKey]
+  }
+
+  function clearAllRegionErrors(): void {
+    Object.keys(regionErrors).forEach(clearRegionError)
+  }
 
   function publishCandidate(candidate: MapVisualizationDraft): MapAuthoringCommitResult {
     const nextDocument = composeMapVisualization(baseDocument, candidate)
@@ -192,6 +209,7 @@ export function createMapAuthoringWorkspace(
         document,
         committed: cloneVisualization(committed),
         editable: {
+          secondaryEnabled: editable.secondaryEnabled,
           labels: {
             primary: { ...editable.labels.primary },
             secondary: { ...editable.labels.secondary }
@@ -214,10 +232,11 @@ export function createMapAuthoringWorkspace(
     prefill(draft) {
       composeMapVisualization(baseDocument, draft)
       const next = toEditable(draft)
+      editable.secondaryEnabled = next.secondaryEnabled
       editable.labels = next.labels
       editable.regions.splice(0, editable.regions.length, ...next.regions)
       metricError = ''
-      Object.keys(regionErrors).forEach((key) => delete regionErrors[key])
+      clearAllRegionErrors()
     },
 
     editMetric(metric, patch) {
@@ -225,11 +244,21 @@ export function createMapAuthoringWorkspace(
       metricError = ''
     },
 
+    setSecondaryEnabled(enabled) {
+      editable.secondaryEnabled = enabled
+      metricError = ''
+      if (!enabled) {
+        Object.entries(regionErrorPaths)
+          .filter(([, path]) => path.endsWith('.secondary'))
+          .forEach(([regionKey]) => clearRegionError(regionKey))
+      }
+    },
+
     editRegion(regionKey, patch) {
       const row = editable.regions.find((candidate) => candidate.regionKey === regionKey)
       if (!row) throw new Error(`未知地图分块：${regionKey}`)
       Object.assign(row, patch)
-      delete regionErrors[regionKey]
+      clearRegionError(regionKey)
     },
 
     focusRegion(regionKey) {
@@ -244,8 +273,9 @@ export function createMapAuthoringWorkspace(
       try {
         const result = publishCandidate(candidate)
         metricError = ''
-        Object.keys(regionErrors).forEach((key) => delete regionErrors[key])
+        clearAllRegionErrors()
         const normalized = toEditable(committed)
+        editable.secondaryEnabled = normalized.secondaryEnabled
         Object.assign(editable.labels.primary, normalized.labels.primary)
         Object.assign(editable.labels.secondary, normalized.labels.secondary)
         editable.regions.forEach((row, index) => Object.assign(row, normalized.regions[index]))
@@ -258,6 +288,7 @@ export function createMapAuthoringWorkspace(
           if (row) {
             const error = `${row.regionKey}：${message}`
             regionErrors[row.regionKey] = error
+            regionErrorPaths[row.regionKey] = cause.path
             return { ok: false, error }
           }
         }
@@ -268,6 +299,7 @@ export function createMapAuthoringWorkspace(
 
     commitMetrics() {
       const candidate = cloneVisualization(committed)
+      candidate.secondaryEnabled = editable.secondaryEnabled
       candidate.labels = {
         primary: { ...editable.labels.primary },
         secondary: { ...editable.labels.secondary }
@@ -296,11 +328,13 @@ export function createMapAuthoringWorkspace(
       try {
         const result = publishCandidate(candidate)
         Object.assign(editableRow, toEditable(candidate).regions[index])
-        delete regionErrors[regionKey]
+        clearRegionError(regionKey)
         return result
       } catch (cause) {
         const error = `${regionKey}：${errorMessage(cause)}`
+        clearRegionError(regionKey)
         regionErrors[regionKey] = error
+        if (cause instanceof MapImportError) regionErrorPaths[regionKey] = cause.path
         return { ok: false, error }
       }
     }
@@ -399,6 +433,10 @@ export function createMapAuthoringSession(
 
     editMetric(metric, patch) {
       requireWorkspace().editMetric(metric, patch)
+    },
+
+    setSecondaryEnabled(enabled) {
+      requireWorkspace().setSecondaryEnabled(enabled)
     },
 
     editRegion(regionKey, patch) {

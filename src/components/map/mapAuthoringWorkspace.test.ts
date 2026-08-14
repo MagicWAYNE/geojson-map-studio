@@ -141,11 +141,11 @@ describe('map authoring workspace', () => {
     expect(workspace.read().dirtyMetrics).toBe(false)
   })
 
-  it('完全清空副指标后原子发布仅含主指标的地图', () => {
+  it('关闭副指标后保留草稿并原子发布仅含主指标的地图', () => {
     const prepared = preparedMap()
     const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
-    workspace.editMetric('secondary', { label: '', unit: '' })
-    workspace.editRegion('区域 A', { enabled: true, primary: '12', secondary: '' })
+    workspace.editRegion('区域 A', { enabled: true, primary: '12', secondary: '3' })
+    workspace.setSecondaryEnabled(false)
 
     const committed = workspace.commitAll()
 
@@ -158,6 +158,25 @@ describe('map authoring workspace', () => {
     })
     expect(workspace.read().metricError).toBe('')
     expect(workspace.read().regionErrors).toEqual({})
+    expect(workspace.read().editable.labels.secondary).toEqual({ label: '服务资源', unit: '项' })
+    expect(workspace.read().editable.regions[0].secondary).toBe('3')
+  })
+
+  it('关闭副指标时只清除已失效的副数值错误', () => {
+    const prepared = preparedMap()
+    const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
+    workspace.editRegion('区域 A', { enabled: true, primary: '12', secondary: '' })
+    workspace.editRegion('区域 B', { enabled: true, primary: '', secondary: '7' })
+
+    expect(workspace.commitRegion('区域 A').ok).toBe(false)
+    expect(workspace.commitRegion('区域 B').ok).toBe(false)
+    expect(workspace.read().regionErrors['区域 A']).toContain('secondary')
+    expect(workspace.read().regionErrors['区域 B']).toContain('primary')
+
+    workspace.setSecondaryEnabled(false)
+
+    expect(workspace.read().regionErrors['区域 A']).toBeUndefined()
+    expect(workspace.read().regionErrors['区域 B']).toContain('primary')
   })
 
   it('全部更新先校验完整草稿，任何一行失败都不会部分提交', () => {

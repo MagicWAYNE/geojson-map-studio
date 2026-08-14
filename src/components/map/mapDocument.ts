@@ -64,6 +64,7 @@ export interface MapVisualizationRegionDraft {
 }
 
 export interface MapVisualizationDraft {
+  secondaryEnabled: boolean
   labels: MapVisualizationMetricLabels
   regions: MapVisualizationRegionDraft[]
 }
@@ -456,6 +457,7 @@ export function inspectGeoJsonMap(geometryText: string): GeoJsonInspection {
 
 export function createMapVisualizationDraft(document: MapDocument): MapVisualizationDraft {
   return {
+    secondaryEnabled: true,
     labels: {
       primary: { label: '扶持企业', unit: '家' },
       secondary: { label: '服务资源', unit: '项' }
@@ -478,17 +480,7 @@ export function composeMapVisualization(
   const rowsByKey = new Map<string, MapVisualizationRegionDraft>()
   const displayNames = new Set<string>()
   const metrics = new Map<string, MapRegionMetrics>()
-  const secondaryDefinitionEmpty =
-    draft.labels.secondary.label.trim() === '' && draft.labels.secondary.unit.trim() === ''
-  const hasSecondaryValues = draft.regions.some((row) => row.enabled && row.secondary !== null)
-  if (secondaryDefinitionEmpty && hasSecondaryValues) {
-    fail(
-      'invalid-visualization',
-      'secondaryMetric',
-      '清空副指标名称和单位前，请先清空所有已启用区域的副数值'
-    )
-  }
-  const secondaryOmitted = secondaryDefinitionEmpty && !hasSecondaryValues
+  const secondaryOmitted = !draft.secondaryEnabled
 
   for (const [index, row] of draft.regions.entries()) {
     const path = `regions[${index}]`

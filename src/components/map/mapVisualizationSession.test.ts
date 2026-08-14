@@ -23,14 +23,18 @@ describe('memory map visualization session', () => {
     })
     const identity = prepared.document.source
     const draft = createMapVisualizationDraft(prepared.document)
+    draft.secondaryEnabled = false
     draft.regions[0].displayName = '会话展示名'
     const session = createMemoryMapVisualizationSession()
 
     session.replace(identity, draft)
+    draft.secondaryEnabled = true
     draft.regions[0].displayName = '外部改写'
     const loaded = session.read(identity)
+    loaded!.secondaryEnabled = true
     loaded!.regions[0].displayName = '读取副本改写'
 
+    expect(session.read(identity)?.secondaryEnabled).toBe(false)
     expect(session.read(identity)?.regions[0].displayName).toBe('会话展示名')
     expect(createMemoryMapVisualizationSession().read(identity)).toBeNull()
     session.clear()
