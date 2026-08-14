@@ -172,6 +172,17 @@ function allCandidate(editable: MapAuthoringEditableDraft): MapVisualizationDraf
   }
 }
 
+function applyEditableMetricDefinitions(
+  candidate: MapVisualizationDraft,
+  editable: MapAuthoringEditableDraft
+): void {
+  candidate.secondaryEnabled = editable.secondaryEnabled
+  candidate.labels = {
+    primary: { ...editable.labels.primary },
+    secondary: { ...editable.labels.secondary }
+  }
+}
+
 export function createMapAuthoringWorkspace(
   baseDocument: MapDocument,
   initialVisualization: MapVisualizationDraft,
@@ -245,6 +256,11 @@ export function createMapAuthoringWorkspace(
     editMetric(metric, patch) {
       Object.assign(editable.labels[metric], patch)
       metricError = ''
+      if (patch.format !== undefined) {
+        Object.entries(regionErrorPaths)
+          .filter(([, path]) => path.endsWith(`.${metric}`))
+          .forEach(([regionKey]) => clearRegionError(regionKey))
+      }
     },
 
     setSecondaryEnabled(enabled) {
@@ -302,11 +318,7 @@ export function createMapAuthoringWorkspace(
 
     commitMetrics() {
       const candidate = cloneVisualization(committed)
-      candidate.secondaryEnabled = editable.secondaryEnabled
-      candidate.labels = {
-        primary: { ...editable.labels.primary },
-        secondary: { ...editable.labels.secondary }
-      }
+      applyEditableMetricDefinitions(candidate, editable)
       try {
         const result = publishCandidate(candidate)
         metricError = ''
@@ -327,17 +339,32 @@ export function createMapAuthoringWorkspace(
         return { ok: false, error }
       }
       const candidate = cloneVisualization(committed)
+      applyEditableMetricDefinitions(candidate, editable)
       candidate.regions[index] = fromEditable(editableRow)
       try {
         const result = publishCandidate(candidate)
         Object.assign(editableRow, toEditable(candidate).regions[index])
+        metricError = ''
         clearRegionError(regionKey)
         return result
       } catch (cause) {
-        const error = `${regionKey}：${errorMessage(cause)}`
+        const message = errorMessage(cause)
+        if (cause instanceof MapImportError) {
+          const match = /^regions\[(\d+)]/.exec(cause.path)
+          const failedRow = match ? editable.regions[Number(match[1])] : undefined
+          if (failedRow) {
+            const error = `${failedRow.regionKey}：${message}`
+            clearRegionError(failedRow.regionKey)
+            regionErrors[failedRow.regionKey] = error
+            regionErrorPaths[failedRow.regionKey] = cause.path
+            return { ok: false, error }
+          }
+          metricError = message
+          return { ok: false, error: message }
+        }
+        const error = `${regionKey}：${message}`
         clearRegionError(regionKey)
         regionErrors[regionKey] = error
-        if (cause instanceof MapImportError) regionErrorPaths[regionKey] = cause.path
         return { ok: false, error }
       }
     }

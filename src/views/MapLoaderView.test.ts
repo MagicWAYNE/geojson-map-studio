@@ -393,6 +393,30 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
+  it('更新区域时同时应用该数值所依赖的指标格式和空单位', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    const regionA = regionRow(root, '区域 A')
+    regionA.querySelector<HTMLInputElement>('[data-field="enabled"]')!.click()
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="primary"]')!, '12')
+    enter(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!, '0.85')
+    chooseOption(root.querySelector<HTMLSelectElement>('#secondary-format')!, 'percentage')
+    enter(root.querySelector<HTMLInputElement>('#secondary-unit')!, '')
+    regionA.querySelector<HTMLButtonElement>('[data-action="update-region"]')!.click()
+
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+    const publishedDocument = sourceMocks.updateVisualization.mock.results[0].value
+    expect(publishedDocument.metricLabels?.secondary).toEqual({
+      label: '服务资源', unit: '', format: 'percentage'
+    })
+    app.unmount()
+  })
+
   it('任意分块行控件 focus 都发布稳定 key，离开该行才清除', async () => {
     const onAuthoringFocus = vi.fn()
     const { app, root } = await mountView({ onAuthoringFocus })

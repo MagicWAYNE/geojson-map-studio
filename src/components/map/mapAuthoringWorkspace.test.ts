@@ -100,6 +100,44 @@ describe('map authoring workspace', () => {
     expect(workspace.read().dirtyRegionKeys).toEqual([])
   })
 
+  it('更新区域时原子应用该数值依赖的指标格式和空单位', () => {
+    const prepared = preparedMap()
+    const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
+    workspace.editMetric('secondary', { format: 'percentage', unit: '' })
+    workspace.editRegion('区域 A', {
+      enabled: true,
+      primary: '12',
+      secondary: '0.85'
+    })
+
+    const committed = workspace.commitRegion('区域 A')
+
+    expect(committed.ok).toBe(true)
+    if (!committed.ok) throw new Error(committed.error)
+    expect(committed.document.metricLabels?.secondary).toEqual({
+      label: '服务资源', unit: '', format: 'percentage'
+    })
+    expect(committed.document.metrics.get('区域 A')?.secondary).toBe(0.85)
+    expect(workspace.read().dirtyMetrics).toBe(false)
+  })
+
+  it('指标格式恢复有效时清除其他区域已经失效的数值错误', () => {
+    const prepared = preparedMap()
+    const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
+    workspace.editRegion('区域 A', { enabled: true, primary: '12', secondary: '0.85' })
+    workspace.editRegion('区域 B', { enabled: true, primary: '20', secondary: '200' })
+    expect(workspace.commitAll().ok).toBe(true)
+
+    workspace.editMetric('secondary', { format: 'percentage' })
+    expect(workspace.commitRegion('区域 A').ok).toBe(false)
+    expect(workspace.read().regionErrors['区域 B']).toContain('0 到 100')
+
+    workspace.editMetric('secondary', { format: 'decimal' })
+    expect(workspace.read().regionErrors['区域 B']).toBeUndefined()
+    expect(workspace.commitRegion('区域 A').ok).toBe(true)
+    expect(workspace.read().regionErrors).toEqual({})
+  })
+
   it('非法或不完整的行更新保留已提交文档，且不阻止更新其他有效行', () => {
     const prepared = preparedMap()
     const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
