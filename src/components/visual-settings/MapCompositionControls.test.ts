@@ -16,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   document.body.replaceChildren()
   clipboard.copy.mockReset()
+  vi.restoreAllMocks()
 })
 
 describe('MapCompositionControls', () => {
@@ -77,6 +78,44 @@ describe('MapCompositionControls', () => {
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
       '{"pos":[-89.4,117,56.4],"target":[2.7,-2.9,7]}'
     ))
+    app.unmount()
+  })
+
+  it('uploads and resets one session-only raster background with visible validation feedback', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:background')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const root = document.createElement('div')
+    const app = createApp(MapCompositionControls)
+    app.mount(root)
+    await nextTick()
+    const session = useMapVisualSettings()
+    const input = root.querySelector<HTMLInputElement>('[data-background-upload]')!
+
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['image'], 'custom.png', { type: 'image/png' })]
+    })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await vi.waitFor(() => expect(session.backgroundImageUrl.value).toBe('blob:background'))
+    expect(session.backgroundImageUrl.value).toBe('blob:background')
+    expect(root.textContent).toContain('custom.png')
+    expect(input.value).toBe('')
+
+    const reset = root.querySelector<HTMLButtonElement>('[data-action="reset-background"]')!
+    expect(reset.disabled).toBe(false)
+    reset.click()
+    await nextTick()
+    expect(session.backgroundImageUrl.value).toBe('')
+    expect(root.textContent).toContain('当前使用默认双层科技背景')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:background')
+
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['text'], 'notes.txt', { type: 'text/plain' })]
+    })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('PNG')
     app.unmount()
   })
 })

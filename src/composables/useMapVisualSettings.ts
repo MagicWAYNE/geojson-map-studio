@@ -75,12 +75,20 @@ export interface MapLayoutFieldBounds {
   safetyMin?: number
 }
 
+export interface BackgroundImageUpdateResult {
+  ok: boolean
+  message: string
+}
+
 export const MAP_LAYOUT_FIELD_BOUNDS: Readonly<Record<keyof MapLayout, MapLayoutFieldBounds>> = {
   left: { rangeMin: -1920, rangeMax: 1920 },
   top: { rangeMin: -1080, rangeMax: 1080 },
   width: { rangeMin: 200, rangeMax: 1920, safetyMin: 200 },
   height: { rangeMin: 200, rangeMax: 1080, safetyMin: 200 }
 }
+
+export const MAX_BACKGROUND_IMAGE_BYTES = 25 * 1024 * 1024
+const SUPPORTED_BACKGROUND_IMAGE_NAME = /\.(?:png|jpe?g|webp|gif|avif)$/i
 
 export interface MapEffectRuntimeStatus extends MapOutwardGlowPipelineStatus {
   mosaicState: 'disabled' | 'ready' | 'active' | 'degraded'
@@ -185,7 +193,12 @@ export const DEFAULT_REGION_BAR_RUNTIME_STATUS: RegionBarRuntimeStatus = {
 
 const workspaceMode = ref<VisualWorkspaceMode>('data')
 const activeVisualPage = ref<VisualSettingsPageId>('composition')
+const sidebarCollapsed = ref(false)
 const layout = reactive<MapLayout>({ ...MAP_LAYOUT_DEFAULT })
+const backgroundImageUrl = ref('')
+const backgroundImageName = ref('')
+const backgroundImageError = ref('')
+let backgroundImageRequestId = 0
 const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
 const hud = reactive<MapHudConfig>(cloneMapHudConfig(MAP_HUD_DEFAULTS))
 const effectDraft = reactive<MapEffectConfig>(cloneMapEffectConfig(effect))
@@ -226,6 +239,15 @@ const regionOverlayJson = computed(() => JSON.stringify(
   null,
   2
 ))
+const effectiveMapLayout = computed<MapLayout>(() => {
+  if (!sidebarCollapsed.value) return { ...layout }
+  return {
+    left: (1920 - layout.width) / 2,
+    top: (1080 - layout.height) / 2,
+    width: layout.width,
+    height: layout.height
+  }
+})
 const compositionCss = computed(() =>
   `.pos-map { left: ${layout.left}px; top: ${layout.top}px; width: ${layout.width}px; height: ${layout.height}px; }`
 )
@@ -238,6 +260,7 @@ const visualDirty = computed(() =>
   || layout.height !== MAP_LAYOUT_DEFAULT.height
   || effectJson.value !== formatMapEffectConfig(MAP_EFFECT_DEFAULTS)
   || hudJson.value !== formatMapHudConfig(MAP_HUD_DEFAULTS)
+  || Boolean(backgroundImageUrl.value)
 )
 
 const compositionWarnings = computed<string[]>(() => {
@@ -347,6 +370,77 @@ function resetLayout(): void {
   for (const key of Object.keys(MAP_LAYOUT_DEFAULT) as Array<keyof MapLayout>) {
     syncNumericDraft(`layout.${key}`, layout[key])
   }
+}
+
+function setSidebarCollapsed(next: boolean): void {
+  sidebarCollapsed.value = next
+}
+
+function toggleSidebar(): void {
+  setSidebarCollapsed(!sidebarCollapsed.value)
+}
+
+function isSupportedBackgroundImage(file: File): boolean {
+  return [
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+    'image/avif'
+  ].includes(file.type) || SUPPORTED_BACKGROUND_IMAGE_NAME.test(file.name)
+}
+
+function decodeBackgroundImage(url: string): Promise<void> {
+  const image = new Image()
+  return new Promise((resolve, reject) => {
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('background image decode failed'))
+    image.src = url
+    if (typeof image.decode === 'function') image.decode().then(resolve, reject)
+  })
+}
+
+async function replaceBackgroundImage(file: File): Promise<BackgroundImageUpdateResult> {
+  const requestId = ++backgroundImageRequestId
+  if (!isSupportedBackgroundImage(file)) {
+    const message = '请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片'
+    backgroundImageError.value = message
+    return { ok: false, message }
+  }
+  if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
+    const message = '背景图片不能超过 25 MB'
+    backgroundImageError.value = message
+    return { ok: false, message }
+  }
+  let nextUrl = ''
+  try {
+    nextUrl = URL.createObjectURL(file)
+    await decodeBackgroundImage(nextUrl)
+    if (requestId !== backgroundImageRequestId) {
+      URL.revokeObjectURL(nextUrl)
+      return { ok: false, message: '' }
+    }
+    const previousUrl = backgroundImageUrl.value
+    backgroundImageUrl.value = nextUrl
+    backgroundImageName.value = file.name
+    backgroundImageError.value = ''
+    if (previousUrl) URL.revokeObjectURL(previousUrl)
+    return { ok: true, message: '' }
+  } catch {
+    if (nextUrl) URL.revokeObjectURL(nextUrl)
+    if (requestId !== backgroundImageRequestId) return { ok: false, message: '' }
+    const message = '无法读取背景图片，请重新选择文件'
+    backgroundImageError.value = message
+    return { ok: false, message }
+  }
+}
+
+function resetBackgroundImage(): void {
+  backgroundImageRequestId += 1
+  if (backgroundImageUrl.value) URL.revokeObjectURL(backgroundImageUrl.value)
+  backgroundImageUrl.value = ''
+  backgroundImageName.value = ''
+  backgroundImageError.value = ''
 }
 
 function resetEffect(): void {
@@ -685,9 +779,11 @@ function updateRegionBarRuntimeStatus(next: RegionBarRuntimeStatus): boolean {
 function resetVisualSession(): void {
   workspaceMode.value = 'data'
   activeVisualPage.value = 'composition'
+  sidebarCollapsed.value = false
   effectLivePreview.value = true
   hudLivePreview.value = true
   resetLayout()
+  resetBackgroundImage()
   resetEffect()
   resetHud()
   lastEffectiveEffect = cloneMapEffectConfig(effect)
@@ -711,7 +807,12 @@ export function useMapVisualSettings() {
   return {
     workspaceMode,
     activeVisualPage,
+    sidebarCollapsed,
     layout,
+    effectiveMapLayout,
+    backgroundImageUrl,
+    backgroundImageName,
+    backgroundImageError,
     effect,
     effectDraft,
     effectEditTarget,
@@ -744,6 +845,10 @@ export function useMapVisualSettings() {
     applyHudDraft,
     discardHudDraft,
     resetLayout,
+    setSidebarCollapsed,
+    toggleSidebar,
+    replaceBackgroundImage,
+    resetBackgroundImage,
     resetEffect,
     resetHud,
     resetVisualSession,

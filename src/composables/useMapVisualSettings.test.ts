@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAP_EFFECT_DEFAULTS } from '@/components/map/mapEffectConfig'
 import { cloneDistrictBarConfig } from '@/components/map/mapDistrictBarConfig'
 import { MAP_HUD_DEFAULTS } from '@/components/map/mapHudConfig'
 
 beforeEach(() => {
   vi.resetModules()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('visual-settings session', () => {
@@ -67,6 +71,72 @@ describe('visual-settings session', () => {
     session.effectDraft.base.outerGlowWidth = 17
     session.discardEffectDraft()
     expect(session.effectDraft.base.outerGlowWidth).toBe(91)
+  })
+
+  it('centers the current map size while the sidebar is collapsed and restores authored position', async () => {
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+    session.layout.left = 81
+    session.layout.top = 93
+    session.layout.width = 1000
+    session.layout.height = 800
+
+    session.setSidebarCollapsed(true)
+    expect(session.effectiveMapLayout.value).toEqual({
+      left: 460,
+      top: 140,
+      width: 1000,
+      height: 800
+    })
+    expect({ ...session.layout }).toEqual({ left: 81, top: 93, width: 1000, height: 800 })
+
+    session.toggleSidebar()
+    expect(session.sidebarCollapsed.value).toBe(false)
+    expect(session.effectiveMapLayout.value).toEqual({ left: 81, top: 93, width: 1000, height: 800 })
+  })
+
+  it('owns one session-only custom background URL and revokes replaced or reset files', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:first')
+      .mockReturnValueOnce('blob:second')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const { useMapVisualSettings } = await import('./useMapVisualSettings')
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+
+    expect(await session.replaceBackgroundImage(
+      new File(['first'], 'first.png', { type: 'image/png' })
+    )).toEqual({ ok: true, message: '' })
+    expect(session.backgroundImageUrl.value).toBe('blob:first')
+    expect(session.backgroundImageName.value).toBe('first.png')
+    expect(session.visualDirty.value).toBe(true)
+
+    await session.replaceBackgroundImage(new File(['second'], 'second.webp', { type: 'image/webp' }))
+    expect(session.backgroundImageUrl.value).toBe('blob:second')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:first')
+
+    const rejected = await session.replaceBackgroundImage(
+      new File(['text'], 'notes.txt', { type: 'text/plain' })
+    )
+    expect(rejected.ok).toBe(false)
+    expect(session.backgroundImageUrl.value).toBe('blob:second')
+
+    vi.spyOn(Image.prototype, 'decode').mockRejectedValueOnce(new Error('broken image'))
+    createObjectURL.mockReturnValueOnce('blob:broken')
+    const broken = await session.replaceBackgroundImage(
+      new File(['broken'], 'broken.png', { type: 'image/png' })
+    )
+    expect(broken).toEqual({ ok: false, message: '无法读取背景图片，请重新选择文件' })
+    expect(session.backgroundImageUrl.value).toBe('blob:second')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:broken')
+
+    session.resetVisualSession()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:second')
+    expect(session.backgroundImageUrl.value).toBe('')
+    expect(session.backgroundImageName.value).toBe('')
+    expect(session.sidebarCollapsed.value).toBe(false)
+    expect(createObjectURL).toHaveBeenCalledTimes(3)
   })
 
   it('preserves unpublished effect drafts while chart styling updates both bar subtrees', async () => {

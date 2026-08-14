@@ -323,8 +323,26 @@ onMounted(() => {
 </script>
 
 <template>
-  <aside class="map-loader" aria-label="GeoJSON 地图创作面板">
-    <section class="map-loader__card" aria-labelledby="map-loader-title">
+  <aside
+    class="map-loader"
+    :class="{ 'is-collapsed': visualSettings.sidebarCollapsed.value }"
+    aria-label="GeoJSON 地图创作面板"
+  >
+    <button
+      type="button"
+      class="map-loader__collapse-toggle"
+      data-action="toggle-sidebar"
+      :aria-expanded="!visualSettings.sidebarCollapsed.value"
+      :aria-label="visualSettings.sidebarCollapsed.value ? '展开右侧栏' : '收起右侧栏'"
+      @click="visualSettings.toggleSidebar"
+    >
+      <span aria-hidden="true">{{ visualSettings.sidebarCollapsed.value ? '‹' : '›' }}</span>
+    </button>
+    <section
+      v-show="!visualSettings.sidebarCollapsed.value"
+      class="map-loader__card"
+      aria-labelledby="map-loader-title"
+    >
       <nav class="map-loader__workspace-nav" aria-label="创作工作区功能">
         <button
           type="button"
@@ -589,9 +607,44 @@ onMounted(() => {
   bottom: 24px;
   box-sizing: border-box;
   width: 720px;
-  overflow: hidden;
+  overflow: visible;
   color: #dcecff;
   overscroll-behavior: contain;
+}
+
+.map-loader.is-collapsed {
+  top: 24px;
+  bottom: auto;
+  width: 44px;
+  height: 44px;
+}
+
+.map-loader__collapse-toggle {
+  position: absolute;
+  z-index: 2;
+  top: 18px;
+  left: -44px;
+  width: 36px;
+  height: 56px;
+  padding: 0;
+  color: #8feeff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  background: linear-gradient(145deg, rgba(8, 28, 63, 0.96), rgba(5, 18, 44, 0.94));
+  border: 1px solid rgba(63, 169, 255, 0.62);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -8px 0 28px rgba(25, 119, 229, 0.24);
+}
+
+.map-loader.is-collapsed .map-loader__collapse-toggle {
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 44px;
+  border-right: 1px solid rgba(63, 169, 255, 0.62);
+  border-radius: 8px;
 }
 
 .map-loader__card {

@@ -14,12 +14,12 @@ const initialLoad = shallowRef<ActiveMapLoadResult | null>(null)
 const authoringFocus = ref('')
 const loadError = ref('')
 const visualSettings = useMapVisualSettings()
-const { layout } = visualSettings
+const { effectiveMapLayout } = visualSettings
 const mapStyle = computed(() => ({
-  left: `${layout.left}px`,
-  top: `${layout.top}px`,
-  width: `${layout.width}px`,
-  height: `${layout.height}px`
+  left: `${effectiveMapLayout.value.left}px`,
+  top: `${effectiveMapLayout.value.top}px`,
+  width: `${effectiveMapLayout.value.width}px`,
+  height: `${effectiveMapLayout.value.height}px`
 }))
 let mounted = true
 
@@ -43,8 +43,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="home">
-    <img class="bg-main" :src="bgMain" alt="" />
-    <img class="bg-terrain" :src="bgTerrain" alt="" />
+    <img
+      v-if="visualSettings.backgroundImageUrl.value"
+      class="bg-custom"
+      :src="visualSettings.backgroundImageUrl.value"
+      alt=""
+    />
+    <template v-else>
+      <img class="bg-main" :src="bgMain" alt="" />
+      <img class="bg-terrain" :src="bgTerrain" alt="" />
+    </template>
     <ChongqingMap3D
       v-if="mapDocument"
       class="pos-map"
@@ -66,6 +74,14 @@ onBeforeUnmount(() => {
 .home { position: absolute; inset: 0; overflow: hidden; }
 .bg-main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 .bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
+.bg-custom {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  object-fit: cover;
+}
 
 .pos-map { position: absolute; z-index: 1; }
 .map-load-error {

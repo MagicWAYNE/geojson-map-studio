@@ -15,6 +15,7 @@ vi.mock('@/components/map/mapSource', () => ({ activeMapSource: sourceMocks }))
 vi.mock('vue-router', () => ({ useRouter: () => routerMocks }))
 
 import MapLoaderView from './MapLoaderView.vue'
+import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
 import {
   composeMapVisualization,
   prepareGeoJsonMapPackage,
@@ -55,6 +56,7 @@ async function mountView(props: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  useMapVisualSettings().resetVisualSession()
   sourceMocks.activate.mockImplementation(async (prepared) => prepared.document)
   sourceMocks.updateVisualization.mockImplementation((prepared, visualization) =>
     composeMapVisualization(prepared.document, visualization)
@@ -63,6 +65,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  useMapVisualSettings().resetVisualSession()
   Object.values(sourceMocks).forEach((mock) => mock.mockReset())
   routerMocks.push.mockReset()
   document.body.replaceChildren()
@@ -75,6 +78,31 @@ describe('MapLoaderView', () => {
     expect(root.firstElementChild?.getAttribute('aria-label')).toBe('GeoJSON 地图创作面板')
     expect(root.querySelector('.map-loader__background')).toBeNull()
     expect(root.querySelectorAll('.map-loader__card')).toHaveLength(1)
+    app.unmount()
+  })
+
+  it('可收起右侧栏并保留一个可访问的展开入口', async () => {
+    const { app, root } = await mountView()
+    const session = useMapVisualSettings()
+    const aside = root.querySelector<HTMLElement>('.map-loader')!
+    const toggle = root.querySelector<HTMLButtonElement>('[data-action="toggle-sidebar"]')!
+    const card = root.querySelector<HTMLElement>('.map-loader__card')!
+
+    expect(toggle.getAttribute('aria-label')).toBe('收起右侧栏')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    toggle.click()
+    await nextTick()
+    expect(session.sidebarCollapsed.value).toBe(true)
+    expect(aside.classList.contains('is-collapsed')).toBe(true)
+    expect(card.style.display).toBe('none')
+    expect(toggle.getAttribute('aria-label')).toBe('展开右侧栏')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+    toggle.click()
+    await nextTick()
+    expect(session.sidebarCollapsed.value).toBe(false)
+    expect(aside.classList.contains('is-collapsed')).toBe(false)
+    expect(card.style.display).not.toBe('none')
     app.unmount()
   })
 

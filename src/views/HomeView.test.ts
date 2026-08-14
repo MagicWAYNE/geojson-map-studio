@@ -52,6 +52,7 @@ afterEach(() => {
   sourceMocks.load.mockReset()
   useMapVisualSettings().resetVisualSession()
   document.body.replaceChildren()
+  vi.restoreAllMocks()
 })
 
 describe('HomeView same-page map authoring', () => {
@@ -88,9 +89,47 @@ describe('HomeView same-page map authoring', () => {
     await nextTick()
     expect(map.style.left).toBe('81px')
     expect(map.style.width).toBe('1000px')
+    session.setSidebarCollapsed(true)
+    await nextTick()
+    expect(map.style.left).toBe('460px')
+    expect(map.style.top).toBe('66px')
+    session.setSidebarCollapsed(false)
+    await nextTick()
+    expect(map.style.left).toBe('81px')
+    expect(map.style.top).toBe('132px')
     app.unmount()
     expect(session.layout.left).toBe(24)
     expect(session.layout.width).toBe(1120)
+  })
+
+  it('uses one uploaded image instead of the two default background layers for this session', async () => {
+    sourceMocks.load.mockResolvedValue({
+      document: { source: { kind: 'builtin', displayName: '内置地图' } },
+      warnings: []
+    })
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:custom-background')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const session = useMapVisualSettings()
+    session.resetVisualSession()
+    const root = document.createElement('div')
+    const app = createApp(HomeView)
+    app.mount(root)
+    await vi.waitFor(() => expect(root.querySelector('.map-stub')).not.toBeNull())
+
+    expect(root.querySelector('.bg-main')).not.toBeNull()
+    expect(root.querySelector('.bg-terrain')).not.toBeNull()
+    await session.replaceBackgroundImage(new File(['image'], 'studio.png', { type: 'image/png' }))
+    await nextTick()
+    expect(root.querySelector<HTMLImageElement>('.bg-custom')?.src).toContain('blob:custom-background')
+    expect(root.querySelector('.bg-main')).toBeNull()
+    expect(root.querySelector('.bg-terrain')).toBeNull()
+
+    session.resetBackgroundImage()
+    await nextTick()
+    expect(root.querySelector('.bg-custom')).toBeNull()
+    expect(root.querySelector('.bg-main')).not.toBeNull()
+    expect(root.querySelector('.bg-terrain')).not.toBeNull()
+    app.unmount()
   })
 
   it('异步加载当前地图文档并同时呈现固定创作面板', async () => {
