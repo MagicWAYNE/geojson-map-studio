@@ -296,8 +296,8 @@ function createTestMapDocument(
       secondary: 2 + index
     }])),
     metricLabels: {
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: { label: '服务资源', unit: '项' }
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
+      secondary: { label: '服务资源', unit: '项', format: 'decimal' }
     },
     appearance: { kind: 'terrain-texture', textureUrl: '/maps/test-terrain.png' },
     drilldown: true,
@@ -427,8 +427,8 @@ describe('ChongqingMap3D effect wiring', () => {
       name: '测试区0', displayName: '创新一区', primary: 88, secondary: 12
     })
     const labels = {
-      primary: { label: '入驻团队', unit: '家' },
-      secondary: { label: '导师服务', unit: '次' }
+      primary: { label: '入驻团队', unit: '家', format: 'integer' as const },
+      secondary: { label: '导师服务', unit: '次', format: 'decimal' as const }
     }
 
     await mounted.updateDocument({ ...initial, metrics: nextMetrics, metricLabels: labels })

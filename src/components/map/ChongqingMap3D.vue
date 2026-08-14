@@ -435,6 +435,12 @@ function updateDistrictBarOverlay(layer: DistrictBarLayer): void {
       },
       hoveredName: hoveredVisual?.mesh.userData.name ?? null,
       config: effect.bars.overlay,
+      ...(props.document.metricLabels ? {
+        metricFormats: {
+          primary: props.document.metricLabels.primary.format,
+          secondary: props.document.metricLabels.secondary?.format ?? 'decimal'
+        }
+      } : {}),
       sizes: districtBarOverlaySizes
     })
   } catch (cause) {

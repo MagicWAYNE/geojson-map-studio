@@ -2,6 +2,7 @@ import {
   composeMapVisualization,
   MapImportError,
   type MapDocument,
+  type MapMetricDefinition,
   type MapVisualizationDraft,
   type MapVisualizationRegionDraft,
   type PreparedMapPackage
@@ -41,7 +42,7 @@ export interface MapAuthoringWorkspace {
   read(): MapAuthoringSnapshot
   prefill(draft: MapVisualizationDraft): void
   setSecondaryEnabled(enabled: boolean): void
-  editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
+  editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<MapMetricDefinition>): void
   editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
   focusRegion(regionKey: string | null): void
   commitAll(): MapAuthoringCommitResult
@@ -90,7 +91,7 @@ export interface MapAuthoringSession {
   ): Promise<MapDocument>
   prefill(draft: MapVisualizationDraft): void
   setSecondaryEnabled(enabled: boolean): void
-  editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<{ label: string; unit: string }>): void
+  editMetric(metric: keyof MapVisualizationDraft['labels'], patch: Partial<MapMetricDefinition>): void
   editRegion(regionKey: string, patch: Partial<Omit<MapAuthoringRegionDraft, 'regionKey'>>): void
   focusRegion(regionKey: string | null): void
   commitAll(): MapAuthoringCommitResult
@@ -148,8 +149,10 @@ function metricsAreDirty(editable: MapAuthoringEditableDraft, committed: MapVisu
   return editable.secondaryEnabled !== committed.secondaryEnabled ||
     editable.labels.primary.label !== committed.labels.primary.label ||
     editable.labels.primary.unit !== committed.labels.primary.unit ||
+    editable.labels.primary.format !== committed.labels.primary.format ||
     editable.labels.secondary.label !== committed.labels.secondary.label ||
-    editable.labels.secondary.unit !== committed.labels.secondary.unit
+    editable.labels.secondary.unit !== committed.labels.secondary.unit ||
+    editable.labels.secondary.format !== committed.labels.secondary.format
 }
 
 function errorMessage(cause: unknown): string {

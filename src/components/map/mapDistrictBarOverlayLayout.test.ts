@@ -279,6 +279,17 @@ describe('calculateDistrictBarOverlayLayout', () => {
     expect(tiedPanel('right')?.side).toBe('right')
   })
 
+  it('formats badges and hover values from metric attributes', () => {
+    const result = calculateDistrictBarOverlayLayout({
+      ...input([snapshot('percent', [0, 0, -10], 0, true, 37.5, 12.6)]),
+      hoveredName: 'percent',
+      metricFormats: { primary: 'percentage', secondary: 'decimal' }
+    })
+
+    expect(result.badges[0].text).toBe('37.50%')
+    expect(result.panel).toMatchObject({ caseText: '37.50%', amountText: '12.60' })
+  })
+
   it('uses title right and bottom protrusions in exact panel clamp bounds', () => {
     const horizontalCamera = new THREE.OrthographicCamera(0, 300, 250, -250, 1, 100)
     horizontalCamera.lookAt(0, 0, -1)

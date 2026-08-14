@@ -120,8 +120,8 @@ describe('mapDocument', () => {
     const document = composeMapVisualization(prepared.document, prefill.visualization)
 
     expect(document.metricLabels).toEqual({
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: { label: '服务资源', unit: '项' }
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
+      secondary: { label: '服务资源', unit: '项', format: 'decimal' }
     })
     expect([...document.metrics]).toEqual([
       ['区域 A', { name: '区域 A', displayName: '区域 A', primary: 120, secondary: 45.6 }]
@@ -192,7 +192,7 @@ describe('mapDocument', () => {
     const composed = composeMapVisualization(base, draft)
 
     expect(composed.metricLabels).toEqual({
-      primary: { label: '扶持企业', unit: '家' },
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
       secondary: null
     })
     expect(composed.metrics.get('区域 A')).toMatchObject({ primary: 120, secondary: null })
@@ -212,11 +212,74 @@ describe('mapDocument', () => {
       path: 'regions[0].secondary'
     }))
 
-    draft.labels.secondary = { label: '', unit: '' }
+    draft.labels.secondary = { label: '', unit: '', format: 'decimal' }
     draft.regions[0].secondary = 3
     expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
       code: 'invalid-metrics',
       path: 'secondaryMetric.label'
+    }))
+  })
+
+  it('支持整数、两位小数和百分比属性，并允许单位留空', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.labels.primary = { label: '完成率', unit: '', format: 'percentage' }
+    draft.labels.secondary = { label: '投入金额', unit: '', format: 'decimal' }
+    draft.regions[0] = {
+      ...draft.regions[0],
+      enabled: true,
+      primary: 37.5,
+      secondary: 12
+    }
+
+    const composed = composeMapVisualization(base, draft)
+
+    expect(composed.metricLabels).toEqual({
+      primary: { label: '完成率', unit: '', format: 'percentage' },
+      secondary: { label: '投入金额', unit: '', format: 'decimal' }
+    })
+  })
+
+  it('业务数据可省略单位并显式声明数值属性', () => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const prefill = prefillMapVisualizationDraft(base, JSON.stringify({
+      version: 1,
+      primaryMetric: { label: '完成率', format: 'percentage' },
+      secondaryMetric: { label: '投入金额', format: 'decimal' },
+      regions: [{ name: '区域 A', primary: 37.5, secondary: 12.34 }]
+    }))
+
+    expect(prefill.visualization.labels).toEqual({
+      primary: { label: '完成率', unit: '', format: 'percentage' },
+      secondary: { label: '投入金额', unit: '', format: 'decimal' }
+    })
+  })
+
+  it.each([
+    { format: 'integer', value: 1.5, message: '整数' },
+    { format: 'decimal', value: 1.234, message: '最多保留 2 位小数' },
+    { format: 'percentage', value: 101, message: '0 到 100' }
+  ] as const)('按 $format 属性校验主数值', ({ format, value, message }) => {
+    const base = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    }).document
+    const draft = createMapVisualizationDraft(base)
+    draft.labels.primary.format = format
+    draft.regions[0] = { ...draft.regions[0], enabled: true, primary: value, secondary: 2 }
+
+    expect(() => composeMapVisualization(base, draft)).toThrowError(expect.objectContaining({
+      path: 'regions[0].primary',
+      userMessage: expect.stringContaining(message)
     }))
   })
 

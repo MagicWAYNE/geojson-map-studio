@@ -135,10 +135,12 @@ describe('map authoring workspace', () => {
     const committed = workspace.commitMetrics()
     expect(committed.ok).toBe(true)
     expect(workspace.read().committed.labels).toEqual({
-      primary: { label: '入驻团队', unit: '家' },
-      secondary: { label: '导师服务', unit: '次' }
+      primary: { label: '入驻团队', unit: '家', format: 'integer' },
+      secondary: { label: '导师服务', unit: '次', format: 'decimal' }
     })
     expect(workspace.read().dirtyMetrics).toBe(false)
+    workspace.editMetric('primary', { format: 'percentage' })
+    expect(workspace.read().dirtyMetrics).toBe(true)
   })
 
   it('关闭副指标后保留草稿并原子发布仅含主指标的地图', () => {
@@ -158,7 +160,9 @@ describe('map authoring workspace', () => {
     })
     expect(workspace.read().metricError).toBe('')
     expect(workspace.read().regionErrors).toEqual({})
-    expect(workspace.read().editable.labels.secondary).toEqual({ label: '服务资源', unit: '项' })
+    expect(workspace.read().editable.labels.secondary).toEqual({
+      label: '服务资源', unit: '项', format: 'decimal'
+    })
     expect(workspace.read().editable.regions[0].secondary).toBe('3')
   })
 
@@ -204,7 +208,7 @@ describe('map authoring workspace', () => {
     const prepared = preparedMap()
     const workspace = createMapAuthoringWorkspace(prepared.document, prepared.visualization)
     const prefill = structuredClone(prepared.visualization)
-    prefill.labels.primary = { label: '预填企业', unit: '家' }
+    prefill.labels.primary = { label: '预填企业', unit: '家', format: 'integer' }
     prefill.regions[0] = {
       regionKey: '区域 A', displayName: '区域 A', enabled: true, primary: 120, secondary: 45
     }

@@ -45,14 +45,22 @@ export interface MapRegionMetrics {
   secondary: number | null
 }
 
+export type MapMetricFormat = 'integer' | 'decimal' | 'percentage'
+
+export interface MapMetricDefinition {
+  label: string
+  unit: string
+  format: MapMetricFormat
+}
+
 export interface MapVisualizationMetricLabels {
-  primary: { label: string; unit: string }
-  secondary: { label: string; unit: string }
+  primary: MapMetricDefinition
+  secondary: MapMetricDefinition
 }
 
 export interface MapMetricLabels {
-  primary: { label: string; unit: string }
-  secondary: { label: string; unit: string } | null
+  primary: MapMetricDefinition
+  secondary: MapMetricDefinition | null
 }
 
 export interface MapVisualizationRegionDraft {
@@ -402,17 +410,56 @@ function readBoundedText(
   return text
 }
 
-function readMetricLabel(value: unknown, path: string): { label: string; unit: string } {
-  if (!isRecord(value)) fail('invalid-metrics', path, `${path} 必须包含 label 和 unit`)
+function readOptionalBoundedText(value: unknown, path: string, maxLength: number): string {
+  if (value === undefined) return ''
+  if (typeof value !== 'string') fail('invalid-metrics', path, `${path} 必须是文本`)
+  const text = value.trim()
+  if (Array.from(text).length > maxLength) {
+    fail('invalid-metrics', path, `${path} 长度不能超过 ${maxLength} 个字符`)
+  }
+  return text
+}
+
+function readMetricFormat(
+  value: unknown,
+  path: string,
+  fallback: MapMetricFormat
+): MapMetricFormat {
+  if (value === undefined) return fallback
+  if (value !== 'integer' && value !== 'decimal' && value !== 'percentage') {
+    fail('invalid-metrics', path, `${path} 必须是 integer、decimal 或 percentage`)
+  }
+  return value
+}
+
+function readMetricDefinition(
+  value: unknown,
+  path: string,
+  fallbackFormat: MapMetricFormat
+): MapMetricDefinition {
+  if (!isRecord(value)) fail('invalid-metrics', path, `${path} 必须是指标定义对象`)
   return {
     label: readBoundedText(value.label, `${path}.label`, 20, 'invalid-metrics'),
-    unit: readBoundedText(value.unit, `${path}.unit`, 8, 'invalid-metrics')
+    unit: readOptionalBoundedText(value.unit, `${path}.unit`, 8),
+    format: readMetricFormat(value.format, `${path}.format`, fallbackFormat)
   }
 }
 
-function readMetricNumber(value: unknown, path: string): number {
+function readMetricNumber(value: unknown, path: string, format: MapMetricFormat): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     fail('invalid-metrics', path, `${path} 必须是有限的非负数`)
+  }
+  if (format === 'integer' && !Number.isInteger(value)) {
+    fail('invalid-metrics', path, `${path} 必须是整数`)
+  }
+  if (
+    format !== 'integer' &&
+    Math.abs(value * 100 - Math.round(value * 100)) > 1e-8
+  ) {
+    fail('invalid-metrics', path, `${path} 最多保留 2 位小数`)
+  }
+  if (format === 'percentage' && value > 100) {
+    fail('invalid-metrics', path, `${path} 必须在 0 到 100 之间`)
   }
   return value
 }
@@ -426,8 +473,8 @@ function parseMetrics(text: string): ParsedMetrics {
     fail('invalid-metrics', 'regions', `业务数据区域数不能超过 ${METRICS_MAX_REGIONS}`)
   }
   const labels: MapVisualizationMetricLabels = {
-    primary: readMetricLabel(root.primaryMetric, 'primaryMetric'),
-    secondary: readMetricLabel(root.secondaryMetric, 'secondaryMetric')
+    primary: readMetricDefinition(root.primaryMetric, 'primaryMetric', 'integer'),
+    secondary: readMetricDefinition(root.secondaryMetric, 'secondaryMetric', 'decimal')
   }
   const byName = new Map<string, MapRegionMetrics>()
   root.regions.forEach((candidate, index) => {
@@ -440,8 +487,8 @@ function parseMetrics(text: string): ParsedMetrics {
     byName.set(name, {
       name,
       displayName: name,
-      primary: readMetricNumber(candidate.primary, `${path}.primary`),
-      secondary: readMetricNumber(candidate.secondary, `${path}.secondary`)
+      primary: readMetricNumber(candidate.primary, `${path}.primary`, labels.primary.format),
+      secondary: readMetricNumber(candidate.secondary, `${path}.secondary`, labels.secondary.format)
     })
   })
   return { labels, byName }
@@ -459,8 +506,8 @@ export function createMapVisualizationDraft(document: MapDocument): MapVisualiza
   return {
     secondaryEnabled: true,
     labels: {
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: { label: '服务资源', unit: '项' }
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
+      secondary: { label: '服务资源', unit: '项', format: 'decimal' }
     },
     regions: document.geometry.regions.map((region) => ({
       regionKey: region.name,
@@ -481,6 +528,12 @@ export function composeMapVisualization(
   const displayNames = new Set<string>()
   const metrics = new Map<string, MapRegionMetrics>()
   const secondaryOmitted = !draft.secondaryEnabled
+  const labels: MapMetricLabels = {
+    primary: readMetricDefinition(draft.labels.primary, 'primaryMetric', 'integer'),
+    secondary: secondaryOmitted
+      ? null
+      : readMetricDefinition(draft.labels.secondary, 'secondaryMetric', 'decimal')
+  }
 
   for (const [index, row] of draft.regions.entries()) {
     const path = `regions[${index}]`
@@ -502,17 +555,15 @@ export function composeMapVisualization(
     metrics.set(row.regionKey, {
       name: row.regionKey,
       displayName,
-      primary: readMetricNumber(row.primary, `${path}.primary`),
-      secondary: secondaryOmitted ? null : readMetricNumber(row.secondary, `${path}.secondary`)
+      primary: readMetricNumber(row.primary, `${path}.primary`, labels.primary.format),
+      secondary: secondaryOmitted
+        ? null
+        : readMetricNumber(row.secondary, `${path}.secondary`, labels.secondary!.format)
     })
   }
 
   if (rowsByKey.size !== expectedKeys.size) {
     fail('invalid-visualization', 'regions', '每个地图分块必须且只能有一条编辑记录')
-  }
-  const labels = {
-    primary: readMetricLabel(draft.labels.primary, 'primaryMetric'),
-    secondary: secondaryOmitted ? null : readMetricLabel(draft.labels.secondary, 'secondaryMetric')
   }
   return {
     ...document,

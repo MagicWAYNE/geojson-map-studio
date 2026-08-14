@@ -48,8 +48,8 @@ describe('builtinMapDocument', () => {
       secondary: 7
     })
     expect(document.metricLabels).toEqual({
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: { label: '服务资源', unit: '项' }
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
+      secondary: { label: '服务资源', unit: '项', format: 'decimal' }
     })
     expect(document.appearance).toEqual({
       kind: 'terrain-texture',

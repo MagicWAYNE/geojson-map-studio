@@ -68,8 +68,8 @@ function builtinDocument(): MapDocument {
 function visualizationFor(name: string, displayName: string) {
   const draft = createMapVisualizationDraft(prepared(name).document)
   draft.labels = {
-    primary: { label: '企业数', unit: '家' },
-    secondary: { label: '服务包', unit: '份' }
+    primary: { label: '企业数', unit: '家', format: 'integer' },
+    secondary: { label: '服务包', unit: '份', format: 'decimal' }
   }
   draft.regions[0] = {
     regionKey: name,

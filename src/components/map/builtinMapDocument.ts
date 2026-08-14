@@ -47,8 +47,8 @@ export async function loadBuiltinMapDocument(): Promise<MapDocument> {
     geometry: projectRegions(regions, MAP_PLANE_MAX),
     metrics: toMetrics(data),
     metricLabels: {
-      primary: { label: '扶持企业', unit: '家' },
-      secondary: { label: '服务资源', unit: '项' }
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
+      secondary: { label: '服务资源', unit: '项', format: 'decimal' }
     },
     appearance: { kind: 'terrain-texture', textureUrl: BUILTIN_TEXTURE_URL },
     drilldown: true

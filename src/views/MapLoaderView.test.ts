@@ -36,6 +36,11 @@ function enter(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+function chooseOption(select: HTMLSelectElement, value: string): void {
+  select.value = value
+  select.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 function regionRow(root: HTMLElement, key: string): HTMLElement {
   const row = [...root.querySelectorAll<HTMLElement>('[data-region-row]')]
     .find((candidate) => candidate.dataset.regionKey === key)
@@ -273,6 +278,7 @@ describe('MapLoaderView', () => {
     await nextTick()
     expect(root.querySelector<HTMLInputElement>('#secondary-label')!.disabled).toBe(true)
     expect(root.querySelector<HTMLInputElement>('#secondary-unit')!.disabled).toBe(true)
+    expect(root.querySelector<HTMLSelectElement>('#secondary-format')!.disabled).toBe(true)
     expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.disabled).toBe(true)
     expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.value).toBe('3')
     expect(root.querySelector('#secondary-enabled-help')?.textContent).toContain('地图仅展示主指标')
@@ -281,7 +287,7 @@ describe('MapLoaderView', () => {
     await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(2))
     const publishedDocument = sourceMocks.updateVisualization.mock.results[1].value
     expect(publishedDocument.metricLabels).toEqual({
-      primary: { label: '扶持企业', unit: '家' },
+      primary: { label: '扶持企业', unit: '家', format: 'integer' },
       secondary: null
     })
     expect(publishedDocument.metrics.get('区域 A')).toMatchObject({
@@ -291,6 +297,7 @@ describe('MapLoaderView', () => {
     secondaryToggle.click()
     await nextTick()
     expect(root.querySelector<HTMLInputElement>('#secondary-label')!.disabled).toBe(false)
+    expect(root.querySelector<HTMLSelectElement>('#secondary-format')!.disabled).toBe(false)
     expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.disabled).toBe(false)
     expect(regionA.querySelector<HTMLInputElement>('[data-field="secondary"]')!.value).toBe('3')
     app.unmount()
@@ -349,11 +356,39 @@ describe('MapLoaderView', () => {
     await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(2))
     const [, visualization] = sourceMocks.updateVisualization.mock.calls[1]
     expect((visualization as MapVisualizationDraft).labels).toEqual({
-      primary: { label: '入驻团队', unit: '家' },
-      secondary: { label: '导师服务', unit: '次' }
+      primary: { label: '入驻团队', unit: '家', format: 'integer' },
+      secondary: { label: '导师服务', unit: '次', format: 'decimal' }
     })
     expect((visualization as MapVisualizationDraft).regions[0]).toMatchObject({
       regionKey: '区域 A', enabled: true, primary: 12, secondary: 3
+    })
+    app.unmount()
+  })
+
+  it('主副指标可选择数值属性且单位可以留空', async () => {
+    const { app, root } = await mountView()
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+    )
+    await vi.waitFor(() => expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3))
+
+    const primaryFormat = root.querySelector<HTMLSelectElement>('#primary-format')!
+    const secondaryFormat = root.querySelector<HTMLSelectElement>('#secondary-format')!
+    expect([...primaryFormat.options].map((option) => option.value)).toEqual([
+      'integer', 'decimal', 'percentage'
+    ])
+    chooseOption(primaryFormat, 'percentage')
+    chooseOption(secondaryFormat, 'decimal')
+    enter(root.querySelector<HTMLInputElement>('#primary-unit')!, '')
+    enter(root.querySelector<HTMLInputElement>('#secondary-unit')!, '')
+    root.querySelector<HTMLButtonElement>('[data-action="update-metrics"]')!.click()
+
+    await vi.waitFor(() => expect(sourceMocks.updateVisualization).toHaveBeenCalledTimes(1))
+    const [, visualization] = sourceMocks.updateVisualization.mock.calls[0]
+    expect((visualization as MapVisualizationDraft).labels).toEqual({
+      primary: { label: '扶持企业', unit: '', format: 'percentage' },
+      secondary: { label: '服务资源', unit: '', format: 'decimal' }
     })
     app.unmount()
   })
@@ -389,8 +424,8 @@ describe('MapLoaderView', () => {
     const visualization: MapVisualizationDraft = {
       secondaryEnabled: true,
       labels: {
-        primary: { label: '孵化项目', unit: '个' },
-        secondary: { label: '导师服务', unit: '次' }
+        primary: { label: '孵化项目', unit: '个', format: 'integer' },
+        secondary: { label: '导师服务', unit: '次', format: 'decimal' }
       },
       regions: prepared.visualization.regions.map((row, index) => index === 0
         ? { ...row, displayName: '创新一区', enabled: true, primary: 12, secondary: 3 }

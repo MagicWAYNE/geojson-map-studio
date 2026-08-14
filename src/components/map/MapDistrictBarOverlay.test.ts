@@ -19,8 +19,8 @@ import MapDistrictBarOverlay from './MapDistrictBarOverlay.vue'
 import type { MapMetricLabels } from './mapDocument'
 
 const defaultMetricLabels: MapMetricLabels = {
-  primary: { label: '扶持企业', unit: '家' },
-  secondary: { label: '服务资源', unit: '项' }
+  primary: { label: '扶持企业', unit: '家', format: 'integer' },
+  secondary: { label: '服务资源', unit: '项', format: 'decimal' }
 }
 
 interface MountedOverlay {
@@ -199,8 +199,8 @@ describe('MapDistrictBarOverlay', () => {
       { badges: [], panel: panel('区域 A') },
       cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS),
       {
-        primary: { label: '<企业数>', unit: '户' },
-        secondary: { label: '服务包', unit: '份' }
+        primary: { label: '<企业数>', unit: '户', format: 'integer' },
+        secondary: { label: '服务包', unit: '份', format: 'decimal' }
       }
     )
 
@@ -216,7 +216,7 @@ describe('MapDistrictBarOverlay', () => {
       { badges: [], panel: panel('区域 A') },
       cloneDistrictBarOverlayConfig(MAP_DISTRICT_BAR_OVERLAY_DEFAULTS),
       {
-        primary: { label: '扶持企业', unit: '家' },
+        primary: { label: '扶持企业', unit: '家', format: 'integer' },
         secondary: null
       }
     )

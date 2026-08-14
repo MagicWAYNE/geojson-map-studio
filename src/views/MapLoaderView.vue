@@ -8,6 +8,7 @@ import {
   prepareGeoJsonMapPackage,
   type GeoJsonInspection,
   type MapDocument,
+  type MapMetricFormat,
   type MapMetricsSummary,
   type PreparedMapPackage
 } from '@/components/map/mapDocument'
@@ -275,6 +276,13 @@ function editMetric(
   event: Event
 ): void {
   authoringSession.editMetric(metric, { [field]: (event.target as HTMLInputElement).value })
+  refreshWorkspace()
+}
+
+function editMetricFormat(metric: 'primary' | 'secondary', event: Event): void {
+  authoringSession.editMetric(metric, {
+    format: (event.target as HTMLSelectElement).value as MapMetricFormat
+  })
   refreshWorkspace()
 }
 
@@ -550,8 +558,16 @@ onMounted(() => {
             <input id="primary-label" :value="visualization.labels.primary.label" @input="editMetric('primary', 'label', $event)" />
           </label>
           <label for="primary-unit">
-            <span>主指标单位</span>
+            <span>主指标单位（可选）</span>
             <input id="primary-unit" :value="visualization.labels.primary.unit" @input="editMetric('primary', 'unit', $event)" />
+          </label>
+          <label for="primary-format">
+            <span>主指标属性</span>
+            <select id="primary-format" :value="visualization.labels.primary.format" @change="editMetricFormat('primary', $event)">
+              <option value="integer">整数</option>
+              <option value="decimal">两位小数</option>
+              <option value="percentage">百分比</option>
+            </select>
           </label>
           <label class="map-loader__secondary-toggle" for="secondary-enabled">
             <input
@@ -569,14 +585,22 @@ onMounted(() => {
             <input id="secondary-label" :disabled="!visualization.secondaryEnabled" :value="visualization.labels.secondary.label" @input="editMetric('secondary', 'label', $event)" />
           </label>
           <label for="secondary-unit">
-            <span>副指标单位</span>
+            <span>副指标单位（可选）</span>
             <input id="secondary-unit" :disabled="!visualization.secondaryEnabled" :value="visualization.labels.secondary.unit" @input="editMetric('secondary', 'unit', $event)" />
+          </label>
+          <label for="secondary-format">
+            <span>副指标属性</span>
+            <select id="secondary-format" :disabled="!visualization.secondaryEnabled" :value="visualization.labels.secondary.format" @change="editMetricFormat('secondary', $event)">
+              <option value="integer">整数</option>
+              <option value="decimal">两位小数</option>
+              <option value="percentage">百分比</option>
+            </select>
           </label>
           <button type="button" data-action="update-metrics" @click="commitMetrics">更新指标</button>
         </div>
         <p id="secondary-enabled-help" class="map-loader__optional-hint">
           {{ visualization.secondaryEnabled
-            ? '副指标已开启；名称、单位和已启用区域的副数值均参与校验。'
+            ? '副指标已开启；百分比会自动显示 %，单位可以留空。'
             : '副指标已关闭；相关输入暂不可用，点击“更新指标”后地图仅展示主指标。' }}
         </p>
         <p v-if="workspaceSnapshot?.metricError" class="map-loader__inline-error" role="alert">
@@ -845,7 +869,7 @@ onMounted(() => {
 
 .map-loader__metric-fields {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 12px;
   margin-top: 16px;
 }
@@ -867,6 +891,7 @@ onMounted(() => {
 }
 
 .map-loader__metric-fields input,
+.map-loader__metric-fields select,
 .map-loader__region-row input[type='text'],
 .map-loader__region-row input[type='number'] {
   box-sizing: border-box;
@@ -881,6 +906,11 @@ onMounted(() => {
 }
 
 .map-loader__metric-fields input:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.map-loader__metric-fields select:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }

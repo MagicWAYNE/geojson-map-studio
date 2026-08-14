@@ -305,10 +305,10 @@ function panelStyle(): StyleWithVariables {
         >
         <span class="district-bar-panel-title-text">{{ layout.panel.titleText }}</span>
         <div class="district-bar-panel-row">
-          <span class="district-bar-panel-label">{{ metricLabels.primary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.primary.unit}` }}</span>
+          <span class="district-bar-panel-label">{{ metricLabels.primary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.caseText }}</span><span v-if="metricLabels.primary.unit" class="district-bar-panel-unit">{{ ` ${metricLabels.primary.unit}` }}</span>
         </div>
         <div v-if="metricLabels.secondary" class="district-bar-panel-row">
-          <span class="district-bar-panel-label">{{ metricLabels.secondary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span class="district-bar-panel-unit">{{ ` ${metricLabels.secondary.unit}` }}</span>
+          <span class="district-bar-panel-label">{{ metricLabels.secondary.label }}：</span><span class="district-bar-panel-value">{{ layout.panel.amountText }}</span><span v-if="metricLabels.secondary.unit" class="district-bar-panel-unit">{{ ` ${metricLabels.secondary.unit}` }}</span>
         </div>
       </section>
     </Transition>

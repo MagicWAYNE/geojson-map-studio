@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { MapDistrictBarOverlayConfig } from './mapDistrictBarOverlayConfig'
 import type { DistrictBarTopSnapshot } from './mapDistrictBarLayer'
+import type { MapMetricFormat } from './mapDocument'
 
 export type DistrictBarOverlayProjectionStatus =
   | 'visible'
@@ -41,6 +42,7 @@ export interface DistrictBarOverlayLayoutInput {
   }
   hoveredName: string | null
   config: Readonly<MapDistrictBarOverlayConfig>
+  metricFormats?: Readonly<{ primary: MapMetricFormat; secondary: MapMetricFormat }>
   sizes?: DistrictBarOverlayMeasuredSizes
 }
 
@@ -111,6 +113,17 @@ function formatNumber(value: number | null, decimals: number, useGrouping: boole
     maximumFractionDigits: digits,
     useGrouping
   }).format(rounded === 0 ? 0 : value)
+}
+
+function formatMetricNumber(
+  value: number | null,
+  format: MapMetricFormat | undefined,
+  fallbackDecimals: number,
+  useGrouping: boolean
+): string {
+  const decimals = format === 'integer' ? 0 : format ? 2 : fallbackDecimals
+  const text = formatNumber(value, decimals, useGrouping)
+  return format === 'percentage' && text !== '—' ? `${text}%` : text
 }
 
 function clampToRange(value: number, minimum: number, maximum: number): number {
@@ -210,8 +223,9 @@ export function calculateDistrictBarOverlayLayout(
         projection.status === 'visible' &&
         !(input.config.badge.hideOnHover && snapshot.name === input.hoveredName),
       dimmed: input.hoveredName !== null && snapshot.name !== input.hoveredName,
-      text: formatNumber(
+      text: formatMetricNumber(
         snapshot.primary,
+        input.metricFormats?.primary,
         input.config.badge.decimals,
         input.config.badge.thousandsSeparator
       ),
@@ -316,13 +330,15 @@ export function calculateDistrictBarOverlayLayout(
       side,
       viewportOverflow: minX > maxX || minTop > maxTop,
       titleText: hovered.snapshot.displayName,
-      caseText: formatNumber(
+      caseText: formatMetricNumber(
         hovered.snapshot.primary,
+        input.metricFormats?.primary,
         panelConfig.caseDecimals,
         panelConfig.thousandsSeparator
       ),
-      amountText: formatNumber(
+      amountText: formatMetricNumber(
         hovered.snapshot.secondary,
+        input.metricFormats?.secondary,
         panelConfig.amountDecimals,
         panelConfig.thousandsSeparator
       )
