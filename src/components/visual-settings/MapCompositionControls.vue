@@ -111,14 +111,38 @@ onMounted(() => {
                 tabindex="0"
                 :title="layer.help"
                 :aria-label="layer.help"
-              >ℹ️</span>
+              >
+                <svg
+                  data-icon="info"
+                  aria-hidden="true"
+                  focusable="false"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                >
+                  <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M8 7.1V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                  <circle cx="8" cy="4.75" r=".8" fill="currentColor" />
+                </svg>
+              </span>
               <span aria-hidden="true">：</span>
               <a
                 class="background-layer__filename"
                 :href="session.backgroundLayerSources.value[layer.id].url"
                 :download="session.backgroundLayerSources.value[layer.id].filename"
                 :aria-label="`下载${layer.label}文件 ${session.backgroundLayerSources.value[layer.id].filename}`"
-              >{{ session.backgroundLayerSources.value[layer.id].filename }}<span aria-hidden="true">⬇️</span></a>
+              >
+                <span class="background-layer__filename-text">{{ session.backgroundLayerSources.value[layer.id].filename }}</span>
+                <svg
+                  data-icon="download"
+                  aria-hidden="true"
+                  focusable="false"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                >
+                  <path d="M8 2.25v7.5m0 0 2.75-2.75M8 9.75 5.25 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M3 11.25v1.5h10v-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
             </div>
             <input
               :id="`background-layer-file-${layer.id}`"
@@ -224,13 +248,16 @@ onMounted(() => {
 .background-layer__identity { display: flex; align-items: center; min-width: 0; color: #cfe6ff; font-size: 14px; }
 .background-layer__toggle { display: inline-flex; align-items: center; gap: 8px; color: #cfe6ff; font-size: 14px; }
 .background-layer__toggle input { width: 16px; height: 16px; accent-color: #00deff; }
-.background-layer__help { margin-left: 2px; cursor: help; }
+.background-layer__help { display: inline-flex; margin-left: 4px; color: #67dcff; cursor: help; }
+.background-layer__help svg { width: 15px; height: 15px; }
 .background-layer__file-input { display: none; }
 .background-layer__upload { flex: 0 0 auto; padding: 5px 9px; font-size: 13px; }
 .background-layer__filename {
-  min-width: 0; overflow: hidden; color: #67dcff; font-size: 13px;
-  text-decoration: none; text-overflow: ellipsis; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: #67dcff; font-size: 13px;
+  text-decoration: none; white-space: nowrap;
 }
+.background-layer__filename-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.background-layer__filename svg { flex: 0 0 auto; width: 14px; height: 14px; }
 .background-layer__filename:hover, .background-layer__filename:focus-visible { color: #fff; text-decoration: underline; }
 .background-layer__error { color: #ffad99 !important; }
 .background-status { overflow-wrap: anywhere; }
