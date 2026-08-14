@@ -4,14 +4,16 @@ import bgTerrain from '@/assets/images/bg-terrain.png'
 export const DEFAULT_BACKGROUND_LAYERS = [
   {
     id: 'main',
-    label: '主背景',
+    label: '背景遮罩',
+    help: '建议为带透明度的PNG文件',
     url: bgMain,
     filename: 'bg-main.png',
     defaultVisible: true
   },
   {
     id: 'terrain',
-    label: '地形纹理',
+    label: '背景底图',
+    help: '',
     url: bgTerrain,
     filename: 'bg-terrain.png',
     defaultVisible: true

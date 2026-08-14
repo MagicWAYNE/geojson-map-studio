@@ -15,9 +15,9 @@ const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
 const backgroundFileInputs: Partial<Record<DefaultBackgroundLayerId, HTMLInputElement>> = {}
 const backgroundStatus = computed(() => {
   const { main, terrain } = session.backgroundLayerVisibility
-  if (main && terrain) return '当前显示主背景与地形纹理'
-  if (main) return '当前仅显示主背景'
-  if (terrain) return '当前仅显示地形纹理'
+  if (main && terrain) return '当前显示背景遮罩与背景底图'
+  if (main) return '当前仅显示背景遮罩'
+  if (terrain) return '当前仅显示背景底图'
   return '背景两层均已关闭'
 })
 const FIELDS: ReadonlyArray<{
@@ -85,7 +85,7 @@ onMounted(() => {
   <div class="composition-controls" data-visual-page-content="composition">
     <section class="setting-group">
       <h2>画布背景</h2>
-      <p>主背景与地形纹理可以分别开关或替换文件。上传内容仅在当前创作会话生效，刷新页面后恢复内置源文件。</p>
+      <p>背景遮罩与背景底图可以分别开关或替换文件。上传内容仅在当前创作会话生效，刷新页面后恢复内置源文件。</p>
       <div class="background-layer-list" aria-label="背景图层">
         <div
           v-for="layer in defaultBackgroundLayers"
@@ -93,21 +93,33 @@ onMounted(() => {
           class="background-layer"
           :data-background-layer="layer.id"
         >
-          <div class="background-layer__heading">
-            <label class="background-layer__toggle">
-              <input
-                type="checkbox"
-                :checked="session.backgroundLayerVisibility[layer.id]"
-                :aria-label="`${layer.label}显示开关`"
-                @change="updateBackgroundLayerVisibility(layer.id, $event)"
-              />
-              <span>{{ layer.label }}</span>
-            </label>
-            <span class="background-layer__source">
-              当前文件：{{ session.backgroundLayerSources.value[layer.id].filename }}
-            </span>
-          </div>
-          <div class="background-layer__actions">
+          <div class="background-layer__row">
+            <div class="background-layer__identity">
+              <label class="background-layer__toggle">
+                <input
+                  type="checkbox"
+                  :checked="session.backgroundLayerVisibility[layer.id]"
+                  :aria-label="`${layer.label}显示开关`"
+                  @change="updateBackgroundLayerVisibility(layer.id, $event)"
+                />
+                <span>{{ layer.label }}</span>
+              </label>
+              <span
+                v-if="layer.help"
+                class="background-layer__help"
+                role="img"
+                tabindex="0"
+                :title="layer.help"
+                :aria-label="layer.help"
+              >ℹ️</span>
+              <span aria-hidden="true">：</span>
+              <a
+                class="background-layer__filename"
+                :href="session.backgroundLayerSources.value[layer.id].url"
+                :download="session.backgroundLayerSources.value[layer.id].filename"
+                :aria-label="`下载${layer.label}文件 ${session.backgroundLayerSources.value[layer.id].filename}`"
+              >{{ session.backgroundLayerSources.value[layer.id].filename }}<span aria-hidden="true">⬇️</span></a>
+            </div>
             <input
               :id="`background-layer-file-${layer.id}`"
               :ref="(element) => setBackgroundFileInput(layer.id, element)"
@@ -123,12 +135,6 @@ onMounted(() => {
               :data-action="`upload-background-${layer.id}`"
               @click="openBackgroundUpload(layer.id)"
             >上传背景文件</button>
-            <a
-              class="background-layer__download"
-              :href="session.backgroundLayerSources.value[layer.id].url"
-              :download="session.backgroundLayerSources.value[layer.id].filename"
-              :aria-label="`下载${layer.label}当前背景文件`"
-            >下载源文件</a>
           </div>
           <p v-if="session.backgroundLayerErrors[layer.id]" class="background-layer__error" role="alert">
             {{ session.backgroundLayerErrors[layer.id] }}
@@ -214,15 +220,18 @@ onMounted(() => {
   display: grid; gap: 9px; padding: 10px;
   background: rgba(36, 131, 255, 0.08); border: 1px solid rgba(36, 131, 255, 0.32); border-radius: 4px;
 }
-.background-layer__heading, .background-layer__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.background-layer__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.background-layer__identity { display: flex; align-items: center; min-width: 0; color: #cfe6ff; font-size: 14px; }
 .background-layer__toggle { display: inline-flex; align-items: center; gap: 8px; color: #cfe6ff; font-size: 14px; }
 .background-layer__toggle input { width: 16px; height: 16px; accent-color: #00deff; }
-.background-layer__source { min-width: 0; overflow: hidden; color: #78bde7; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.background-layer__actions { justify-content: flex-end; }
+.background-layer__help { margin-left: 2px; cursor: help; }
 .background-layer__file-input { display: none; }
-.background-layer__upload { padding: 5px 9px; font-size: 13px; }
-.background-layer__download { color: #67dcff; font-size: 13px; text-decoration: none; }
-.background-layer__download:hover { color: #fff; text-decoration: underline; }
+.background-layer__upload { flex: 0 0 auto; padding: 5px 9px; font-size: 13px; }
+.background-layer__filename {
+  min-width: 0; overflow: hidden; color: #67dcff; font-size: 13px;
+  text-decoration: none; text-overflow: ellipsis; white-space: nowrap;
+}
+.background-layer__filename:hover, .background-layer__filename:focus-visible { color: #fff; text-decoration: underline; }
 .background-layer__error { color: #ffad99 !important; }
 .background-status { overflow-wrap: anywhere; }
 .composition-field { display: flex; flex-direction: column; gap: 7px; }
