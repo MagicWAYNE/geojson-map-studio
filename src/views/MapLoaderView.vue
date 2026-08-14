@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { activeMapSource } from '@/components/map/mapSource'
 import {
   inspectGeoJsonMap,
@@ -19,6 +19,7 @@ import {
   type MapAuthoringSnapshot,
 } from '@/components/map/mapAuthoringWorkspace'
 import { useMapVisualSettings, type VisualWorkspaceMode } from '@/composables/useMapVisualSettings'
+import CollapsibleAlert from '@/components/common/CollapsibleAlert.vue'
 import VisualSettingsPanel from '@/components/visual-settings/VisualSettingsPanel.vue'
 
 const emit = defineEmits<{
@@ -44,6 +45,7 @@ const geometryText = ref<string>()
 const geometryFileName = ref('')
 const nameProperty = ref('')
 const inspection = shallowRef<GeoJsonInspection>()
+const errorInspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
 const workspaceSnapshot = shallowRef<MapAuthoringSnapshot>()
 const visualization = computed(() => workspaceSnapshot.value?.editable)
@@ -63,6 +65,36 @@ function switchWorkspace(mode: VisualWorkspaceMode): void {
 
 const enabledRegionCount = computed(() =>
   visualization.value?.regions.filter((region) => region.enabled).length ?? 0
+)
+const importError = computed(() => metricsValidationError.value || validationError.value)
+const importStatusTone = computed<'success' | 'warning' | 'error'>(() => {
+  if (importError.value) return 'error'
+  if (prepared.value) return 'success'
+  return 'warning'
+})
+const importStatusTitle = computed(() => {
+  if (importError.value) return '加载失败'
+  if (prepared.value) return '加载成功'
+  return '加载提醒'
+})
+const statusNamePropertyConflicts = computed(() =>
+  (importError.value ? errorInspection.value : inspection.value)?.namePropertyConflicts ?? []
+)
+const importStatusMeta = computed(() => {
+  if (importError.value) return '需要处理'
+  const conflictCount = statusNamePropertyConflicts.value.length
+  if (conflictCount) return `${conflictCount} 条非阻断提示`
+  if (prepared.value) return prepared.value.summary.geometryFileName
+  return warnings.value.length ? `${warnings.value.length} 条提醒` : ''
+})
+const hasImportStatus = computed(() => Boolean(
+  importError.value || prepared.value || warnings.value.length
+))
+const importStatusRevision = ref(0)
+watch(
+  [importError, prepared, prefillSummary, inspection, warnings],
+  () => { importStatusRevision.value += 1 },
+  { flush: 'sync' }
 )
 
 function errorMessage(cause: unknown, fileName = ''): string {
@@ -109,6 +141,7 @@ async function activateGeometry(
     geometryText.value = candidate.text
     geometryFileName.value = candidate.fileName
     inspection.value = candidate.inspection
+    errorInspection.value = undefined
     nameProperty.value = candidate.nameProperty
     prepared.value = candidate.prepared
     refreshWorkspace()
@@ -118,6 +151,7 @@ async function activateGeometry(
     emit('mapActivated', document)
   } catch (cause) {
     if (generation === activationGeneration) {
+      errorInspection.value = candidate.inspection
       validationError.value = errorMessage(cause, candidate.fileName)
     }
   } finally {
@@ -148,19 +182,22 @@ async function handleGeometryFile(event: Event): Promise<void> {
   metricsReadGeneration += 1
   metricsReading.value = false
   metricsValidationError.value = ''
+  errorInspection.value = undefined
   const file = (event.target as HTMLInputElement).files?.[0]
   validationError.value = ''
   if (!file) return
   busy.value = true
+  let nextInspection: GeoJsonInspection | undefined
   try {
     const text = await file.text()
     if (generation !== geometryReadGeneration) return
-    const nextInspection = inspectGeoJsonMap(text)
+    nextInspection = inspectGeoJsonMap(text)
     const nextNameProperty = nextInspection.usableNameProperties.includes('name')
       ? 'name'
       : nextInspection.usableNameProperties[0] ?? ''
     if (!nextNameProperty) {
       inspection.value = nextInspection
+      errorInspection.value = nextInspection
       validationError.value = '没有可用的唯一名称字段'
       return
     }
@@ -172,7 +209,10 @@ async function handleGeometryFile(event: Event): Promise<void> {
       inspection: nextInspection
     }), activationRequest)
   } catch (cause) {
-    if (generation === geometryReadGeneration) validationError.value = errorMessage(cause, file.name)
+    if (generation === geometryReadGeneration) {
+      errorInspection.value = nextInspection
+      validationError.value = errorMessage(cause, file.name)
+    }
   } finally {
     if (generation === geometryReadGeneration && !activationStarted) busy.value = false
   }
@@ -182,6 +222,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
   const generation = ++metricsReadGeneration
   const file = (event.target as HTMLInputElement).files?.[0]
   metricsValidationError.value = ''
+  errorInspection.value = undefined
   if (!file) {
     metricsReading.value = false
     prefillSummary.value = undefined
@@ -210,6 +251,7 @@ async function handleMetricsFile(event: Event): Promise<void> {
 
 async function handleNameProperty(): Promise<void> {
   if (!geometryText.value || !geometryFileName.value || !inspection.value || !nameProperty.value) return
+  errorInspection.value = undefined
   const requestedNameProperty = nameProperty.value
   try {
     await activateGeometry(prepareCandidate({
@@ -222,6 +264,7 @@ async function handleNameProperty(): Promise<void> {
       nameProperty.value = prepared.value?.persisted.nameProperty ?? ''
     }
   } catch (cause) {
+    errorInspection.value = inspection.value
     validationError.value = errorMessage(cause, geometryFileName.value)
   }
 }
@@ -248,6 +291,7 @@ function editRegion(
 }
 
 function publishCommit(result: MapAuthoringCommitResult): void {
+  errorInspection.value = undefined
   refreshWorkspace()
   if (result.ok) {
     validationError.value = ''
@@ -288,6 +332,7 @@ async function resetMap(): Promise<void> {
   if (busy.value) return
   busy.value = true
   validationError.value = ''
+  errorInspection.value = undefined
   try {
     activationGeneration += 1
     const document = await authoringSession.reset()
@@ -375,12 +420,6 @@ onMounted(() => {
         <p>上传区域边界，可选附加业务数据。校验成功前不会替换当前地图。</p>
       </header>
 
-      <ul v-if="warnings.length" class="map-loader__warnings" aria-label="存储提醒">
-        <li v-for="warning in warnings" :key="`${warning.code}:${warning.message}`">
-          {{ warning.message }}
-        </li>
-      </ul>
-
       <div class="map-loader__fields">
         <label class="map-loader__field" for="geometry-file">
           <span>GeoJSON 边界文件 <strong>必需</strong></span>
@@ -421,52 +460,75 @@ onMounted(() => {
         </label>
       </div>
 
-      <ul
-        v-if="inspection?.namePropertyConflicts.length"
-        class="map-loader__name-conflicts"
-        data-name-conflicts
-        aria-label="名称字段冲突"
+      <CollapsibleAlert
+        v-if="hasImportStatus"
+        class="map-loader__status-alert"
+        data-import-status
+        :tone="importStatusTone"
+        :title="importStatusTitle"
+        :meta="importStatusMeta"
+        :default-open="importStatusTone === 'error'"
+        :reset-key="importStatusRevision"
       >
-        <li
-          v-for="conflict in inspection.namePropertyConflicts"
-          :key="conflict.property"
-        >
-          {{ conflict.property }}：{{ conflict.duplicateValues.join('、') }}
-        </li>
-      </ul>
+        <p v-if="importError" class="map-loader__status-error">
+          {{ importError }}
+        </p>
 
-      <section v-if="prepared" class="map-loader__summary" aria-label="校验摘要">
-        <h2>校验通过</h2>
-        <p data-summary="geometry">
-          {{ prepared.summary.geometryFileName }} · {{ prepared.summary.featureCount }} 个区域 ·
-          {{ prepared.summary.totalPositionCount }} 个坐标点 · Polygon
-          {{ prepared.summary.polygonCount }} / MultiPolygon {{ prepared.summary.multiPolygonCount }} ·
-          名称字段 {{ prepared.summary.nameProperty }}
-        </p>
-        <p v-if="prefillSummary" data-summary="metrics">
-          业务数据：匹配 {{ prefillSummary.matchedNames.length }} ·
-          缺失 {{ prefillSummary.missingNames.length }} ·
-          多余 {{ prefillSummary.extraNames.length }}
-        </p>
-        <dl v-if="prefillSummary" class="map-loader__prefill-details">
-          <div data-prefill="matched">
-            <dt>匹配</dt>
-            <dd>{{ prefillSummary.matchedNames.join('、') || '无' }}</dd>
-          </div>
-          <div data-prefill="missing">
-            <dt>缺失</dt>
-            <dd>{{ prefillSummary.missingNames.join('、') || '无' }}</dd>
-          </div>
-          <div data-prefill="extra">
-            <dt>多余</dt>
-            <dd>{{ prefillSummary.extraNames.join('、') || '无' }}</dd>
-          </div>
-        </dl>
-        <p v-else data-summary="metrics">
-          已启用 {{ enabledRegionCount }} / {{ visualization?.regions.length ?? 0 }} 个分块；
-          未启用分块只显示地图效果。
-        </p>
-      </section>
+        <ul v-if="warnings.length && !importError" class="map-loader__warnings" aria-label="存储提醒">
+          <li v-for="warning in warnings" :key="`${warning.code}:${warning.message}`">
+            {{ warning.message }}
+          </li>
+        </ul>
+
+        <section
+          v-if="statusNamePropertyConflicts.length"
+          class="map-loader__nonblocking"
+          aria-label="非阻断提示"
+        >
+          <h3>非阻断提示</h3>
+          <ul class="map-loader__name-conflicts" data-name-conflicts aria-label="名称字段冲突">
+            <li
+              v-for="conflict in statusNamePropertyConflicts"
+              :key="conflict.property"
+            >
+              {{ conflict.property }}：{{ conflict.duplicateValues.join('、') }}
+            </li>
+          </ul>
+        </section>
+
+        <section v-if="prepared && !importError" class="map-loader__summary" aria-label="校验摘要">
+          <h2>校验通过</h2>
+          <p data-summary="geometry">
+            {{ prepared.summary.geometryFileName }} · {{ prepared.summary.featureCount }} 个区域 ·
+            {{ prepared.summary.totalPositionCount }} 个坐标点 · Polygon
+            {{ prepared.summary.polygonCount }} / MultiPolygon {{ prepared.summary.multiPolygonCount }} ·
+            名称字段 {{ prepared.summary.nameProperty }}
+          </p>
+          <p v-if="prefillSummary" data-summary="metrics">
+            业务数据：匹配 {{ prefillSummary.matchedNames.length }} ·
+            缺失 {{ prefillSummary.missingNames.length }} ·
+            多余 {{ prefillSummary.extraNames.length }}
+          </p>
+          <dl v-if="prefillSummary" class="map-loader__prefill-details">
+            <div data-prefill="matched">
+              <dt>匹配</dt>
+              <dd>{{ prefillSummary.matchedNames.join('、') || '无' }}</dd>
+            </div>
+            <div data-prefill="missing">
+              <dt>缺失</dt>
+              <dd>{{ prefillSummary.missingNames.join('、') || '无' }}</dd>
+            </div>
+            <div data-prefill="extra">
+              <dt>多余</dt>
+              <dd>{{ prefillSummary.extraNames.join('、') || '无' }}</dd>
+            </div>
+          </dl>
+          <p v-else data-summary="metrics">
+            已启用 {{ enabledRegionCount }} / {{ visualization?.regions.length ?? 0 }} 个分块；
+            未启用分块只显示地图效果。
+          </p>
+        </section>
+      </CollapsibleAlert>
 
       <section v-if="prepared && visualization" class="map-loader__editor" aria-labelledby="editor-title">
         <header class="map-loader__editor-heading">
@@ -577,10 +639,6 @@ onMounted(() => {
           </div>
         </div>
       </section>
-
-      <p v-if="metricsValidationError || validationError" class="map-loader__error" role="alert">
-        {{ metricsValidationError || validationError }}
-      </p>
 
       <footer class="map-loader__actions">
         <button type="button" data-action="reset" class="is-secondary" :disabled="busy" @click="resetMap">
@@ -698,20 +756,6 @@ onMounted(() => {
 .map-loader__card p { margin: 0; color: #98b6d8; font-size: 16px; line-height: 1.7; }
 .map-loader__eyebrow { color: #2edcff !important; font-family: monospace; letter-spacing: 0.18em; }
 
-.map-loader__warnings,
-.map-loader__name-conflicts,
-.map-loader__error {
-  margin: 20px 0 0;
-  padding: 12px 16px;
-  color: #ffd39c !important;
-  background: rgba(109, 67, 16, 0.26);
-  border: 1px solid rgba(255, 186, 91, 0.42);
-  border-radius: 6px;
-}
-
-.map-loader__warnings { list-style: none; }
-.map-loader__name-conflicts { list-style-position: inside; }
-.map-loader__error { color: #ffad99 !important; background: rgba(116, 33, 25, 0.28); }
 .map-loader__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
 .map-loader__field { display: grid; gap: 9px; color: #c9dff8; font-size: 16px; }
 .map-loader__field strong { color: #4ee7ff; font-weight: 500; }
@@ -728,12 +772,28 @@ onMounted(() => {
   border-radius: 5px;
 }
 
+.map-loader__status-alert { margin-top: 16px; }
+.map-loader__status-error { color: #ffad99 !important; font-size: 14px !important; }
+.map-loader__warnings { margin: 0; padding-left: 18px; color: #ffd39c; }
+.map-loader__status-error + .map-loader__warnings { margin-top: 10px; }
+.map-loader__nonblocking {
+  margin-top: 11px;
+  padding: 10px 12px;
+  color: #ffd39c;
+  background: rgba(109, 67, 16, 0.2);
+  border: 1px solid rgba(255, 186, 91, 0.3);
+  border-radius: 4px;
+}
+.map-loader__nonblocking:first-child { margin-top: 0; }
+.map-loader__nonblocking h3 { margin: 0 0 5px; color: #ffd36a; font-size: 13px; }
+.map-loader__name-conflicts { margin: 0; padding-left: 18px; }
 .map-loader__summary {
-  margin-top: 24px;
-  padding: 18px 20px;
+  margin-top: 11px;
+  padding: 12px 14px;
   background: rgba(8, 66, 104, 0.34);
   border-left: 3px solid #2edcff;
 }
+.map-loader__summary:first-child { margin-top: 0; }
 
 .map-loader__summary p + p { margin-top: 5px; }
 .map-loader__prefill-details { margin: 9px 0 0; }

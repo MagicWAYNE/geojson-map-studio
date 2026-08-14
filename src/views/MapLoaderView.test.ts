@@ -140,10 +140,12 @@ describe('MapLoaderView', () => {
   it('有效 GeoJSON 校验后直接激活并把新文档交给同页地图', async () => {
     const onMapActivated = vi.fn()
     const { app, root } = await mountView({ onMapActivated })
+    const geometryWithNonBlockingHint = JSON.parse(fixture('valid-mixed.geojson'))
+    for (const feature of geometryWithNonBlockingHint.features) feature.properties.level = 'district'
 
     chooseFile(
       root.querySelector<HTMLInputElement>('#geometry-file')!,
-      new File([fixture('valid-mixed.geojson')], 'valid-mixed.geojson')
+      new File([JSON.stringify(geometryWithNonBlockingHint)], 'valid-mixed.geojson')
     )
 
     await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
@@ -152,6 +154,15 @@ describe('MapLoaderView', () => {
     expect(visualization).toBeUndefined()
     expect(onMapActivated).toHaveBeenCalledWith(nextPrepared.document)
     expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
+    const statusAlert = root.querySelector<HTMLElement>('[data-import-status]')!
+    const statusToggle = statusAlert.querySelector<HTMLButtonElement>('button')!
+    expect(statusAlert.dataset.tone).toBe('success')
+    expect(statusToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(statusAlert.querySelector<HTMLElement>('[data-alert-body]')?.style.display).toBe('none')
+    expect(statusAlert.querySelector('[data-name-conflicts]')?.textContent).toContain('level：district')
+    statusToggle.click()
+    await nextTick()
+    expect(statusToggle.getAttribute('aria-expanded')).toBe('true')
     expect(root.querySelector('[data-action="apply"]')).toBeNull()
     expect(routerMocks.push).not.toHaveBeenCalled()
     app.unmount()
@@ -406,6 +417,9 @@ describe('MapLoaderView', () => {
       .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
     resolveInvalid('{')
     await vi.waitFor(() => expect(root.textContent).toContain('new-invalid.json'))
+    const failedStatus = root.querySelector<HTMLElement>('[data-import-status]')!
+    expect(failedStatus.dataset.tone).toBe('error')
+    expect(failedStatus.querySelector('[data-alert-body]')?.textContent).not.toContain('校验通过')
     expect(root.querySelectorAll('[data-region-row]')).toHaveLength(3)
     expect(regionRow(root, '区域 A')
       .querySelector<HTMLInputElement>('[data-field="display-name"]')?.value).toBe('保留编辑名')
@@ -442,14 +456,33 @@ describe('MapLoaderView', () => {
     }
     const { app, root } = await mountView({ initialLoad })
     await vi.waitFor(() => expect(root.textContent).toContain('已保存地图损坏'))
+    const initialStatus = root.querySelector<HTMLElement>('[data-import-status]')!
+    expect(initialStatus.dataset.tone).toBe('warning')
+    expect(initialStatus.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    expect(initialStatus.querySelector<HTMLElement>('[data-alert-body]')?.style.display).toBe('none')
 
     chooseFile(
       root.querySelector<HTMLInputElement>('#geometry-file')!,
       new File([fixture('duplicate-names.geojson')], 'duplicate-names.geojson')
     )
     await vi.waitFor(() => expect(root.textContent).toContain('没有可用的唯一名称字段'))
+    const statusAlert = root.querySelector<HTMLElement>('[data-import-status]')!
+    expect(statusAlert.dataset.tone).toBe('error')
+    expect(statusAlert.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    expect(statusAlert.querySelector<HTMLElement>('[data-alert-body]')?.style.display).not.toBe('none')
     expect(root.querySelector('[data-name-conflicts]')?.textContent).toContain('name：重复区域')
     expect(sourceMocks.activate).not.toHaveBeenCalled()
+
+    statusAlert.querySelector<HTMLButtonElement>('button')!.click()
+    await nextTick()
+    expect(statusAlert.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('duplicate-names.geojson')], 'duplicate-names.geojson')
+    )
+    await vi.waitFor(() => {
+      expect(statusAlert.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    })
 
     root.querySelector<HTMLButtonElement>('[data-action="reset"]')!.click()
     await vi.waitFor(() => expect(sourceMocks.resetToBuiltin).toHaveBeenCalledTimes(1))
