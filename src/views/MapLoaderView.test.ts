@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createApp, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import catalogFixture from '../../public/region-catalog/tianditu-2025-09/catalog.json'
 
 const sourceMocks = vi.hoisted(() => ({
   activate: vi.fn(),
@@ -10,6 +11,21 @@ const sourceMocks = vi.hoisted(() => ({
   resetToBuiltin: vi.fn()
 }))
 const routerMocks = vi.hoisted(() => ({ push: vi.fn() }))
+const catalogGeoJson = JSON.stringify({
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      properties: { gb: '156130902', name: '新华区' },
+      geometry: { type: 'Polygon', coordinates: [[[116, 38], [117, 38], [117, 39], [116, 38]]] }
+    },
+    {
+      type: 'Feature',
+      properties: { gb: '156130105', name: '新华区' },
+      geometry: { type: 'Polygon', coordinates: [[[118, 38], [119, 38], [119, 39], [118, 38]]] }
+    }
+  ]
+})
 
 vi.mock('@/components/map/mapSource', () => ({ activeMapSource: sourceMocks }))
 vi.mock('vue-router', () => ({ useRouter: () => routerMocks }))
@@ -67,12 +83,19 @@ beforeEach(() => {
     composeMapVisualization(prepared.document, visualization)
   )
   sourceMocks.resetToBuiltin.mockResolvedValue({})
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+    const url = String(input)
+    return url.endsWith('/catalog.json')
+      ? new Response(JSON.stringify(catalogFixture))
+      : new Response(catalogGeoJson)
+  }))
 })
 
 afterEach(() => {
   useMapVisualSettings().resetVisualSession()
   Object.values(sourceMocks).forEach((mock) => mock.mockReset())
   routerMocks.push.mockReset()
+  vi.unstubAllGlobals()
   document.body.replaceChildren()
 })
 
@@ -491,7 +514,7 @@ describe('MapLoaderView', () => {
       expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 2')
     })
     expect(root.querySelector('[data-summary="geometry"]')?.textContent).toContain('3 个区域')
-    expect(root.querySelector('[data-summary="geometry"]')?.textContent).toContain('名称字段 name')
+    expect(root.querySelector('[data-summary="geometry"]')?.textContent).toContain('标识字段 name · 展示字段 name')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('匹配 2')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('缺失 1')
     expect(root.querySelector('[data-summary="metrics"]')?.textContent).toContain('多余 1')
@@ -688,6 +711,101 @@ describe('MapLoaderView', () => {
     expect(onMapActivated).not.toHaveBeenCalled()
     expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')]
       .map((row) => row.dataset.regionKey)).toEqual(['区域 A', '区域 B', '区域 C'])
+    app.unmount()
+  })
+
+  it('区域库选择只在显式加载后请求一个资源并以 gb 建立可重复中文名称的编辑行', async () => {
+    const { app, root } = await mountView()
+    await vi.waitFor(() => expect(root.querySelector<HTMLButtonElement>(
+      '[data-action="load-catalog-region"]'
+    )?.disabled).toBe(false))
+    const request = vi.mocked(fetch)
+    expect(request).toHaveBeenCalledTimes(1)
+
+    chooseOption(root.querySelector<HTMLSelectElement>('#catalog-scope')!, 'province')
+    await nextTick()
+    chooseOption(root.querySelector<HTMLSelectElement>('#catalog-province')!, '156130000')
+    await nextTick()
+    chooseOption(root.querySelector<HTMLSelectElement>('#catalog-content')!, 'counties')
+    await nextTick()
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(sourceMocks.activate).not.toHaveBeenCalled()
+
+    root.querySelector<HTMLButtonElement>('[data-action="load-catalog-region"]')!.click()
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(String(request.mock.calls[1][0])).toContain('maps/provinces/130000/counties.geojson')
+    const activated = sourceMocks.activate.mock.calls[0][0]
+    expect(activated.persisted).toMatchObject({
+      version: 3,
+      regionKeyProperty: 'gb',
+      displayNameProperty: 'name'
+    })
+    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')].map((row) => row.dataset.regionKey))
+      .toEqual(['156130902', '156130105'])
+    expect([...root.querySelectorAll<HTMLInputElement>('[data-field="display-name"]')].map((input) => input.value))
+      .toEqual(['新华区', '新华区'])
+    expect(root.querySelector('#name-property')).toBeNull()
+    app.unmount()
+  })
+
+  it('区域资源失败时展开失败提示并保留最后有效地图编辑会话', async () => {
+    const current = prepareGeoJsonMapPackage({
+      geometryText: fixture('valid-mixed.geojson'),
+      geometryFileName: 'current.geojson',
+      nameProperty: 'name'
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      return String(input).endsWith('/catalog.json')
+        ? new Response(JSON.stringify(catalogFixture))
+        : new Response('missing', { status: 404 })
+    }))
+    const { app, root } = await mountView({
+      initialLoad: {
+        document: current.document,
+        warnings: [],
+        custom: { prepared: current, visualization: current.visualization }
+      }
+    })
+    await vi.waitFor(() => expect(root.querySelector<HTMLButtonElement>(
+      '[data-action="load-catalog-region"]'
+    )?.disabled).toBe(false))
+    root.querySelector<HTMLButtonElement>('[data-action="load-catalog-region"]')!.click()
+    await vi.waitFor(() => expect(root.textContent).toContain('HTTP 404'))
+
+    expect(sourceMocks.activate).not.toHaveBeenCalled()
+    expect([...root.querySelectorAll<HTMLElement>('[data-region-row]')].map((row) => row.dataset.regionKey))
+      .toEqual(['区域 A', '区域 B', '区域 C'])
+    const alert = root.querySelector<HTMLElement>('[data-import-status]')!
+    expect(alert.dataset.tone).toBe('error')
+    expect(alert.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    app.unmount()
+  })
+
+  it('新本地文件会取消正在下载的区域资源且只激活新文件', async () => {
+    let catalogSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).endsWith('/catalog.json')) return new Response(JSON.stringify(catalogFixture))
+      catalogSignal = init?.signal ?? undefined
+      return new Promise<Response>((_resolve, reject) => {
+        catalogSignal?.addEventListener('abort', () => reject(catalogSignal?.reason), { once: true })
+      })
+    }))
+    const { app, root } = await mountView()
+    await vi.waitFor(() => expect(root.querySelector<HTMLButtonElement>(
+      '[data-action="load-catalog-region"]'
+    )?.disabled).toBe(false))
+    root.querySelector<HTMLButtonElement>('[data-action="load-catalog-region"]')!.click()
+    await vi.waitFor(() => expect(catalogSignal).toBeDefined())
+
+    chooseFile(
+      root.querySelector<HTMLInputElement>('#geometry-file')!,
+      new File([fixture('valid-mixed.geojson')], 'new-local.geojson')
+    )
+    await vi.waitFor(() => expect(sourceMocks.activate).toHaveBeenCalledTimes(1))
+    expect(catalogSignal?.aborted).toBe(true)
+    expect(sourceMocks.activate.mock.calls[0][0].persisted.regionKeyProperty).toBe('name')
+    expect(root.textContent).not.toContain('AbortError')
     app.unmount()
   })
 })

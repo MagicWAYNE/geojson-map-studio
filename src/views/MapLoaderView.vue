@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { activeMapSource } from '@/components/map/mapSource'
 import {
   inspectGeoJsonMap,
@@ -22,6 +22,16 @@ import {
 import { useMapVisualSettings, type VisualWorkspaceMode } from '@/composables/useMapVisualSettings'
 import CollapsibleAlert from '@/components/common/CollapsibleAlert.vue'
 import VisualSettingsPanel from '@/components/visual-settings/VisualSettingsPanel.vue'
+import RegionCatalogPicker from '@/components/map/RegionCatalogPicker.vue'
+import {
+  resolveRegionCatalogSelection,
+  type RegionCatalog,
+  type RegionCatalogSelection
+} from '@/components/map/regionCatalog'
+import {
+  createRegionCatalogSource,
+  DEFAULT_REGION_CATALOG_BASE_URL
+} from '@/components/map/regionCatalogSource'
 
 const emit = defineEmits<{
   mapActivated: [document: MapDocument]
@@ -45,6 +55,7 @@ const authoringSession = createMapAuthoringSession(props.initialLoad, {
 const geometryText = ref<string>()
 const geometryFileName = ref('')
 const nameProperty = ref('')
+const geometryUsesFixedProperties = ref(false)
 const inspection = shallowRef<GeoJsonInspection>()
 const errorInspection = shallowRef<GeoJsonInspection>()
 const prepared = shallowRef<PreparedMapPackage>()
@@ -56,6 +67,15 @@ const validationError = ref('')
 const metricsValidationError = ref('')
 const busy = ref(false)
 const metricsReading = ref(false)
+const catalog = shallowRef<RegionCatalog | null>(null)
+const catalogLoading = ref(false)
+const catalogError = ref('')
+const catalogActiveLabel = ref('')
+const catalogSource = createRegionCatalogSource({
+  baseUrl: import.meta.env.VITE_REGION_CATALOG_BASE_URL || DEFAULT_REGION_CATALOG_BASE_URL
+})
+let catalogController: AbortController | undefined
+let catalogManifestGeneration = 0
 let geometryReadGeneration = 0
 let metricsReadGeneration = 0
 let activationGeneration = 0
@@ -112,7 +132,9 @@ function refreshWorkspace(): void {
 interface GeometryCandidate {
   text: string
   fileName: string
-  nameProperty: string
+  regionKeyProperty: string
+  displayNameProperty: string
+  fixedProperties: boolean
   inspection: GeoJsonInspection
   prepared: PreparedMapPackage
 }
@@ -129,6 +151,10 @@ function beginGeometryActivation(): GeometryActivationRequest {
   }
 }
 
+function isAbortError(cause: unknown): boolean {
+  return cause instanceof DOMException && cause.name === 'AbortError'
+}
+
 async function activateGeometry(
   candidate: GeometryCandidate,
   request = beginGeometryActivation()
@@ -143,7 +169,8 @@ async function activateGeometry(
     geometryFileName.value = candidate.fileName
     inspection.value = candidate.inspection
     errorInspection.value = undefined
-    nameProperty.value = candidate.nameProperty
+    nameProperty.value = candidate.fixedProperties ? '' : candidate.regionKeyProperty
+    geometryUsesFixedProperties.value = candidate.fixedProperties
     prepared.value = candidate.prepared
     refreshWorkspace()
     prefillSummary.value = undefined
@@ -151,7 +178,7 @@ async function activateGeometry(
     emit('authoringFocus', authoringSession.read().authoringFocus)
     emit('mapActivated', document)
   } catch (cause) {
-    if (generation === activationGeneration) {
+    if (generation === activationGeneration && !isAbortError(cause)) {
       errorInspection.value = candidate.inspection
       validationError.value = errorMessage(cause, candidate.fileName)
     }
@@ -163,15 +190,21 @@ async function activateGeometry(
 function prepareCandidate(input: {
   text: string
   fileName: string
-  nameProperty: string
+  regionKeyProperty: string
+  displayNameProperty?: string
+  fixedProperties?: boolean
   inspection: GeoJsonInspection
 }): GeometryCandidate {
+  const displayNameProperty = input.displayNameProperty ?? input.regionKeyProperty
   return {
     ...input,
+    displayNameProperty,
+    fixedProperties: input.fixedProperties ?? false,
     prepared: prepareGeoJsonMapPackage({
       geometryText: input.text,
       geometryFileName: input.fileName,
-      nameProperty: input.nameProperty
+      regionKeyProperty: input.regionKeyProperty,
+      displayNameProperty
     })
   }
 }
@@ -206,7 +239,7 @@ async function handleGeometryFile(event: Event): Promise<void> {
     await activateGeometry(prepareCandidate({
       text,
       fileName: file.name,
-      nameProperty: nextNameProperty,
+      regionKeyProperty: nextNameProperty,
       inspection: nextInspection
     }), activationRequest)
   } catch (cause) {
@@ -216,6 +249,61 @@ async function handleGeometryFile(event: Event): Promise<void> {
     }
   } finally {
     if (generation === geometryReadGeneration && !activationStarted) busy.value = false
+  }
+}
+
+async function loadCatalog(): Promise<void> {
+  const generation = ++catalogManifestGeneration
+  catalogController?.abort(new DOMException('stale catalog manifest', 'AbortError'))
+  catalogController = new AbortController()
+  catalogLoading.value = true
+  catalogError.value = ''
+  try {
+    const nextCatalog = await catalogSource.loadCatalog(catalogController.signal)
+    if (generation === catalogManifestGeneration) catalog.value = nextCatalog
+  } catch (cause) {
+    if (generation === catalogManifestGeneration && !isAbortError(cause)) {
+      catalogError.value = errorMessage(cause)
+    }
+  } finally {
+    if (generation === catalogManifestGeneration) catalogLoading.value = false
+  }
+}
+
+async function handleCatalogLoad(selection: RegionCatalogSelection): Promise<void> {
+  if (!catalog.value) return
+  const selectedEntry = resolveRegionCatalogSelection(catalog.value, selection)
+  if (!selectedEntry?.available) return
+  catalogActiveLabel.value = selectedEntry.label
+  const request = beginGeometryActivation()
+  busy.value = true
+  catalogLoading.value = true
+  validationError.value = ''
+  metricsValidationError.value = ''
+  errorInspection.value = undefined
+  let nextInspection: GeoJsonInspection | undefined
+  try {
+    const geometry = await catalogSource.loadGeometry(catalog.value, selection, request.intent.signal)
+    if (request.generation !== activationGeneration) return
+    nextInspection = inspectGeoJsonMap(geometry.text)
+    await activateGeometry(prepareCandidate({
+      text: geometry.text,
+      fileName: geometry.displayLabel,
+      regionKeyProperty: geometry.regionKeyProperty,
+      displayNameProperty: geometry.displayNameProperty,
+      fixedProperties: true,
+      inspection: nextInspection
+    }), request)
+  } catch (cause) {
+    if (request.generation === activationGeneration && !isAbortError(cause)) {
+      errorInspection.value = nextInspection
+      validationError.value = errorMessage(cause, nextInspection ? catalogActiveLabel.value : '')
+    }
+  } finally {
+    if (request.generation === activationGeneration) {
+      busy.value = false
+      catalogLoading.value = false
+    }
   }
 }
 
@@ -258,11 +346,11 @@ async function handleNameProperty(): Promise<void> {
     await activateGeometry(prepareCandidate({
       text: geometryText.value,
       fileName: geometryFileName.value,
-      nameProperty: requestedNameProperty,
+      regionKeyProperty: requestedNameProperty,
       inspection: inspection.value
     }))
-    if (prepared.value?.persisted.nameProperty !== requestedNameProperty) {
-      nameProperty.value = prepared.value?.persisted.nameProperty ?? ''
+    if (prepared.value?.persisted.regionKeyProperty !== requestedNameProperty) {
+      nameProperty.value = prepared.value?.persisted.regionKeyProperty ?? ''
     }
   } catch (cause) {
     errorInspection.value = inspection.value
@@ -342,7 +430,7 @@ function leaveRegion(event: FocusEvent): void {
 }
 
 async function resetMap(): Promise<void> {
-  if (busy.value) return
+  const generation = ++activationGeneration
   busy.value = true
   validationError.value = ''
   errorInspection.value = undefined
@@ -352,6 +440,7 @@ async function resetMap(): Promise<void> {
     geometryText.value = undefined
     geometryFileName.value = ''
     nameProperty.value = ''
+    geometryUsesFixedProperties.value = false
     inspection.value = undefined
     prepared.value = undefined
     workspaceSnapshot.value = undefined
@@ -360,9 +449,9 @@ async function resetMap(): Promise<void> {
     emit('authoringFocus', null)
     emit('mapActivated', document)
   } catch (cause) {
-    validationError.value = errorMessage(cause)
+    if (!isAbortError(cause)) validationError.value = errorMessage(cause)
   } finally {
-    busy.value = false
+    if (generation === activationGeneration) busy.value = false
   }
 }
 
@@ -372,11 +461,21 @@ onMounted(() => {
     const restored = props.initialLoad.custom
     geometryText.value = restored.prepared.persisted.geometryText
     geometryFileName.value = restored.prepared.persisted.geometryFileName
-    nameProperty.value = restored.prepared.persisted.nameProperty
+    geometryUsesFixedProperties.value = restored.prepared.persisted.regionKeyProperty !==
+      restored.prepared.persisted.displayNameProperty
+    nameProperty.value = geometryUsesFixedProperties.value
+      ? ''
+      : restored.prepared.persisted.regionKeyProperty
     inspection.value = inspectGeoJsonMap(restored.prepared.persisted.geometryText)
     prepared.value = restored.prepared
     refreshWorkspace()
   }
+  void loadCatalog()
+})
+
+onBeforeUnmount(() => {
+  catalogController?.abort(new DOMException('catalog view unmounted', 'AbortError'))
+  authoringSession.beginGeometryLoad()
 })
 </script>
 
@@ -444,6 +543,15 @@ onMounted(() => {
           />
         </label>
 
+        <RegionCatalogPicker
+          :catalog="catalog"
+          :loading="catalogLoading"
+          :error="catalogError"
+          :active-label="catalogActiveLabel"
+          @load="handleCatalogLoad"
+          @retry="loadCatalog"
+        />
+
         <label class="map-loader__field" for="metrics-file">
           <span>业务数据 JSON <em>可选</em></span>
           <input
@@ -456,7 +564,7 @@ onMounted(() => {
         </label>
 
         <label
-          v-if="inspection?.usableNameProperties.length"
+          v-if="!geometryUsesFixedProperties && inspection?.usableNameProperties.length"
           class="map-loader__field"
           for="name-property"
         >
@@ -515,7 +623,7 @@ onMounted(() => {
             {{ prepared.summary.geometryFileName }} · {{ prepared.summary.featureCount }} 个区域 ·
             {{ prepared.summary.totalPositionCount }} 个坐标点 · Polygon
             {{ prepared.summary.polygonCount }} / MultiPolygon {{ prepared.summary.multiPolygonCount }} ·
-            名称字段 {{ prepared.summary.nameProperty }}
+            标识字段 {{ prepared.summary.regionKeyProperty }} · 展示字段 {{ prepared.summary.displayNameProperty }}
           </p>
           <p v-if="prefillSummary" data-summary="metrics">
             业务数据：匹配 {{ prefillSummary.matchedNames.length }} ·
@@ -686,7 +794,7 @@ onMounted(() => {
       </section>
 
       <footer class="map-loader__actions">
-        <button type="button" data-action="reset" class="is-secondary" :disabled="busy" @click="resetMap">
+        <button type="button" data-action="reset" class="is-secondary" @click="resetMap">
           恢复内置重庆地图
         </button>
         <button type="button" data-action="update-all" :disabled="busy || !prepared" @click="commitAll">
