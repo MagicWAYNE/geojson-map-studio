@@ -147,10 +147,11 @@ describe('activeMapSource', () => {
       metricLabels: { primary: { label: '企业数', unit: '家' } }
     })
     expect(store.active).toEqual({
-      version: 2,
+      version: 3,
       geometryText: geometryText('区域 A'),
       geometryFileName: '区域 A.geojson',
-      nameProperty: 'name'
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
     })
 
     const samePageSource = createActiveMapSource({ store, session, loadBuiltin })
@@ -280,10 +281,11 @@ describe('activeMapSource', () => {
     expect(loaded.document.metrics.size).toBe(0)
     expect(loaded.document.metricLabels).toBeNull()
     expect(store.active).toEqual({
-      version: 2,
+      version: 3,
       geometryText: geometryText('旧区域'),
       geometryFileName: 'legacy.geojson',
-      nameProperty: 'name'
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
     })
     expect(loaded.warnings).toEqual([])
   })
@@ -312,5 +314,76 @@ describe('activeMapSource', () => {
       code: 'legacy-migration-failed',
       message: expect.stringContaining('write failed')
     }])
+  })
+
+  it('把 V2 名称字段迁移为相同的稳定键和展示字段', async () => {
+    const store = new MemoryMapPackageStore()
+    store.active = {
+      version: 2,
+      geometryText: geometryText('旧版区域'),
+      geometryFileName: 'legacy-v2.geojson',
+      nameProperty: 'name'
+    }
+    const source = createActiveMapSource({
+      store,
+      session: createMemoryMapVisualizationSession(),
+      loadBuiltin: async () => builtinDocument()
+    })
+
+    const loaded = await source.load()
+
+    expect(loaded.custom?.visualization.regions[0]).toMatchObject({
+      regionKey: '旧版区域', displayName: '旧版区域'
+    })
+    expect(store.active).toMatchObject({
+      version: 3,
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
+    })
+  })
+
+  it('刷新后从 V3 几何恢复重复中文默认名称但不恢复会话指标', async () => {
+    const splitGeometry = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature', properties: { gb: '156130902', name: '新华区' },
+          geometry: { type: 'Polygon', coordinates: [[[116, 38], [117, 38], [117, 39], [116, 38]]] }
+        },
+        {
+          type: 'Feature', properties: { gb: '156130105', name: '新华区' },
+          geometry: { type: 'Polygon', coordinates: [[[118, 38], [119, 38], [119, 39], [118, 38]]] }
+        }
+      ]
+    })
+    const prepared = prepareGeoJsonMapPackage({
+      geometryText: splitGeometry,
+      geometryFileName: '河北省 → 区县',
+      regionKeyProperty: 'gb',
+      displayNameProperty: 'name'
+    })
+    const store = new MemoryMapPackageStore()
+    const first = createActiveMapSource({
+      store,
+      session: createMemoryMapVisualizationSession(),
+      loadBuiltin: async () => builtinDocument()
+    })
+    const edited = structuredClone(prepared.visualization)
+    edited.regions[0] = { ...edited.regions[0], enabled: true, primary: 9, secondary: 2 }
+    await first.activate(prepared, edited)
+
+    const refreshed = await createActiveMapSource({
+      store,
+      session: createMemoryMapVisualizationSession(),
+      loadBuiltin: async () => builtinDocument()
+    }).load()
+
+    expect(refreshed.custom?.visualization.regions.map(({ regionKey, displayName }) => ({ regionKey, displayName })))
+      .toEqual([
+        { regionKey: '156130902', displayName: '新华区' },
+        { regionKey: '156130105', displayName: '新华区' }
+      ])
+    expect(refreshed.document.metrics.size).toBe(0)
+    expect(refreshed.custom?.visualization.regions.every((row) => !row.enabled)).toBe(true)
   })
 })

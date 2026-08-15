@@ -67,23 +67,33 @@ interface StoredMapPackage {
 function persistedPackage(value: unknown): StoredMapPackage | null {
   if (
     !isRecord(value) ||
-    (value.version !== 1 && value.version !== 2) ||
+    (value.version !== 1 && value.version !== 2 && value.version !== 3) ||
     typeof value.geometryText !== 'string' ||
     typeof value.geometryFileName !== 'string' ||
     !value.geometryFileName ||
-    typeof value.nameProperty !== 'string' ||
-    !value.nameProperty ||
+    (value.version !== 3 && (typeof value.nameProperty !== 'string' || !value.nameProperty)) ||
+    (value.version === 3 && (
+      typeof value.regionKeyProperty !== 'string' || !value.regionKeyProperty ||
+      typeof value.displayNameProperty !== 'string' || !value.displayNameProperty
+    )) ||
     (value.version === 1 && value.metricsText !== undefined && typeof value.metricsText !== 'string') ||
-    (value.version === 2 && value.metricsText !== undefined)
+    ((value.version === 2 || value.version === 3) && value.metricsText !== undefined)
   ) return null
+  const regionKeyProperty = value.version === 3
+    ? value.regionKeyProperty as string
+    : value.nameProperty as string
+  const displayNameProperty = value.version === 3
+    ? value.displayNameProperty as string
+    : value.nameProperty as string
   return {
     persisted: {
-      version: 2,
+      version: 3,
       geometryText: value.geometryText,
       geometryFileName: value.geometryFileName,
-      nameProperty: value.nameProperty
+      regionKeyProperty,
+      displayNameProperty
     },
-    legacy: value.version === 1
+    legacy: value.version !== 3
   }
 }
 
@@ -148,7 +158,8 @@ export function createActiveMapSource(
         const prepared = prepareGeoJsonMapPackage({
           geometryText: storedPackage.persisted.geometryText,
           geometryFileName: storedPackage.persisted.geometryFileName,
-          nameProperty: storedPackage.persisted.nameProperty
+          regionKeyProperty: storedPackage.persisted.regionKeyProperty,
+          displayNameProperty: storedPackage.persisted.displayNameProperty
         })
         const visualization = dependencies.session.read(prepared.document.source) ?? prepared.visualization
         const warnings: MapSourceWarning[] = []

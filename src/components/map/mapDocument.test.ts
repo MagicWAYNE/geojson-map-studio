@@ -90,13 +90,15 @@ describe('mapDocument', () => {
       totalPositionCount: 20,
       polygonCount: 1,
       multiPolygonCount: 1,
-      nameProperty: 'name'
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
     })
     expect(prepared.persisted).toEqual({
-      version: 2,
+      version: 3,
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
-      nameProperty: 'name'
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
     })
   })
 
@@ -132,10 +134,11 @@ describe('mapDocument', () => {
       extraNames: ['区域 C']
     })
     expect(prepared.persisted).toEqual({
-      version: 2,
+      version: 3,
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
-      nameProperty: 'name'
+      regionKeyProperty: 'name',
+      displayNameProperty: 'name'
     })
     expect(prefill.visualization.regions.find((region) => region.regionKey === '区域 A')).toEqual({
       regionKey: '区域 A',
@@ -285,9 +288,8 @@ describe('mapDocument', () => {
 
   it.each([
     { displayNames: ['', '区域 B'], path: 'regions[0].displayName' },
-    { displayNames: ['重复名', '重复名'], path: 'regions[1].displayName' },
     { displayNames: ['甲'.repeat(41), '区域 B'], path: 'regions[0].displayName' }
-  ])('拒绝空白、重复或超长展示名称', ({ displayNames, path }) => {
+  ])('拒绝空白或超长展示名称', ({ displayNames, path }) => {
     const base = prepareGeoJsonMapPackage({
       geometryText: validMixedGeoJson,
       geometryFileName: 'mixed.geojson',
@@ -560,5 +562,65 @@ describe('mapDocument', () => {
 
     expect(prepared.summary.totalPositionCount).toBe(GEOJSON_MAX_POSITIONS)
     expect(prepared.document.geometry.scale).toBeGreaterThan(0)
+  })
+
+  it('使用唯一 gb 作为稳定键并允许重复中文展示名称', () => {
+    const geometryText = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { gb: '156130102', name: '长安区' },
+          geometry: { type: 'Polygon', coordinates: [[[114, 38], [115, 38], [115, 39], [114, 38]]] }
+        },
+        {
+          type: 'Feature',
+          properties: { gb: '156130902', name: '新华区' },
+          geometry: { type: 'Polygon', coordinates: [[[116, 38], [117, 38], [117, 39], [116, 38]]] }
+        },
+        {
+          type: 'Feature',
+          properties: { gb: '156130105', name: '新华区' },
+          geometry: { type: 'Polygon', coordinates: [[[118, 38], [119, 38], [119, 39], [118, 38]]] }
+        }
+      ]
+    })
+
+    const prepared = prepareGeoJsonMapPackage({
+      geometryText,
+      geometryFileName: '河北省 → 区县',
+      regionKeyProperty: 'gb',
+      displayNameProperty: 'name'
+    })
+
+    expect(prepared.document.geometry.regions.map((region) => region.name)).toEqual([
+      '156130102', '156130902', '156130105'
+    ])
+    expect(prepared.visualization.regions.map(({ regionKey, displayName }) => ({ regionKey, displayName }))).toEqual([
+      { regionKey: '156130102', displayName: '长安区' },
+      { regionKey: '156130902', displayName: '新华区' },
+      { regionKey: '156130105', displayName: '新华区' }
+    ])
+    expect(prepared.persisted).toMatchObject({
+      version: 3,
+      regionKeyProperty: 'gb',
+      displayNameProperty: 'name'
+    })
+    expect(() => composeMapVisualization(prepared.document, prepared.visualization)).not.toThrow()
+  })
+
+  it('将键字段和展示字段都计入几何身份', () => {
+    const legacy = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      nameProperty: 'name'
+    })
+    const split = prepareGeoJsonMapPackage({
+      geometryText: validMixedGeoJson,
+      geometryFileName: 'mixed.geojson',
+      regionKeyProperty: 'code',
+      displayNameProperty: 'name'
+    })
+    expect(legacy.document.source).not.toEqual(split.document.source)
   })
 })

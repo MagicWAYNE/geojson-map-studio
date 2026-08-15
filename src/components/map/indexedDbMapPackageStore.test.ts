@@ -5,10 +5,11 @@ import { createIndexedDbMapPackageStore } from './indexedDbMapPackageStore'
 import type { PersistedMapPackage } from './mapDocument'
 
 const firstPackage: PersistedMapPackage = {
-  version: 2,
+  version: 3,
   geometryText: '{"type":"FeatureCollection","features":[]}',
   geometryFileName: 'first.geojson',
-  nameProperty: 'name'
+  regionKeyProperty: 'name',
+  displayNameProperty: 'name'
 }
 
 describe('indexedDbMapPackageStore', () => {

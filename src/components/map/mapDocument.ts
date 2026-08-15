@@ -92,10 +92,11 @@ export interface MapDocument {
 }
 
 export interface PersistedMapPackage {
-  version: 2
+  version: 3
   geometryText: string
   geometryFileName: string
-  nameProperty: string
+  regionKeyProperty: string
+  displayNameProperty: string
 }
 
 export interface MapMetricsSummary {
@@ -115,7 +116,8 @@ export interface MapImportSummary {
   totalPositionCount: number
   polygonCount: number
   multiPolygonCount: number
-  nameProperty: string
+  regionKeyProperty: string
+  displayNameProperty: string
 }
 
 export interface PreparedMapPackage {
@@ -140,7 +142,9 @@ export interface GeoJsonInspection {
 export interface PrepareGeoJsonMapPackageInput {
   geometryText: string
   geometryFileName: string
-  nameProperty: string
+  nameProperty?: string
+  regionKeyProperty?: string
+  displayNameProperty?: string
 }
 
 type JsonRecord = Record<string, unknown>
@@ -168,9 +172,13 @@ function byteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength
 }
 
-function geometryIdentity(geometryText: string, nameProperty: string): string {
+function geometryIdentity(
+  geometryText: string,
+  regionKeyProperty: string,
+  displayNameProperty: string
+): string {
   let hash = 0x811c9dc5
-  const value = `${nameProperty}\u0000${geometryText}`
+  const value = `${regionKeyProperty}\u0000${displayNameProperty}\u0000${geometryText}`
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index)
     hash = Math.imul(hash, 0x01000193)
@@ -372,26 +380,44 @@ function inspectNameProperties(features: ParsedFeature[]): Pick<
   return { usableNameProperties, namePropertyConflicts }
 }
 
-function regionsWithNames(features: ParsedFeature[], nameProperty: string): Region[] {
-  const names = features.map((feature, featureIndex) => {
-    const name = primitiveName(feature.properties[nameProperty])
-    if (name === null) {
+function regionsWithProperties(
+  features: ParsedFeature[],
+  regionKeyProperty: string,
+  displayNameProperty: string
+): { regions: Region[]; displayNamesByKey: Map<string, string> } {
+  const regionKeys = features.map((feature, featureIndex) => {
+    const key = primitiveName(feature.properties[regionKeyProperty])
+    if (key === null) {
       fail(
         'invalid-name-property',
-        `features[${featureIndex}].properties.${nameProperty}`,
-        `名称字段 ${nameProperty} 必须在每个 feature 中产生非空字符串或数字`
+        `features[${featureIndex}].properties.${regionKeyProperty}`,
+        `区域标识字段 ${regionKeyProperty} 必须在每个 feature 中产生非空字符串或数字`
       )
     }
-    return name
+    return key
   })
   const seen = new Set<string>()
-  for (const [index, name] of names.entries()) {
-    if (seen.has(name)) {
-      fail('duplicate-name', `features[${index}].properties.${nameProperty}`, `区域名称 ${name} 重复`)
+  for (const [index, key] of regionKeys.entries()) {
+    if (seen.has(key)) {
+      fail('duplicate-name', `features[${index}].properties.${regionKeyProperty}`, `区域标识 ${key} 重复`)
     }
-    seen.add(name)
+    seen.add(key)
   }
-  return features.map((feature, index) => ({ name: names[index], outers: feature.regionOuters }))
+  const displayNames = features.map((feature, featureIndex) => {
+    const displayName = primitiveName(feature.properties[displayNameProperty])
+    if (displayName === null) {
+      fail(
+        'invalid-name-property',
+        `features[${featureIndex}].properties.${displayNameProperty}`,
+        `展示名称字段 ${displayNameProperty} 必须在每个 feature 中产生非空字符串或数字`
+      )
+    }
+    return displayName
+  })
+  return {
+    regions: features.map((feature, index) => ({ name: regionKeys[index], outers: feature.regionOuters })),
+    displayNamesByKey: new Map(regionKeys.map((key, index) => [key, displayNames[index]]))
+  }
 }
 
 function readBoundedText(
@@ -502,7 +528,10 @@ export function inspectGeoJsonMap(geometryText: string): GeoJsonInspection {
   }
 }
 
-export function createMapVisualizationDraft(document: MapDocument): MapVisualizationDraft {
+export function createMapVisualizationDraft(
+  document: MapDocument,
+  displayNamesByKey: ReadonlyMap<string, string> = new Map()
+): MapVisualizationDraft {
   return {
     secondaryEnabled: true,
     labels: {
@@ -511,7 +540,7 @@ export function createMapVisualizationDraft(document: MapDocument): MapVisualiza
     },
     regions: document.geometry.regions.map((region) => ({
       regionKey: region.name,
-      displayName: region.name,
+      displayName: displayNamesByKey.get(region.name) ?? region.name,
       enabled: false,
       primary: null,
       secondary: null
@@ -525,7 +554,6 @@ export function composeMapVisualization(
 ): MapDocument {
   const expectedKeys = new Set(document.geometry.regions.map((region) => region.name))
   const rowsByKey = new Map<string, MapVisualizationRegionDraft>()
-  const displayNames = new Set<string>()
   const metrics = new Map<string, MapRegionMetrics>()
   const secondaryOmitted = !draft.secondaryEnabled
   const labels: MapMetricLabels = {
@@ -547,10 +575,6 @@ export function composeMapVisualization(
       40,
       'invalid-visualization'
     )
-    if (displayNames.has(displayName)) {
-      fail('invalid-visualization', `${path}.displayName`, `展示名称 ${displayName} 重复`)
-    }
-    displayNames.add(displayName)
     if (!row.enabled) continue
     metrics.set(row.regionKey, {
       name: row.regionKey,
@@ -607,13 +631,22 @@ export function prefillMapVisualizationDraft(
 
 export function prepareGeoJsonMapPackage(input: PrepareGeoJsonMapPackageInput): PreparedMapPackage {
   const parsed = parseGeoJson(input.geometryText)
-  const regions = regionsWithNames(parsed.features, input.nameProperty)
+  const regionKeyProperty = input.regionKeyProperty ?? input.nameProperty ?? ''
+  const displayNameProperty = input.displayNameProperty ?? input.nameProperty ?? regionKeyProperty
+  if (!regionKeyProperty || !displayNameProperty) {
+    fail('invalid-name-property', 'properties', '必须提供区域标识字段和展示名称字段')
+  }
+  const { regions, displayNamesByKey } = regionsWithProperties(
+    parsed.features,
+    regionKeyProperty,
+    displayNameProperty
+  )
   const baseDocument: MapDocument = {
     version: 1,
     source: {
       kind: 'geojson',
       displayName: input.geometryFileName,
-      identity: geometryIdentity(input.geometryText, input.nameProperty)
+      identity: geometryIdentity(input.geometryText, regionKeyProperty, displayNameProperty)
     },
     geometry: projectRegions(regions, MAP_PLANE_MAX),
     metrics: new Map(),
@@ -621,20 +654,22 @@ export function prepareGeoJsonMapPackage(input: PrepareGeoJsonMapPackageInput): 
     appearance: { kind: 'tech-blue' },
     drilldown: false
   }
-  const visualization = createMapVisualizationDraft(baseDocument)
+  const visualization = createMapVisualizationDraft(baseDocument, displayNamesByKey)
   return {
     document: baseDocument,
     persisted: {
-      version: 2,
+      version: 3,
       geometryText: input.geometryText,
       geometryFileName: input.geometryFileName,
-      nameProperty: input.nameProperty
+      regionKeyProperty,
+      displayNameProperty
     },
     visualization,
     summary: {
       geometryFileName: input.geometryFileName,
       ...parsed.inspection,
-      nameProperty: input.nameProperty
+      regionKeyProperty,
+      displayNameProperty
     }
   }
 }
