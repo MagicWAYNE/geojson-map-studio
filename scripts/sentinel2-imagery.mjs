@@ -573,13 +573,18 @@ async function packageLibrary(options) {
     { kind: 'quality-selection', planSha256 }
   )
   const packageRoot = path.resolve(options.root ?? defaults.packageRoot)
+  const includedTargetKinds = String(options['target-kinds'] ?? 'country,province,prefecture')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
   const result = await packageRuntimeLibrary({
     plan,
     planText,
     imageCheckpoint,
     qualityCheckpoint,
     imageRoot: path.resolve(options.images ?? defaults.imageRoot),
-    packageRoot
+    packageRoot,
+    includedTargetKinds
   })
   process.stdout.write(
     `Runtime imagery library packaged: ${result.availableCount} available, ` +
@@ -591,7 +596,9 @@ async function packageLibrary(options) {
 
 async function verifyLibrary(options) {
   const packageRoot = path.resolve(options.root ?? defaults.packageRoot)
-  const result = await verifyRuntimeLibrary({ packageRoot })
+  const expectedTargetCount = Number(options['expected-target-count'] ?? 377)
+  if (!Number.isInteger(expectedTargetCount) || expectedTargetCount <= 0) throw new Error('expected-target-count must be a positive integer')
+  const result = await verifyRuntimeLibrary({ packageRoot, expectedTargetCount })
   process.stdout.write(
     `Verified runtime imagery library: ${result.targetCount} targets, ` +
     `${result.availableCount} available, ${result.unavailableCount} unavailable, ` +

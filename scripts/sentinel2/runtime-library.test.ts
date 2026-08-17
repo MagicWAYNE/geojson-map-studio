@@ -98,6 +98,20 @@ describe('Sentinel-2 runtime library', () => {
     expect(await readFile(path.join(packageRoot, 'NOTICE-DATA.md'), 'utf8')).toContain('Contains modified Copernicus Sentinel data 2025')
   })
 
+  it('can package a deployment tier without prefecture assets', async () => {
+    const input = await fixture()
+    const packageRoot = path.join(input.root, 'country-only-package')
+    const result = await packageRuntimeLibrary({
+      ...input,
+      packageRoot,
+      expectedTargetCount: 2,
+      includedTargetKinds: ['country']
+    })
+    expect(result).toMatchObject({ targetCount: 1, availableCount: 1, unavailableCount: 0, fileCount: 4 })
+    const manifest = JSON.parse(await readFile(path.join(packageRoot, 'manifest.json'), 'utf8'))
+    expect(manifest.entries.map((entry: { id: string }) => entry.id)).toEqual(['country:100000'])
+  })
+
   it('rejects corrupt, missing, unsafe and orphan files', async () => {
     const corruptInput = await fixture()
     const corruptRoot = path.join(corruptInput.root, 'package')

@@ -1,0 +1,1430 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "sentinel2-quarterly-2025q2-v1",
+  "projection": "EPSG:3857",
+  "attribution": "Contains modified Copernicus Sentinel data 2025",
+  "legalNoticeUrl": "https://sentinels.copernicus.eu/documents/247904/690755/Sentinel_Data_Legal_Notice",
+  "source": {
+    "provider": "Copernicus Data Space Ecosystem",
+    "collection": "sentinel-2-global-mosaics",
+    "sentinelHubCollection": "byoc-5460de54-082e-473a-b6ea-d5cbe3c17cca",
+    "sourceYear": 2025,
+    "primaryQuarter": "2025-Q2",
+    "fallbackQuarters": [
+      "2025-Q4",
+      "2025-Q3"
+    ],
+    "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154"
+  },
+  "geometryCatalog": {
+    "schemaVersion": 1,
+    "dataVersion": "2025-09",
+    "catalogSha256": "754dd7e2bb48ad28f7fffc13269b0daf5ee55c8becb79960e65daaad2bb6916c",
+    "coordinateInterpretation": "RFC7946-longitude-latitude"
+  },
+  "planSha256": "f343185a8a41fb984e6a8a76dd86d688bdc289fff4086738d7d7af7f19bbc98e",
+  "summary": {
+    "targetCount": 35,
+    "availableCount": 34,
+    "unavailableCount": 1,
+    "totalBytes": 14337544
+  },
+  "entries": [
+    {
+      "id": "country:100000",
+      "targetKind": "country",
+      "gb": "100000",
+      "catalogGb": null,
+      "label": "全国",
+      "selection": {
+        "kind": "country-provinces"
+      },
+      "status": "available",
+      "geographicBounds": [
+        68.54720967,
+        -0.96443743,
+        140.06129676,
+        56.32147167
+      ],
+      "projectedBounds": [
+        7630640.475895,
+        -107365.753932,
+        15591552.234975,
+        7622679.564135
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 3980.45587954,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/country/100000.jpg",
+      "width": 2000,
+      "height": 1942,
+      "bytes": 370110,
+      "sha256": "4fec07e393406a86b35ac806b9a5737c852c84834e93ae7017b740635f00aed8",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2",
+        "2025-Q4"
+      ],
+      "fallbackUsed": true,
+      "noDataRatio": 0.001699,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v2"
+    },
+    {
+      "id": "province:110000",
+      "targetKind": "province",
+      "gb": "110000",
+      "catalogGb": "156110000",
+      "label": "北京市",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156110000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        115.24544666,
+        39.31181572,
+        117.67461602,
+        41.1872156
+      ],
+      "projectedBounds": [
+        12829064.437993,
+        4766435.429736,
+        13099478.334598,
+        5039995.264441
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 136.779917352,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/110000.jpg",
+      "width": 1977,
+      "height": 2000,
+      "bytes": 522681,
+      "sha256": "3dadf52b005e9b9fd950a0e8e89d860fde44177180afe6bb25640ec5d7a757c6",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:120000",
+      "targetKind": "province",
+      "gb": "120000",
+      "catalogGb": "156120000",
+      "label": "天津市",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156120000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        116.59145395,
+        38.4166879,
+        118.16617019,
+        40.37915979
+      ],
+      "projectedBounds": [
+        12978901.284674,
+        4638458.229036,
+        13154197.894542,
+        4921194.696565
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 141.368233764,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/120000.jpg",
+      "width": 1240,
+      "height": 2000,
+      "bytes": 446929,
+      "sha256": "6ad6aaf9cdebf760dccedd848928343ed6afa8b153d2fda7cc93c6832f159c5c",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:130000",
+      "targetKind": "province",
+      "gb": "130000",
+      "catalogGb": "156130000",
+      "label": "河北省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156130000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        112.94366817,
+        35.49191347,
+        120.35833889,
+        43.11830993
+      ],
+      "projectedBounds": [
+        12572831.629463,
+        4230932.792572,
+        13398228.997909,
+        5329997.19796
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 549.532202694,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/130000.jpg",
+      "width": 1502,
+      "height": 2000,
+      "bytes": 457189,
+      "sha256": "0b9f3a9cba5fe7688959bc67f0d4b92bd9f15042280976f31964fab7b1604a9e",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:140000",
+      "targetKind": "province",
+      "gb": "140000",
+      "catalogGb": "156140000",
+      "label": "山西省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156140000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        109.8819329,
+        34.06574,
+        114.91085237,
+        41.21764459
+      ],
+      "projectedBounds": [
+        12232000.817576,
+        4037632.721299,
+        12791817.572695,
+        5044497.388778
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 503.432333739,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/140000.jpg",
+      "width": 1112,
+      "height": 2000,
+      "bytes": 391540,
+      "sha256": "0885ca8ed962f758c95868c79e2ef88fe2bcbb2ca24777738bf85a87a191f918",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:150000",
+      "targetKind": "province",
+      "gb": "150000",
+      "catalogGb": "156150000",
+      "label": "内蒙古自治区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156150000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        94.84319397,
+        35.92633328,
+        128.40567949,
+        54.41698648
+      ],
+      "projectedBounds": [
+        10557896.057784,
+        4290489.673371,
+        14294054.856242,
+        7249527.44175
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 1868.079399229,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/150000.jpg",
+      "width": 2000,
+      "height": 1584,
+      "bytes": 228349,
+      "sha256": "15507408eebe591f8eaf6c039fa2989a095b21d0d7e5b436a4dceff3a0fe470d",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:210000",
+      "targetKind": "province",
+      "gb": "210000",
+      "catalogGb": "156210000",
+      "label": "辽宁省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156210000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        118.27924006,
+        38.32577437,
+        126.34432875,
+        43.85478917
+      ],
+      "projectedBounds": [
+        13166784.775169,
+        4625549.576767,
+        14064586.341196,
+        5442997.902635
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 448.900783014,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/210000.jpg",
+      "width": 2000,
+      "height": 1821,
+      "bytes": 528406,
+      "sha256": "749dba3969e7165a3a70907c3dfc9159515438dc48c31cbec8102d44ab7d8a88",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:220000",
+      "targetKind": "province",
+      "gb": "220000",
+      "catalogGb": "156220000",
+      "label": "吉林省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156220000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        120.85803285,
+        40.39886008,
+        132.0916238,
+        46.71914585
+      ],
+      "projectedBounds": [
+        13453854.674957,
+        4924073.958653,
+        14704372.299397,
+        5896351.411655
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 625.25881222,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/220000.jpg",
+      "width": 2000,
+      "height": 1555,
+      "bytes": 338554,
+      "sha256": "9ce9990b6709a86a5863fccb0d58f10a97b26cf6cb9a102a246df88e94a8ccb8",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:230000",
+      "targetKind": "province",
+      "gb": "230000",
+      "catalogGb": "156230000",
+      "label": "黑龙江省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156230000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        120.06566784,
+        42.52226948,
+        136.20321855,
+        54.29189612
+      ],
+      "projectedBounds": [
+        13365649.006205,
+        5239536.790882,
+        15162072.933557,
+        7225632.896301
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 993.04805271,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/230000.jpg",
+      "width": 1809,
+      "height": 2000,
+      "bytes": 298267,
+      "sha256": "de0cc4a2dce6a7565608f8128b3f4fb3c065acbf9f1c277c358401ed6a7e17d8",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:310000",
+      "targetKind": "province",
+      "gb": "310000",
+      "catalogGb": "156310000",
+      "label": "上海市",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156310000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        120.75706682,
+        30.59954986,
+        122.21383361,
+        31.9601645
+      ],
+      "projectedBounds": [
+        13442615.18812,
+        3580851.544772,
+        13604781.725697,
+        3758082.733381
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 88.615594304,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/310000.jpg",
+      "width": 1830,
+      "height": 2000,
+      "bytes": 596513,
+      "sha256": "5a04c827e2b68d4995b8493e22d65c0c4de5e5e8cd823b29b687b705a7b11cb7",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:320000",
+      "targetKind": "province",
+      "gb": "320000",
+      "catalogGb": "156320000",
+      "label": "江苏省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156320000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        115.90404135,
+        30.40660502,
+        122.4065694,
+        35.48388254
+      ],
+      "projectedBounds": [
+        12902378.864463,
+        3555922.932936,
+        13626236.97564,
+        4229834.834443
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 361.929055589,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/320000.jpg",
+      "width": 2000,
+      "height": 1862,
+      "bytes": 474733,
+      "sha256": "67d6ea5c36da128d7376e6290bd3bf959b8d1b53e376f6698c01e028baa98e01",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:330000",
+      "targetKind": "province",
+      "gb": "330000",
+      "catalogGb": "156330000",
+      "label": "浙江省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156330000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        117.64357617,
+        26.83737518,
+        123.22317269,
+        31.49787849
+      ],
+      "projectedBounds": [
+        13096022.994742,
+        3103168.576823,
+        13717140.837792,
+        3697578.352623
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 310.558921525,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/330000.jpg",
+      "width": 2000,
+      "height": 1914,
+      "bytes": 510463,
+      "sha256": "e56411a3b4420500f90ad52563e264a4fc4aa3ee3120f556bf33a90915dc2d6c",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:340000",
+      "targetKind": "province",
+      "gb": "340000",
+      "catalogGb": "156340000",
+      "label": "安徽省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156340000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        114.49321645,
+        28.96130444,
+        120.02841035,
+        35.06731707
+      ],
+      "projectedBounds": [
+        12745326.554493,
+        3370721.87865,
+        13361501.520564,
+        4173033.032387
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 401.155576869,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/340000.jpg",
+      "width": 1536,
+      "height": 2000,
+      "bytes": 459370,
+      "sha256": "0c0ce6ded85bebca414ed1c3f3951d66737abfdddcc516fe2465c630be567042",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:350000",
+      "targetKind": "province",
+      "gb": "350000",
+      "catalogGb": "156350000",
+      "label": "福建省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156350000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        115.47524684,
+        23.18453245,
+        120.88420154,
+        28.68700731
+      ],
+      "projectedBounds": [
+        12854645.677951,
+        2654350.022306,
+        13456767.760651,
+        3335869.074597
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 340.759526146,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/350000.jpg",
+      "width": 1767,
+      "height": 2000,
+      "bytes": 465781,
+      "sha256": "6f96f3262870dbeb851fb80dc9e21789e1af77d04b029c0802d9ba818d32d1d5",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:360000",
+      "targetKind": "province",
+      "gb": "360000",
+      "catalogGb": "156360000",
+      "label": "江西省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156360000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        113.17953044,
+        24.02636667,
+        118.87602864,
+        30.52066653
+      ],
+      "projectedBounds": [
+        12599087.696995,
+        2756621.332537,
+        13233218.976287,
+        3570653.783489
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 407.016225476,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/360000.jpg",
+      "width": 1558,
+      "height": 2000,
+      "bytes": 428082,
+      "sha256": "1a3fcafb140f8012d68d76ff0eb3898de160390f9b7798a1fa40bb27250ddb7a",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:370000",
+      "targetKind": "province",
+      "gb": "370000",
+      "catalogGb": "156370000",
+      "label": "山东省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156370000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        114.17049242,
+        34.05638118,
+        123.3359671,
+        38.71333503
+      ],
+      "projectedBounds": [
+        12709401.079925,
+        4036375.155799,
+        13729697.053589,
+        4680692.063168
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 510.147986832,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/370000.jpg",
+      "width": 2000,
+      "height": 1263,
+      "bytes": 430508,
+      "sha256": "bceb2cc4752afc5e8f0526c5d41c0b58e1bf66ed5fd8e3fd3d5e7e1b5f879154",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:410000",
+      "targetKind": "province",
+      "gb": "410000",
+      "catalogGb": "156410000",
+      "label": "河南省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156410000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        109.84770145,
+        30.97065714,
+        117.15527763,
+        36.76073252
+      ],
+      "projectedBounds": [
+        12228190.190432,
+        3628939.00057,
+        13041665.849297,
+        4405808.254786
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 406.737829432,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/410000.jpg",
+      "width": 2000,
+      "height": 1910,
+      "bytes": 597519,
+      "sha256": "26983d46e9d6ed8bbf4a19d1d6350985a0125f36621534e26f1d2901c0f70596",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:420000",
+      "targetKind": "province",
+      "gb": "420000",
+      "catalogGb": "156420000",
+      "label": "湖北省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156420000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        107.74513565,
+        28.68812892,
+        116.75547339,
+        33.60917431
+      ],
+      "projectedBounds": [
+        11994133.636528,
+        3336011.401818,
+        12997159.845369,
+        3976443.636163
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 501.51310442,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/420000.jpg",
+      "width": 2000,
+      "height": 1277,
+      "bytes": 326056,
+      "sha256": "e9983e908642f3a906469db7b7d87286cf6a452ee35b346d8aa4af85f4708439",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:430000",
+      "targetKind": "province",
+      "gb": "430000",
+      "catalogGb": "156430000",
+      "label": "湖南省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156430000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        108.34252894,
+        24.18151623,
+        114.69311599,
+        30.55975079
+      ],
+      "projectedBounds": [
+        12060635.152707,
+        2775542.302946,
+        12767579.26963,
+        3575705.423401
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 400.081560228,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/430000.jpg",
+      "width": 1767,
+      "height": 2000,
+      "bytes": 523861,
+      "sha256": "5bcdbded16f8aa73d86fb84810dc894ef841ca668c4c0162486b45ab5fb19ec6",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.000307,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:440000",
+      "targetKind": "province",
+      "gb": "440000",
+      "catalogGb": "156440000",
+      "label": "广东省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156440000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        109.05912314,
+        19.78415708,
+        117.79796746,
+        25.93624903
+      ],
+      "projectedBounds": [
+        12140406.054065,
+        2247478.823808,
+        13113209.75437,
+        2991187.252692
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 486.401850153,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/440000.jpg",
+      "width": 2000,
+      "height": 1529,
+      "bytes": 352591,
+      "sha256": "9d872dd56405bea89fa02cb9a8ad2f4ffa52dbe32a02cd10245dba6e0895976d",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.000035,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:450000",
+      "targetKind": "province",
+      "gb": "450000",
+      "catalogGb": "156450000",
+      "label": "广西壮族自治区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156450000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        103.83542124,
+        20.57692504,
+        112.67227802,
+        26.80759886
+      ],
+      "projectedBounds": [
+        11558906.218929,
+        2341502.322751,
+        12542620.615533,
+        3099454.265334
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 491.857198302,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/450000.jpg",
+      "width": 2000,
+      "height": 1541,
+      "bytes": 398501,
+      "sha256": "db28913b6f54466a9d6a24bd5bfb668dc44fc52cdbef44751de018ce269f9a9e",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2",
+        "2025-Q4"
+      ],
+      "fallbackUsed": true,
+      "noDataRatio": 0.010364,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:460000",
+      "targetKind": "province",
+      "gb": "460000",
+      "catalogGb": "156460000",
+      "label": "海南省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156460000"
+      },
+      "status": "unavailable",
+      "geographicBounds": [
+        107.8676947,
+        2.48564739,
+        118.60619563,
+        21.42288907
+      ],
+      "projectedBounds": [
+        12007776.847441,
+        276787.837441,
+        13203181.302586,
+        2442375.6185
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 1082.79389053,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": null,
+      "reason": "no-data-threshold-exceeded-after-fallbacks",
+      "bestQuarter": "2025-Q4",
+      "noDataRatio": 0.044585,
+      "waiver": {
+        "decision": "accepted",
+        "authority": "sentinel2-local-imagery-v1-quality-policy",
+        "rationale": "No candidate quarter met the 2.00% no-data threshold; runtime falls back to the existing non-imagery appearance."
+      }
+    },
+    {
+      "id": "province:500000",
+      "targetKind": "province",
+      "gb": "500000",
+      "catalogGb": "156500000",
+      "label": "重庆市",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156500000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        104.89312653,
+        27.83294163,
+        110.58654819,
+        32.53084772
+      ],
+      "projectedBounds": [
+        11676649.432799,
+        3227927.831099,
+        12310438.233046,
+        3833196.135335
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 316.894400124,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/500000.jpg",
+      "width": 2000,
+      "height": 1910,
+      "bytes": 355413,
+      "sha256": "a7d0e5ecf5ca0177258c3be8713c9855a41a3bc1072f2ad9d75e8aee36ce64be",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:510000",
+      "targetKind": "province",
+      "gb": "510000",
+      "catalogGb": "156510000",
+      "label": "四川省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156510000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        96.46315794,
+        25.35727985,
+        109.44082108,
+        34.94971546
+      ],
+      "projectedBounds": [
+        10738229.622011,
+        2919692.614759,
+        12182896.474793,
+        4157049.774166
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 722.333426391,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/510000.jpg",
+      "width": 2000,
+      "height": 1713,
+      "bytes": 480170,
+      "sha256": "40c0279475c122b45039092efdca754eb8915c0bcff784dda13f8bd7b08772a9",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:520000",
+      "targetKind": "province",
+      "gb": "520000",
+      "catalogGb": "156520000",
+      "label": "贵州省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156520000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        103.11798577,
+        24.24604661,
+        110.07599671,
+        29.5789537
+      ],
+      "projectedBounds": [
+        11479041.668003,
+        2783418.750637,
+        12253603.901768,
+        3449542.271675
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 387.281116883,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/520000.jpg",
+      "width": 2000,
+      "height": 1720,
+      "bytes": 507254,
+      "sha256": "b0b8ff4f5c13826b3f6187d1ea0a13c33aa00be92584ae843beca77561e703df",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.000132,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:530000",
+      "targetKind": "province",
+      "gb": "530000",
+      "catalogGb": "156530000",
+      "label": "云南省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156530000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        96.83463767,
+        20.46966714,
+        106.89103072,
+        29.88072742
+      ],
+      "projectedBounds": [
+        10779582.556187,
+        2328753.238611,
+        11899055.109678,
+        3488227.659628
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 579.737210508,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/530000.jpg",
+      "width": 1931,
+      "height": 2000,
+      "bytes": 526921,
+      "sha256": "a4afd1bb34bba40ef2f240df5675386b5c83c0aa471c1918da24b48eb3b5f19e",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.000418,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:540000",
+      "targetKind": "province",
+      "gb": "540000",
+      "catalogGb": "156540000",
+      "label": "西藏自治区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156540000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        76.72473303,
+        26.03887887,
+        100.78290312,
+        37.21302459
+      ],
+      "projectedBounds": [
+        8540958.2123,
+        3003897.055647,
+        11219101.456147,
+        4468841.410031
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 1339.071621923,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/540000.jpg",
+      "width": 2000,
+      "height": 1094,
+      "bytes": 449906,
+      "sha256": "c5c02bf5b70d034b92b10f3dbe753a22e9e4f841d4a38e5f13929626a5ea9633",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.001115,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:610000",
+      "targetKind": "province",
+      "gb": "610000",
+      "catalogGb": "156610000",
+      "label": "陕西省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156610000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        105.02602166,
+        31.04810876,
+        111.71058665,
+        40.18446945
+      ],
+      "projectedBounds": [
+        11691443.25142,
+        3638998.558799,
+        12435565.622003,
+        4892785.198366
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 626.893319784,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/610000.jpg",
+      "width": 1187,
+      "height": 2000,
+      "bytes": 280517,
+      "sha256": "3a07cde3a677d5e25d94ee3d72cdc5cb56a3a601f1856505ff835997a52b1da1",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:620000",
+      "targetKind": "province",
+      "gb": "620000",
+      "catalogGb": "156620000",
+      "label": "甘肃省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156620000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        91.02136781,
+        31.71090583,
+        110.02907323,
+        43.54922907
+      ],
+      "projectedBounds": [
+        10132452.315742,
+        3725422.061926,
+        12248380.404848,
+        5395947.288276
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 1057.964044553,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/620000.jpg",
+      "width": 2000,
+      "height": 1579,
+      "bytes": 266441,
+      "sha256": "5f38aa58bcbb98e675bf215a989b103f176c6c642e0c1d7636f31b1da7b7fff8",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:630000",
+      "targetKind": "province",
+      "gb": "630000",
+      "catalogGb": "156630000",
+      "label": "青海省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156630000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        88.3034103,
+        30.96018238,
+        104.17700357,
+        39.78916333
+      ],
+      "projectedBounds": [
+        9829890.670073,
+        3627579.146029,
+        11596930.990313,
+        4835351.204913
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 883.52016012,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/630000.jpg",
+      "width": 2000,
+      "height": 1367,
+      "bytes": 527535,
+      "sha256": "d1da81b8b69346f175800cacc5a2ef638689a8debf7ab4237cac08a1a58bea86",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:640000",
+      "targetKind": "province",
+      "gb": "640000",
+      "catalogGb": "156640000",
+      "label": "宁夏回族自治区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156640000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        104.01138615,
+        34.89348227,
+        107.93225344,
+        39.71089933
+      ],
+      "projectedBounds": [
+        11578494.542399,
+        4149415.214675,
+        12014963.493595,
+        4824019.466908
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 337.302126117,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/640000.jpg",
+      "width": 1294,
+      "height": 2000,
+      "bytes": 307051,
+      "sha256": "88b6c32242d1bd6d698206dfd7f7019e294df04fcb6c1b99922fcd31f141a31e",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:650000",
+      "targetKind": "province",
+      "gb": "650000",
+      "catalogGb": "156650000",
+      "label": "新疆维吾尔自治区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156650000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        71.66699047,
+        32.99932031,
+        98.24357746,
+        50.22523082
+      ],
+      "projectedBounds": [
+        7977932.886171,
+        3895213.746199,
+        10936425.016586,
+        6485373.606377
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 1479.246065207,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/650000.jpg",
+      "width": 2000,
+      "height": 1751,
+      "bytes": 511507,
+      "sha256": "12528a3e8f4b4052915d3e46e93fa3c841e4d3abcca6aabdb0748099c56d4e41",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.000015,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:710000",
+      "targetKind": "province",
+      "gb": "710000",
+      "catalogGb": "156710000",
+      "label": "台湾省",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156710000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        119.00291387,
+        21.56834248,
+        125.01223755,
+        26.27951198
+      ],
+      "projectedBounds": [
+        13247343.774613,
+        2459777.823527,
+        13916298.627093,
+        3033741.086954
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 334.47742624,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/710000.jpg",
+      "width": 2000,
+      "height": 1716,
+      "bytes": 169539,
+      "sha256": "7621b706d8c27d2f3f056a12a16b19f1335dd865f4847114e10e51844658b11a",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0.00029,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:810000",
+      "targetKind": "province",
+      "gb": "810000",
+      "catalogGb": "156810000",
+      "label": "香港特别行政区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156810000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        113.79725473,
+        22.12865279,
+        114.44200223,
+        22.59463068
+      ],
+      "projectedBounds": [
+        12667852.449772,
+        2526978.561321,
+        12739625.413998,
+        2583069.132863
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 35.886482113,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/810000.jpg",
+      "width": 2000,
+      "height": 1563,
+      "bytes": 378040,
+      "sha256": "98bb4287f493aa02769728b52d842235553eae870c388638a6e76a0ebf4cc19a",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+      "compositionMode": "local-prefecture-mask-composite-v1"
+    },
+    {
+      "id": "province:820000",
+      "targetKind": "province",
+      "gb": "820000",
+      "catalogGb": "156820000",
+      "label": "澳门特别行政区",
+      "selection": {
+        "kind": "province-counties",
+        "provinceGb": "156820000"
+      },
+      "status": "available",
+      "geographicBounds": [
+        113.52876433,
+        22.10400253,
+        113.59406305,
+        22.22398991
+      ],
+      "projectedBounds": [
+        12637964.235555,
+        2524016.567996,
+        12645233.255945,
+        2538439.227499
+      ],
+      "projection": "EPSG:3857",
+      "pixelSizeMeters": 7.211329752,
+      "attribution": "Contains modified Copernicus Sentinel data 2025",
+      "assetPath": "images/provinces/820000.jpg",
+      "width": 1008,
+      "height": 2000,
+      "bytes": 431247,
+      "sha256": "359eced1c3792b2e015acbb235b2417147485baa89fedfdf844d8820f4543db2",
+      "sourceQuarter": "2025-Q2",
+      "sourceQuarters": [
+        "2025-Q2"
+      ],
+      "fallbackUsed": false,
+      "noDataRatio": 0,
+      "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154"
+    }
+  ]
+}

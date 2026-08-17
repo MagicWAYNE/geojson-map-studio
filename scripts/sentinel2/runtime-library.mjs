@@ -86,18 +86,27 @@ export function buildRuntimeManifest({
   planText,
   imageCheckpoint,
   qualityCheckpoint,
-  expectedTargetCount = 377
+  expectedTargetCount = 377,
+  includedTargetKinds = ['country', 'province', 'prefecture']
 }) {
   const planSha256 = sha256(planText)
   assert(plan?.schemaVersion === 1 && Array.isArray(plan.targets), 'job manifest is invalid')
   assert(plan.targets.length === expectedTargetCount, `expected ${expectedTargetCount} targets, found ${plan.targets.length}`)
   assert(imageCheckpoint?.kind === 'image-generation' && imageCheckpoint.planSha256 === planSha256, 'image checkpoint belongs to a different plan')
   assert(qualityCheckpoint?.kind === 'quality-selection' && qualityCheckpoint.planSha256 === planSha256, 'quality checkpoint belongs to a different plan')
+  const allPlanIds = new Set()
+  for (const target of plan.targets) {
+    assert(!allPlanIds.has(target.id), `duplicate target identity: ${target.id}`)
+    allPlanIds.add(target.id)
+  }
   const ids = new Set()
   let availableCount = 0
   let unavailableCount = 0
   let totalBytes = 0
-  const entries = plan.targets.map((target) => {
+  const includedKinds = new Set(includedTargetKinds)
+  assert(includedKinds.size > 0, 'at least one runtime target kind is required')
+  for (const kind of includedKinds) assert(['country', 'province', 'prefecture'].includes(kind), `invalid runtime target kind: ${kind}`)
+  const entries = plan.targets.filter((target) => includedKinds.has(target.targetKind)).map((target) => {
     assert(!ids.has(target.id), `duplicate target identity: ${target.id}`)
     ids.add(target.id)
     const image = imageCheckpoint.entries?.[target.id]
@@ -158,8 +167,8 @@ export function buildRuntimeManifest({
   })
   assert(Object.keys(imageCheckpoint.entries).length === expectedTargetCount, 'image checkpoint contains an unexpected or missing target')
   assert(Object.keys(qualityCheckpoint.entries).length === expectedTargetCount, 'quality checkpoint contains an unexpected or missing target')
-  for (const id of Object.keys(imageCheckpoint.entries)) assert(ids.has(id), `unexpected image checkpoint target: ${id}`)
-  for (const id of Object.keys(qualityCheckpoint.entries)) assert(ids.has(id), `unexpected quality checkpoint target: ${id}`)
+  for (const id of Object.keys(imageCheckpoint.entries)) assert(allPlanIds.has(id), `unexpected image checkpoint target: ${id}`)
+  for (const id of Object.keys(qualityCheckpoint.entries)) assert(allPlanIds.has(id), `unexpected quality checkpoint target: ${id}`)
   return {
     schemaVersion: 1,
     datasetId: plan.sourceContract.datasetVersion,
@@ -297,7 +306,8 @@ export async function packageRuntimeLibrary({
   qualityCheckpoint,
   imageRoot,
   packageRoot,
-  expectedTargetCount = 377
+  expectedTargetCount = 377,
+  includedTargetKinds = ['country', 'province', 'prefecture']
 }) {
   const destination = path.resolve(packageRoot)
   const destinationParent = path.dirname(destination)
@@ -307,7 +317,14 @@ export async function packageRuntimeLibrary({
   await rm(staging, { recursive: true, force: true })
   await mkdir(staging, { recursive: true })
   try {
-    const manifest = buildRuntimeManifest({ plan, planText, imageCheckpoint, qualityCheckpoint, expectedTargetCount })
+    const manifest = buildRuntimeManifest({
+      plan,
+      planText,
+      imageCheckpoint,
+      qualityCheckpoint,
+      expectedTargetCount,
+      includedTargetKinds
+    })
     for (const entry of manifest.entries) {
       if (entry.status !== 'available') continue
       const sourceRelative = entry.assetPath.slice('images/'.length)
@@ -322,7 +339,7 @@ export async function packageRuntimeLibrary({
     await writeFile(path.join(staging, NOTICE_FILE), noticeText(manifest), { flag: 'wx' })
     const files = await listPackageFiles(staging)
     await writeFile(path.join(staging, INVENTORY_FILE), await buildInventory(staging, files), { flag: 'wx' })
-    const verification = await verifyRuntimeLibrary({ packageRoot: staging, expectedTargetCount })
+    const verification = await verifyRuntimeLibrary({ packageRoot: staging, expectedTargetCount: manifest.entries.length })
     await mkdir(destinationParent, { recursive: true })
     await rename(staging, destination)
     return verification

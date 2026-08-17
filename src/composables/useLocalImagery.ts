@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue'
 import {
   createLocalImageryLibrary,
+  isLocalImageryTargetSupported,
   type LocalImageryAppearance,
   type LocalImageryLibrary,
   type LocalImageryUnavailableEntry
@@ -31,7 +32,7 @@ export function createLocalImageryRuntime(library: LocalImageryLibrary): LocalIm
   const state = ref<LocalImageryRuntimeState>('idle')
   const message = ref('')
   const appearance = shallowRef<LocalImageryAppearance | null>(null)
-  const available = computed(() => targetId.value !== null)
+  const available = computed(() => isLocalImageryTargetSupported(targetId.value))
   let generation = 0
   let controller: AbortController | null = null
   let releaseAppearance: () => void = () => undefined
@@ -56,6 +57,12 @@ export function createLocalImageryRuntime(library: LocalImageryLibrary): LocalIm
     if (!requestedTarget) {
       state.value = 'unsupported'
       message.value = '当前地图不是区域库目标，无法匹配本地影像。'
+      return
+    }
+    if (!isLocalImageryTargetSupported(requestedTarget)) {
+      clearAppearance()
+      state.value = 'unsupported'
+      message.value = '当前部署仅支持全国与省级 Sentinel-2 影像，地市级暂不提供。'
       return
     }
     const requestController = new AbortController()
@@ -101,12 +108,12 @@ export function createLocalImageryRuntime(library: LocalImageryLibrary): LocalIm
       if (nextTarget === targetId.value) return
       targetId.value = nextTarget
       clearAppearance()
-      if (!nextTarget) {
+      if (!isLocalImageryTargetSupported(nextTarget)) {
         generation += 1
         controller?.abort(new DOMException('local imagery target cleared', 'AbortError'))
         controller = null
-        state.value = 'idle'
-        message.value = ''
+        state.value = nextTarget ? 'unsupported' : 'idle'
+        message.value = nextTarget ? '当前部署仅支持全国与省级 Sentinel-2 影像，地市级暂不提供。' : ''
         enabled.value = false
       }
       else void refresh()

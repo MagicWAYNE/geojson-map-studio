@@ -25,6 +25,8 @@
     "imagery:fetch": "node scripts/sentinel2-imagery.mjs fetch",
     "imagery:package": "node scripts/sentinel2-imagery.mjs package",
     "imagery:verify-library": "node scripts/sentinel2-imagery.mjs verify-library",
+    "imagery:package:deploy": "node scripts/sentinel2-imagery.mjs package --target-kinds country,province",
+    "imagery:verify-library:deploy": "node scripts/sentinel2-imagery.mjs verify-library --expected-target-count 35",
     "test": "vitest run"
   },
   "dependencies": {
