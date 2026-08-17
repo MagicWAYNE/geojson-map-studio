@@ -36,6 +36,8 @@ describe('MapCompositionControls', () => {
     const session = useMapVisualSettings()
     const number = root.querySelector<HTMLInputElement>('#composition-left-number')!
     const range = root.querySelector<HTMLInputElement>('#composition-left-range')!
+    expect(root.querySelector('[data-composition-sidebar-offset]')?.textContent)
+      .toContain('侧栏宽度偏移：-600px；当前实际地图宽度：1320px')
 
     number.value = '1180'
     number.dispatchEvent(new Event('input', { bubbles: true }))
@@ -68,6 +70,11 @@ describe('MapCompositionControls', () => {
     await nextTick()
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)
     expect(number.value).toBe('0')
+
+    session.setSidebarCollapsed(true)
+    await nextTick()
+    expect(root.querySelector('[data-composition-sidebar-offset]')?.textContent)
+      .toContain('侧栏宽度偏移：0px；当前实际地图宽度：1920px')
     app.unmount()
   })
 
@@ -80,7 +87,7 @@ describe('MapCompositionControls', () => {
 
     buttons.find((button) => button.textContent?.includes('复制 CSS'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '.pos-map { left: 0px; top: 0px; width: 1280px; height: 1080px; }'
+      '.pos-map { left: 0px; top: 0px; width: 1920px; height: 1080px; }'
     ))
     buttons.find((button) => button.textContent?.includes('复制相机参数'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(

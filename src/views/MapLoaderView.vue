@@ -22,6 +22,7 @@ import {
 import { useMapVisualSettings, type VisualWorkspaceMode } from '@/composables/useMapVisualSettings'
 import CollapsibleAlert from '@/components/common/CollapsibleAlert.vue'
 import VisualSettingsPanel from '@/components/visual-settings/VisualSettingsPanel.vue'
+import GuideAboutPanel from '@/components/visual-settings/GuideAboutPanel.vue'
 import RegionCatalogPicker from '@/components/map/RegionCatalogPicker.vue'
 import LocalImageryControl from '@/components/map/LocalImageryControl.vue'
 import { localImageryTargetId } from '@/components/map/localImageryLibrary'
@@ -525,6 +526,15 @@ onBeforeUnmount(() => {
         >
           视觉样式
         </button>
+        <button
+          type="button"
+          data-workspace-mode="guide"
+          :class="{ active: visualSettings.workspaceMode.value === 'guide' }"
+          :aria-current="visualSettings.workspaceMode.value === 'guide' ? 'page' : undefined"
+          @click="switchWorkspace('guide')"
+        >
+          指引 &amp; 关于
+        </button>
       </nav>
 
       <div
@@ -812,6 +822,7 @@ onBeforeUnmount(() => {
       </div>
 
       <VisualSettingsPanel v-show="visualSettings.workspaceMode.value === 'visual'" />
+      <GuideAboutPanel v-show="visualSettings.workspaceMode.value === 'guide'" />
     </section>
   </aside>
 </template>
@@ -883,7 +894,7 @@ onBeforeUnmount(() => {
 
 .map-loader__workspace-nav {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
