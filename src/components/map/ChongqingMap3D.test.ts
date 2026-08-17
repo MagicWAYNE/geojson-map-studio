@@ -500,7 +500,7 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.app.unmount()
   })
 
-  it('gives map pointer including whitespace priority over authoring focus and restores focus on leave', async () => {
+  it('gives model hits priority over authoring focus while whitespace preserves authoring focus', async () => {
     const mounted = await mountInitializedMap(2)
     const [, regionMeshes] = pipelineMocks.create.mock.calls[0]
     const intersections = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
@@ -519,7 +519,7 @@ describe('ChongqingMap3D effect wiring', () => {
       clientX: 12,
       clientY: 12
     }))
-    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, null)
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
 
     mounted.root.querySelector('.cq-map3d')!.dispatchEvent(new PointerEvent('pointerleave'))
     expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
@@ -1608,7 +1608,7 @@ describe('ChongqingMap3D effect wiring', () => {
 })
 
 describe('ChongqingMap3D district bar DOM overlay wiring', () => {
-  it('keeps automatic hover paused when the pointer entered before async map setup completed', async () => {
+  it('starts the idle delay when the pointer entered whitespace before async map setup completed', async () => {
     const { useMapDistrictCarousel } = await import('@/composables/useMapDistrictCarousel')
     useMapDistrictCarousel().enabled.value = true
     districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
@@ -1620,10 +1620,14 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
     mounted.runFrame(0)
 
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    mounted.runFrame(9_999)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    mounted.runFrame(10_000)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
     mounted.app.unmount()
   })
 
-  it('cycles automatic hover, suspends inside the map, and resumes ten seconds after leaving', async () => {
+  it('cycles automatic hover, pauses only on a model hit, and resumes after idle whitespace delay', async () => {
     const { useMapDistrictCarousel } = await import('@/composables/useMapDistrictCarousel')
     useMapDistrictCarousel().enabled.value = true
     districtBarMocks.getSnapshots.mockReturnValue(districtBarSnapshots())
@@ -1644,26 +1648,37 @@ describe('ChongqingMap3D district bar DOM overlay wiring', () => {
 
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects')
       .mockReturnValueOnce([])
-      .mockReturnValueOnce([{ object: regionMeshes[2] } as THREE.Intersection])
+      .mockReturnValueOnce([{ object: regionMeshes[1] } as THREE.Intersection])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([])
     currentNow = 5_100
     map.dispatchEvent(new PointerEvent('pointerenter'))
-    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
     mounted.runFrame(5_100)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
     expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, null)
-
-    currentNow = 5_200
-    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
-    mounted.runFrame(5_200)
-    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区2')
-    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区2')
-
-    currentNow = 6_000
-    map.dispatchEvent(new PointerEvent('pointerleave'))
-    mounted.runFrame(15_999)
+    mounted.runFrame(15_099)
     expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
-    mounted.runFrame(16_000)
-    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区0')
+    mounted.runFrame(15_100)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区2')
+
+    currentNow = 15_200
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 20 }))
+    mounted.runFrame(15_200)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区1')
+    expect(districtBarMocks.setFocus).toHaveBeenLastCalledWith(districtBarMocks.layer, '测试区1')
+
+    currentNow = 15_300
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 30, clientY: 30 }))
+    mounted.runFrame(15_300)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+
+    currentNow = 16_000
+    map.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 40 }))
+    map.dispatchEvent(new PointerEvent('pointerleave'))
+    mounted.runFrame(25_299)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBeNull()
+    mounted.runFrame(25_300)
+    expect(overlayLayoutMocks.calculate.mock.calls.at(-1)![0].hoveredName).toBe('测试区2')
 
     mounted.app.unmount()
   })
