@@ -7,7 +7,7 @@
 
     <section class="guide-about__section" aria-labelledby="guide-intro-title">
       <span class="guide-about__index" aria-hidden="true">01</span>
-      <div>
+      <div class="guide-about__content">
         <h2 id="guide-intro-title">简介</h2>
         <p>
           本项目是一个基于 Three.js 的数据地图项目，选择区域或导入 GeoJSON 后即可获得视觉完成度较高的数据地图模型。可用于数据大屏、指挥舱页面、PPT、公众号、小红书等任何您用得上的地方。
@@ -17,7 +17,7 @@
 
     <section class="guide-about__section" aria-labelledby="guide-usage-title">
       <span class="guide-about__index" aria-hidden="true">02</span>
-      <div>
+      <div class="guide-about__content">
         <h2 id="guide-usage-title">指引</h2>
         <ol class="guide-about__steps">
           <li>
@@ -39,14 +39,13 @@
 
     <section class="guide-about__section guide-about__section--service" aria-labelledby="guide-service-title">
       <span class="guide-about__index" aria-hidden="true">03</span>
-      <div>
+      <div class="guide-about__content">
         <h2 id="guide-service-title">服务和关于我</h2>
         <p>如果这个项目对您有帮助，欢迎通过下方链接了解项目或与我联系。</p>
       </div>
     </section>
 
     <footer class="guide-about__footer">
-      <p>如需定制化服务可以通过以下方式联系我。</p>
       <nav class="guide-about__contacts" aria-label="项目与联系方式">
         <a
           href="https://github.com/MagicWAYNE/geojson-map-studio"
@@ -119,9 +118,20 @@
   color: rgba(46, 220, 255, 0.72);
   font: 15px/1.4 monospace;
 }
+.guide-about__content { min-width: 0; }
 .guide-about__section h2 { margin: 0 0 8px; color: #7de7ff; font-size: 18px; }
 .guide-about__section p { margin: 0; color: #b1c9e4; font-size: 15px; line-height: 1.75; }
-.guide-about__steps { display: grid; gap: 11px; margin: 0; padding-left: 20px; color: #b1c9e4; font-size: 15px; line-height: 1.7; }
+.guide-about__steps {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding-left: 0;
+  color: #b1c9e4;
+  font-size: 15px;
+  line-height: 1.7;
+  list-style: decimal outside;
+}
+.guide-about__steps li { padding-left: 0; }
 .guide-about__steps li::marker { color: #2edcff; font-family: monospace; }
 .guide-about__steps a { color: #67dcff; text-underline-offset: 3px; }
 .guide-about__steps a:hover, .guide-about__steps a:focus-visible { color: #fff; }
@@ -135,7 +145,6 @@
   border: 1px solid rgba(67, 194, 255, 0.32);
   border-radius: 6px;
 }
-.guide-about__footer p { margin: 0; color: #dcecff; font-size: 15px; line-height: 1.6; }
 .guide-about__contacts { display: flex; align-items: center; gap: 12px; }
 .guide-about__contacts a {
   display: inline-flex;
