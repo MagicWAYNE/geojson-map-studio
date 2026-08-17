@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "gb": "350200",
+      "name": "厦门市",
+      "case": "compact-coastal",
+      "review": ["coastline", "islands", "high-aspect-ratio", "no-data"]
+    },
+    {
+      "gb": "510100",
+      "name": "成都市",
+      "case": "cloudy-mountain-basin",
+      "review": ["cloud", "mountain", "basin-color", "alignment"]
+    },
+    {
+      "gb": "150700",
+      "name": "呼伦贝尔市",
+      "case": "very-large-prefecture",
+      "review": ["dynamic-resolution", "large-extent", "seasonal-color", "alignment"]
+    },
+    {
+      "gb": "460300",
+      "name": "三沙市",
+      "case": "island-heavy",
+      "review": ["small-islands", "ocean-no-data", "sparse-observations", "clipping"]
+    },
+    {
+      "gb": "500000",
+      "name": "重庆市",
+      "case": "province-equivalent",
+      "review": ["parent-geometry-fallback", "shared-uv", "mountain", "runtime-selection"]
+    }
+  ]
+}

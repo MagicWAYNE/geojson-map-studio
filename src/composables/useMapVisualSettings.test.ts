@@ -14,11 +14,22 @@ afterEach(() => {
 
 describe('visual-settings session', () => {
   it('starts with the tool composition and five stable visual pages', async () => {
-    const { MAP_LAYOUT_DEFAULT, VISUAL_SETTINGS_PAGES, useMapVisualSettings } = await import('./useMapVisualSettings')
+    const {
+      DEFAULT_CAMERA_VIEW,
+      MAP_CAMERA_DEFAULT,
+      MAP_LAYOUT_DEFAULT,
+      VISUAL_SETTINGS_PAGES,
+      useMapVisualSettings
+    } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
 
     expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 0, top: 80, width: 1280, height: 1000 })
+    expect(MAP_CAMERA_DEFAULT).toEqual({
+      pos: [-6.5, 127.6, 97.4],
+      target: [2.7, -2.9, 7]
+    })
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)
+    expect(session.cameraView.value).toBe(DEFAULT_CAMERA_VIEW)
     expect(VISUAL_SETTINGS_PAGES.map((page) => [page.id, page.label])).toEqual([
       ['composition', '构图与视角'],
       ['effects', '地图效果'],
@@ -28,6 +39,10 @@ describe('visual-settings session', () => {
     ])
     expect(session.workspaceMode.value).toBe('data')
     expect(session.activeVisualPage.value).toBe('composition')
+
+    session.updateCameraView('{"pos":[1,2,3],"target":[4,5,6]}')
+    session.resetVisualSession()
+    expect(session.cameraView.value).toBe(DEFAULT_CAMERA_VIEW)
   })
 
   it('keeps partial layout text in the session and only publishes finite committed values', async () => {

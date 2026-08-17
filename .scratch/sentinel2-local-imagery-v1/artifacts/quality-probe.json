@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-08-16",
+  "planSha256": "2dec03da53429a1f35ee48906b3e28f2ff051fefce2827b1e8a677a3ec94172a",
+  "source": {
+    "oauthTokenLifetimeSeconds": 1800,
+    "sentinelHubCollection": "byoc-5460de54-082e-473a-b6ea-d5cbe3c17cca",
+    "collectionTitle": "Sentinel-2 Quarterly Mosaics",
+    "bands": [
+      "B02",
+      "B03",
+      "B04",
+      "B08",
+      "observations"
+    ],
+    "stacCollection": "sentinel-2-global-mosaics",
+    "availability": [
+      {
+        "gb": "350200",
+        "quarter": "2025-Q2",
+        "itemCount": 2,
+        "itemIdsSha256": "83a684a666e82d6a3f7f81dea24ac85b07e0079ee18d17dda15c12f9b8162c8a"
+      },
+      {
+        "gb": "350200",
+        "quarter": "2025-Q3",
+        "itemCount": 2,
+        "itemIdsSha256": "df1061278b31423e9d14669f84c8bc19411e60bc02b2dd7b093467a1a7127707"
+      },
+      {
+        "gb": "350200",
+        "quarter": "2025-Q4",
+        "itemCount": 2,
+        "itemIdsSha256": "bb0efe9d1813ff3a0cb74d9f6521c5fe2393859d594161615c0335a23143c695"
+      },
+      {
+        "gb": "510100",
+        "quarter": "2025-Q2",
+        "itemCount": 4,
+        "itemIdsSha256": "5942edabe41341ec02e48c337665ece06e7fc01fb11a3c8da84f28e99a5e2312"
+      },
+      {
+        "gb": "510100",
+        "quarter": "2025-Q3",
+        "itemCount": 4,
+        "itemIdsSha256": "de70830b712770ea3ec2ef89a08ab10fffead8238763dbc560324841b30cf871"
+      },
+      {
+        "gb": "510100",
+        "quarter": "2025-Q4",
+        "itemCount": 4,
+        "itemIdsSha256": "bd80fea05e61a66a8a0410c639b8150427d002a4ad7c1c66134d3b83af9be0e9"
+      },
+      {
+        "gb": "150700",
+        "quarter": "2025-Q2",
+        "itemCount": 82,
+        "itemIdsSha256": "652c63d1dba7f7d01b5ee09b795d63d0adcb173c4b576a0364bcd23c48337927"
+      },
+      {
+        "gb": "150700",
+        "quarter": "2025-Q3",
+        "itemCount": 82,
+        "itemIdsSha256": "f126da6b854daf58db4f5ead3d998ec85ab67b453a67ba99f3582173298e4ee7"
+      },
+      {
+        "gb": "150700",
+        "quarter": "2025-Q4",
+        "itemCount": 82,
+        "itemIdsSha256": "acdadcadac32fffd6ca4c2083b36d3f6d4534c3f22c8f8e15dc111be631477b9"
+      },
+      {
+        "gb": "460300",
+        "quarter": "2025-Q2",
+        "itemCount": 180,
+        "itemIdsSha256": "7448bd388bd6cf3f410d7153aa9196eefead73f6b85decee5c45359eac87c9c6"
+      },
+      {
+        "gb": "460300",
+        "quarter": "2025-Q3",
+        "itemCount": 180,
+        "itemIdsSha256": "ed52d44b7faa9685f005303d10aa431341a645105189355d73d1fecbe6ec753c"
+      },
+      {
+        "gb": "460300",
+        "quarter": "2025-Q4",
+        "itemCount": 180,
+        "itemIdsSha256": "5ab8aca80804a01b8f4c5dd19a89dbaae4ae590aad590ed5236ff9cc99c1d74f"
+      },
+      {
+        "gb": "500000",
+        "quarter": "2025-Q2",
+        "itemCount": 30,
+        "itemIdsSha256": "d49c37b2465a236df28f927f803fcde1007bd04bad64cad6eac0465c54d5a858"
+      },
+      {
+        "gb": "500000",
+        "quarter": "2025-Q3",
+        "itemCount": 30,
+        "itemIdsSha256": "76e0da9318eea7eadb0aee9d4f2bd0b55de959a574ee35879023e832ab294347"
+      },
+      {
+        "gb": "500000",
+        "quarter": "2025-Q4",
+        "itemCount": 30,
+        "itemIdsSha256": "8ed7a711fba2bd2c0a8cbd73bae54ae68ce20b38ec9f96eb8b792aabe8936361"
+      }
+    ]
+  },
+  "budget": {
+    "requestCount": 15,
+    "maximumOutputPixels": 5316897,
+    "estimatedProcessingUnits": 13.522
+  },
+  "minimumLongDimension": 128,
+  "maximumMetersPerPixel": 1590,
+  "results": [
+    {
+      "gb": "350200",
+      "label": "厦门市",
+      "case": "compact-coastal",
+      "quarter": "2025-Q2",
+      "requestSha256": "e7b64f817b396987b9a3afc42685a4e59a37fc70d38116bb5562dc39cf595d07",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "174ca7afa11973008ddefdcb8ba37f3ba23ea07d274100582144d35fd434803e",
+      "responseBytes": 166,
+      "actualProcessingUnits": 0.01953125058207661,
+      "width": 120,
+      "height": 128,
+      "pixelCount": 15360,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "350200",
+      "label": "厦门市",
+      "case": "compact-coastal",
+      "quarter": "2025-Q3",
+      "requestSha256": "c1b5cb8524060dc6434ced718f828ec13b5b06aad853e79c18d085b3c11b4ed9",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "174ca7afa11973008ddefdcb8ba37f3ba23ea07d274100582144d35fd434803e",
+      "responseBytes": 166,
+      "actualProcessingUnits": 0.01953125058207661,
+      "width": 120,
+      "height": 128,
+      "pixelCount": 15360,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "350200",
+      "label": "厦门市",
+      "case": "compact-coastal",
+      "quarter": "2025-Q4",
+      "requestSha256": "85aaa6d67972d7c4247dc26fbb8c0e8d0aa6cd6554a40e931c6943d3d8fe7f57",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "174ca7afa11973008ddefdcb8ba37f3ba23ea07d274100582144d35fd434803e",
+      "responseBytes": 166,
+      "actualProcessingUnits": 0.01953125058207661,
+      "width": 120,
+      "height": 128,
+      "pixelCount": 15360,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "510100",
+      "label": "成都市",
+      "case": "cloudy-mountain-basin",
+      "quarter": "2025-Q2",
+      "requestSha256": "45d2e8544a1c60ab0d70ac0b6c64e094a463612141189d21cb418a38f67355ff",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "e5cf159989415af2dd9342f518005fe981602c891125df289c68220f5260178e",
+      "responseBytes": 206,
+      "actualProcessingUnits": 0.02522786533518229,
+      "width": 155,
+      "height": 128,
+      "pixelCount": 19840,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "510100",
+      "label": "成都市",
+      "case": "cloudy-mountain-basin",
+      "quarter": "2025-Q3",
+      "requestSha256": "fb35c8da8be9911626fdfb8452ccfbebcd8cb8c868f4030e1146c5a13f05f319",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "ad630e1dcfdf3c59c7e7b0ca44e0aa6b18ce6d73efe4ebcfaa122b9e88a8ccaf",
+      "responseBytes": 379,
+      "actualProcessingUnits": 0.02522786533518229,
+      "width": 155,
+      "height": 128,
+      "pixelCount": 19840,
+      "noDataPixels": 38,
+      "noDataRatio": 0.001915
+    },
+    {
+      "gb": "510100",
+      "label": "成都市",
+      "case": "cloudy-mountain-basin",
+      "quarter": "2025-Q4",
+      "requestSha256": "28b817f534eac01ce202b7d9571d78956bb2932c86a751f4df6d0af529dc3b05",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "1eadd6f4f80edefa178ec7afea1837a392f6598089402d61fb172dba11be6b39",
+      "responseBytes": 252,
+      "actualProcessingUnits": 0.02522786533518229,
+      "width": 155,
+      "height": 128,
+      "pixelCount": 19840,
+      "noDataPixels": 11,
+      "noDataRatio": 0.000554
+    },
+    {
+      "gb": "150700",
+      "label": "呼伦贝尔市",
+      "case": "very-large-prefecture",
+      "quarter": "2025-Q2",
+      "requestSha256": "508719fefd4f6e17a90a32146ff14c3031342ea430c0780d21411c2140c9edb6",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "6c2aa687fdf8e99dd6d08baf8f72028deb9af45c40aa58aa6e800d25089231a3",
+      "responseBytes": 2266,
+      "actualProcessingUnits": 0.8662567396836494,
+      "width": 858,
+      "height": 794,
+      "pixelCount": 681252,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "150700",
+      "label": "呼伦贝尔市",
+      "case": "very-large-prefecture",
+      "quarter": "2025-Q3",
+      "requestSha256": "b80d9f29e057235ebe3b7da7b884e5bc598847814e08cb47158d34d92de3950c",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "6c2aa687fdf8e99dd6d08baf8f72028deb9af45c40aa58aa6e800d25089231a3",
+      "responseBytes": 2266,
+      "actualProcessingUnits": 0.8662567396836494,
+      "width": 858,
+      "height": 794,
+      "pixelCount": 681252,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "150700",
+      "label": "呼伦贝尔市",
+      "case": "very-large-prefecture",
+      "quarter": "2025-Q4",
+      "requestSha256": "28391fa0e29a3e5cd7cf0e9300f76f4171fb89121c73e20f10c25a51815e1b80",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "6c2aa687fdf8e99dd6d08baf8f72028deb9af45c40aa58aa6e800d25089231a3",
+      "responseBytes": 2266,
+      "actualProcessingUnits": 0.8662567396836494,
+      "width": 858,
+      "height": 794,
+      "pixelCount": 681252,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "460300",
+      "label": "三沙市",
+      "case": "island-heavy",
+      "quarter": "2025-Q2",
+      "requestSha256": "8e95d8e5588e4a4204fc68a418fc1c28bbb594ca7bae599ae207ffcbbed437b9",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "cebf13ec5ae5423b522bded0af6acf1ff48777a50f5d09f409196436a911fbd5",
+      "responseBytes": 17391,
+      "actualProcessingUnits": 1.1492767676495532,
+      "width": 691,
+      "height": 1308,
+      "pixelCount": 903828,
+      "noDataPixels": 199770,
+      "noDataRatio": 0.221027
+    },
+    {
+      "gb": "460300",
+      "label": "三沙市",
+      "case": "island-heavy",
+      "quarter": "2025-Q3",
+      "requestSha256": "a960aea124c59989bffdff9758d61c6f90990c1091721e508b821501698c064b",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "f35f95df6fd07861bb6c536b9e7e1b7918ffe9af1629ee1599ed0314bacc295d",
+      "responseBytes": 18097,
+      "actualProcessingUnits": 1.1492767676495532,
+      "width": 691,
+      "height": 1308,
+      "pixelCount": 903828,
+      "noDataPixels": 193756,
+      "noDataRatio": 0.214373
+    },
+    {
+      "gb": "460300",
+      "label": "三沙市",
+      "case": "island-heavy",
+      "quarter": "2025-Q4",
+      "requestSha256": "79648fa947874281edfd8ba512c7887208c6437caf4715a1ca8625a3d1272e38",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "8d436ce4ac44ab8688fea7d03c1e310bf8ed6ef5b384c862b2266c7186d5fe05",
+      "responseBytes": 6981,
+      "actualProcessingUnits": 1.1492767676495532,
+      "width": 691,
+      "height": 1308,
+      "pixelCount": 903828,
+      "noDataPixels": 170209,
+      "noDataRatio": 0.18832
+    },
+    {
+      "gb": "500000",
+      "label": "重庆市",
+      "case": "province-equivalent",
+      "quarter": "2025-Q2",
+      "requestSha256": "332ff451fb2f5331259b42e009ca45c4d03769eb4cbd14b0b059692245ec4713",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "609ed371076a865edf6a34ffcb7ff2a70e4638e74e1a091a6fc8cf9a4c957a94",
+      "responseBytes": 941,
+      "actualProcessingUnits": 0.19330216030186875,
+      "width": 399,
+      "height": 381,
+      "pixelCount": 152019,
+      "noDataPixels": 0,
+      "noDataRatio": 0
+    },
+    {
+      "gb": "500000",
+      "label": "重庆市",
+      "case": "province-equivalent",
+      "quarter": "2025-Q3",
+      "requestSha256": "5b10e9136f24bc34590e370693c56e523ca274aeb9b29adb6c45de7ecb4fe420",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "e7f03a08a48ee1a6c47ba1990e9d7b9cc353c180e9e4d1e510c6fef43f4ccbb3",
+      "responseBytes": 958,
+      "actualProcessingUnits": 0.19330216030186875,
+      "width": 399,
+      "height": 381,
+      "pixelCount": 152019,
+      "noDataPixels": 3,
+      "noDataRatio": 0.00002
+    },
+    {
+      "gb": "500000",
+      "label": "重庆市",
+      "case": "province-equivalent",
+      "quarter": "2025-Q4",
+      "requestSha256": "19f3513b02ba012ec49206935f85b301fdc046f8b74417dbde4e1c8d735ab52b",
+      "evalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+      "responseSha256": "b2a9b5f65159806012f8d9b2e93e846fd4023f1a74fe60a8b6921a7535b37699",
+      "responseBytes": 1689,
+      "actualProcessingUnits": 0.19330216030186875,
+      "width": 399,
+      "height": 381,
+      "pixelCount": 152019,
+      "noDataPixels": 778,
+      "noDataRatio": 0.005118
+    }
+  ]
+}

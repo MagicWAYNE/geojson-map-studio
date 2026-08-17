@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "stacCollection": "sentinel-2-global-mosaics",
+    "sentinelHubCollection": "byoc-5460de54-082e-473a-b6ea-d5cbe3c17cca",
+    "tokenEndpoint": "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    "processEndpoint": "https://sh.dataspace.copernicus.eu/process/v1",
+    "collectionEndpoint": "https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/collections/byoc-5460de54-082e-473a-b6ea-d5cbe3c17cca",
+    "stacCollectionEndpoint": "https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-global-mosaics",
+    "stacSearchEndpoint": "https://stac.dataspace.copernicus.eu/v1/search",
+    "credentialEnvironment": {
+      "clientId": "S2_CLIENT_ID",
+      "clientSecret": "S2_CLIENT_SECRET"
+    }
+  },
+  "geometry": {
+    "catalogBase": "public/region-catalog/tianditu-2025-09",
+    "projection": "EPSG:3857",
+    "paddingPerSide": 0.08,
+    "maxDimension": 2000
+  },
+  "sourceDecision": {
+    "candidateQuarters": ["2025-Q2", "2025-Q3", "2025-Q4"],
+    "datasetVersion": "sentinel2-quarterly-2025q2-v1",
+    "sourceYear": 2025,
+    "primaryQuarter": "2025-Q2",
+    "fallbackQuarters": ["2025-Q4", "2025-Q3"],
+    "maxNoDataRatio": 0.02,
+    "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154"
+  },
+  "processing": {
+    "dryRun": true,
+    "concurrency": 1,
+    "maximumConcurrency": 2,
+    "maximumRequests": 10000,
+    "maximumProcessingUnits": 9000,
+    "downsampling": "BILINEAR",
+    "outputFormat": "image/jpeg"
+  },
+  "qualityProbe": {
+    "minimumLongDimension": 128,
+    "maximumMetersPerPixel": 1590,
+    "maximumTileDimension": 1600,
+    "deriveProvinceFromPrefectureQuality": true,
+    "deriveCountryFromProvinceQuality": true,
+    "maximumRequests": 15,
+    "maximumProcessingUnits": 20
+  },
+  "preview": {
+    "maximumRequests": 15,
+    "maximumProcessingUnits": 30
+  },
+  "pilotFixture": ".scratch/sentinel2-local-imagery-v1/fixtures/pilot-targets.json",
+  "runtimePackage": {
+    "baseDirectory": "public/imagery-library",
+    "datasetVersion": "sentinel2-quarterly-2025q2-v1",
+    "attributionTemplate": "Contains modified Copernicus Sentinel data <YEAR>"
+  }
+}

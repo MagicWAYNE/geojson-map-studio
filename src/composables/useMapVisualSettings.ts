@@ -178,7 +178,7 @@ export const MAP_LAYOUT_DEFAULT: Readonly<MapLayout> = {
 }
 
 export const MAP_CAMERA_DEFAULT = {
-  pos: [-89.4, 117, 56.4],
+  pos: [-6.5, 127.6, 97.4],
   target: [2.7, -2.9, 7]
 } as const
 

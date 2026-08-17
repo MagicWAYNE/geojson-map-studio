@@ -100,6 +100,16 @@ afterEach(() => {
 })
 
 describe('MapLoaderView', () => {
+  it('places the imagery option immediately after the region catalog picker', async () => {
+    const { app, root } = await mountView()
+    const picker = root.querySelector('.region-catalog-picker')!
+    const imagery = root.querySelector('.local-imagery-control')!
+
+    expect(picker.nextElementSibling).toBe(imagery)
+    expect(imagery.querySelector('[data-action="toggle-local-imagery"]')).not.toBeNull()
+    app.unmount()
+  })
+
   it('作为首页右侧创作面板呈现且不创建第二层页面背景', async () => {
     const { app, root } = await mountView()
     expect(root.firstElementChild?.tagName).toBe('ASIDE')

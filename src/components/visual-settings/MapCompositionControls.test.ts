@@ -20,6 +20,14 @@ afterEach(() => {
 })
 
 describe('MapCompositionControls', () => {
+  it('does not own the region-library imagery option', () => {
+    const root = document.createElement('div')
+    const app = createApp(MapCompositionControls)
+    app.mount(root)
+    expect(root.querySelector('[data-action="toggle-local-imagery"]')).toBeNull()
+    app.unmount()
+  })
+
   it('synchronizes precise and range inputs, warns without clamping, and resets to tool defaults', async () => {
     const root = document.createElement('div')
     const app = createApp(MapCompositionControls)
@@ -76,7 +84,7 @@ describe('MapCompositionControls', () => {
     ))
     buttons.find((button) => button.textContent?.includes('复制相机参数'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '{"pos":[-89.4,117,56.4],"target":[2.7,-2.9,7]}'
+      '{"pos":[-6.5,127.6,97.4],"target":[2.7,-2.9,7]}'
     ))
     app.unmount()
   })

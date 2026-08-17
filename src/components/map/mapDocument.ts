@@ -81,12 +81,21 @@ export interface MapDocument {
   version: 1
   source:
     | { kind: 'builtin'; displayName: string }
-    | { kind: 'geojson'; displayName: string; identity: string }
+    | { kind: 'geojson'; displayName: string; identity: string; imageryTargetId?: string }
   geometry: ProjectionResult
   metrics: ReadonlyMap<string, MapRegionMetrics>
   metricLabels: MapMetricLabels | null
   appearance:
     | { kind: 'terrain-texture'; textureUrl: string }
+    | {
+        kind: 'local-imagery'
+        textureUrl: string
+        projectedBounds: [number, number, number, number]
+        datasetId: string
+        sourceQuarter: string
+        attribution: string
+        legalNoticeUrl: string
+      }
     | { kind: 'tech-blue' }
   drilldown: boolean
 }
@@ -97,6 +106,7 @@ export interface PersistedMapPackage {
   geometryFileName: string
   regionKeyProperty: string
   displayNameProperty: string
+  imageryTargetId?: string
 }
 
 export interface MapMetricsSummary {
@@ -145,6 +155,7 @@ export interface PrepareGeoJsonMapPackageInput {
   nameProperty?: string
   regionKeyProperty?: string
   displayNameProperty?: string
+  imageryTargetId?: string
 }
 
 type JsonRecord = Record<string, unknown>
@@ -646,7 +657,8 @@ export function prepareGeoJsonMapPackage(input: PrepareGeoJsonMapPackageInput): 
     source: {
       kind: 'geojson',
       displayName: input.geometryFileName,
-      identity: geometryIdentity(input.geometryText, regionKeyProperty, displayNameProperty)
+      identity: geometryIdentity(input.geometryText, regionKeyProperty, displayNameProperty),
+      ...(input.imageryTargetId ? { imageryTargetId: input.imageryTargetId } : {})
     },
     geometry: projectRegions(regions, MAP_PLANE_MAX),
     metrics: new Map(),
@@ -662,7 +674,8 @@ export function prepareGeoJsonMapPackage(input: PrepareGeoJsonMapPackageInput): 
       geometryText: input.geometryText,
       geometryFileName: input.geometryFileName,
       regionKeyProperty,
-      displayNameProperty
+      displayNameProperty,
+      ...(input.imageryTargetId ? { imageryTargetId: input.imageryTargetId } : {})
     },
     visualization,
     summary: {

@@ -161,6 +161,10 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerMocks.push }) }))
 vi.mock('@/composables/useMapVisualSettings', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   DEFAULT_REGION_BAR_RUNTIME_STATUS: regionBarRuntimeStatusDefault,
+  MAP_CAMERA_DEFAULT: {
+    pos: [-6.5, 127.6, 97.4],
+    target: [2.7, -2.9, 7]
+  },
   useMapVisualSettings: () => {
     const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
     mapDebugMocks.effect = effect
@@ -358,7 +362,16 @@ async function mountInitializedMap(
   const texture = new THREE.Texture(document.createElement('img'))
   texture.image.width = 100
   texture.image.height = 100
-  vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockResolvedValue(texture)
+  const initialTextureUrl = mapDocument.appearance.kind === 'tech-blue'
+    ? null
+    : mapDocument.appearance.textureUrl
+  vi.mocked(THREE.TextureLoader.prototype.loadAsync).mockImplementation(async (url) => {
+    if (url === initialTextureUrl) return texture
+    const auxiliary = new THREE.Texture(document.createElement('img'))
+    auxiliary.image.width = 100
+    auxiliary.image.height = 100
+    return auxiliary
+  })
 
   const { default: ChongqingMap3D } = await import('./ChongqingMap3D.vue')
   const root = document.createElement('div')
@@ -380,6 +393,7 @@ async function mountInitializedMap(
     app,
     root,
     renderer,
+    texture,
     updateDocument: async (nextDocument: MapDocument) => {
       currentDocument.value = nextDocument
       await nextTick()
@@ -1019,7 +1033,7 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.runFrame()
     const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
 
-    expect(camera.position.toArray()).toEqual([-89.4, 117.0, 56.4])
+    expect(camera.position.toArray()).toEqual([-6.5, 127.6, 97.4])
     expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(2.7, -2.9, 7.0)
 
     mounted.app.unmount()
@@ -1424,6 +1438,44 @@ describe('ChongqingMap3D effect wiring', () => {
     expect(topMaterial[0].color.getHex()).toBe(0x173f78)
     expect(topMaterial[1].color.getHex()).toBe(0x05173a)
     mounted.app.unmount()
+  })
+
+  it('fits a local EPSG:3857 texture and releases it when the opt-in appearance is disabled', async () => {
+    const localDocument = createTestMapDocument(1, {
+      source: {
+        kind: 'geojson',
+        displayName: '河北省全区县',
+        identity: 'hebei-counties',
+        imageryTargetId: 'province:130000'
+      },
+      appearance: {
+        kind: 'local-imagery',
+        textureUrl: '/imagery-library/sentinel2-quarterly-2025q2-v1/images/provinces/130000.jpg',
+        projectedBounds: [-6_378_137, -6_378_137, 6_378_137, 6_378_137],
+        datasetId: 'sentinel2-quarterly-2025q2-v1',
+        sourceQuarter: '2025-Q2',
+        attribution: 'Contains modified Copernicus Sentinel data 2025',
+        legalNoticeUrl: 'https://sentinels.copernicus.eu/legal-notice'
+      },
+      drilldown: false
+    })
+    const mounted = await mountInitializedMap(1, undefined, localDocument)
+    const disposeTexture = vi.spyOn(mounted.texture, 'dispose')
+
+    expect(THREE.TextureLoader.prototype.loadAsync).toHaveBeenCalledWith(localDocument.appearance.kind === 'local-imagery'
+      ? localDocument.appearance.textureUrl
+      : '')
+    expect(mounted.texture.repeat.x).toBeCloseTo(0.5)
+    expect(mounted.texture.repeat.y).toBeCloseTo(-0.5)
+    expect(mounted.texture.offset.x).toBeCloseTo(0.5)
+    expect(mounted.texture.offset.y).toBeCloseTo(0.5)
+    expect(mounted.root.querySelectorAll('canvas')).toHaveLength(1)
+
+    await mounted.updateDocument({ ...localDocument, appearance: { kind: 'tech-blue' } })
+    await vi.waitFor(() => expect(disposeTexture).toHaveBeenCalledTimes(1))
+    expect(mounted.root.querySelectorAll('canvas')).toHaveLength(1)
+    mounted.app.unmount()
+    expect(disposeTexture).toHaveBeenCalledTimes(1)
   })
 
   it('keeps effects but omits bars and overlay when a custom map has no business data', async () => {
