@@ -9,3 +9,9 @@ orignal-assets/
 chongqing-district-geojson-agent-package/
 chongqing-district-tianditu-layers-agent-package/
 chongqing-selected-districts.svg
+
+# 本地 Sentinel-2 运行时图库（由 imagery:package 可重复生成，不随源码入库）
+public/imagery-library/
+
+# Sentinel-2 生成检查点与中间影像（审计 Harness 保留，工作产物不入库）
+.scratch/sentinel2-local-imagery-v1/work/

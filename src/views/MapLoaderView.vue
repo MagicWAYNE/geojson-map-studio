@@ -23,6 +23,8 @@ import { useMapVisualSettings, type VisualWorkspaceMode } from '@/composables/us
 import CollapsibleAlert from '@/components/common/CollapsibleAlert.vue'
 import VisualSettingsPanel from '@/components/visual-settings/VisualSettingsPanel.vue'
 import RegionCatalogPicker from '@/components/map/RegionCatalogPicker.vue'
+import LocalImageryControl from '@/components/map/LocalImageryControl.vue'
+import { localImageryTargetId } from '@/components/map/localImageryLibrary'
 import {
   resolveRegionCatalogSelection,
   type RegionCatalog,
@@ -137,6 +139,7 @@ interface GeometryCandidate {
   fixedProperties: boolean
   inspection: GeoJsonInspection
   prepared: PreparedMapPackage
+  imageryTargetId?: string
 }
 
 interface GeometryActivationRequest {
@@ -194,6 +197,7 @@ function prepareCandidate(input: {
   displayNameProperty?: string
   fixedProperties?: boolean
   inspection: GeoJsonInspection
+  imageryTargetId?: string
 }): GeometryCandidate {
   const displayNameProperty = input.displayNameProperty ?? input.regionKeyProperty
   return {
@@ -204,7 +208,8 @@ function prepareCandidate(input: {
       geometryText: input.text,
       geometryFileName: input.fileName,
       regionKeyProperty: input.regionKeyProperty,
-      displayNameProperty
+      displayNameProperty,
+      imageryTargetId: input.imageryTargetId
     })
   }
 }
@@ -292,6 +297,7 @@ async function handleCatalogLoad(selection: RegionCatalogSelection): Promise<voi
       regionKeyProperty: geometry.regionKeyProperty,
       displayNameProperty: geometry.displayNameProperty,
       fixedProperties: true,
+      imageryTargetId: localImageryTargetId(selection),
       inspection: nextInspection
     }), request)
   } catch (cause) {
@@ -551,6 +557,8 @@ onBeforeUnmount(() => {
           @load="handleCatalogLoad"
           @retry="loadCatalog"
         />
+
+        <LocalImageryControl class="map-loader__catalog-imagery" />
 
         <label class="map-loader__field" for="metrics-file">
           <span>业务数据 JSON <em>可选</em></span>
@@ -910,6 +918,7 @@ onBeforeUnmount(() => {
 .map-loader__eyebrow { color: #2edcff !important; font-family: monospace; letter-spacing: 0.18em; }
 
 .map-loader__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
+.map-loader__catalog-imagery { grid-column: 1 / -1; }
 .map-loader__field { display: grid; gap: 9px; color: #c9dff8; font-size: 16px; }
 .map-loader__field strong { color: #4ee7ff; font-weight: 500; }
 .map-loader__field em { color: #89a8ca; font-style: normal; }

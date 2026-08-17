@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "sentinel2-quarterly-2025q2-v1",
+  "sourceYear": 2025,
+  "primaryQuarter": "2025-Q2",
+  "fallbackQuarters": ["2025-Q4", "2025-Q3"],
+  "fallbackMode": "ordered-quarter-replacement",
+  "maxNoDataRatio": 0.02,
+  "colorTransform": "rgb-dn10000-gain-2.5-gamma-0.9-clamp",
+  "colorTransformSha256": "8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154",
+  "qualityEvalscriptSha256": "3129658201b3da44cabd6b260c63ce72f878e5f84e00ab09c1b1ee2ee7b51181",
+  "attribution": "Contains modified Copernicus Sentinel data 2025",
+  "evidence": {
+    "geometryPilotManifestSha256": "2dec03da53429a1f35ee48906b3e28f2ff051fefce2827b1e8a677a3ec94172a",
+    "releaseJobManifestSha256": "f343185a8a41fb984e6a8a76dd86d688bdc289fff4086738d7d7af7f19bbc98e",
+    "qualityProbePath": ".scratch/sentinel2-local-imagery-v1/artifacts/quality-probe.json",
+    "rgbPreviewPath": ".scratch/sentinel2-local-imagery-v1/artifacts/rgb-previews.json",
+    "acceptedQualityActualProcessingUnits": 6.760784350656991,
+    "acceptedPreviewActualProcessingUnits": 20.282352447509766
+  },
+  "decisionRationale": [
+    "Q2 had zero measured no-data for all four representative land targets.",
+    "Q2 avoided the widespread Q4 winter/snow seams visible in Chengdu and Hulunbuir previews.",
+    "Q4 had the lowest no-data ratio for the island-heavy Sansha target and is therefore the first fallback.",
+    "Q3 remains the second fixed fallback; no target may choose an independent preferred season."
+  ]
+}

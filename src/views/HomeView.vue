@@ -7,12 +7,14 @@ import type { ActiveMapLoadResult } from '@/components/map/activeMapSource'
 import type { MapDocument } from '@/components/map/mapDocument'
 import { DEFAULT_BACKGROUND_LAYERS } from '@/components/map/defaultBackgroundLayers'
 import { useMapVisualSettings } from '@/composables/useMapVisualSettings'
+import { useLocalImagery } from '@/composables/useLocalImagery'
 
 const mapDocument = shallowRef<MapDocument | null>(null)
 const initialLoad = shallowRef<ActiveMapLoadResult | null>(null)
 const authoringFocus = ref('')
 const loadError = ref('')
 const visualSettings = useMapVisualSettings()
+const localImagery = useLocalImagery()
 const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
 const { effectiveMapLayout } = visualSettings
 const mapStyle = computed(() => ({
@@ -21,14 +23,23 @@ const mapStyle = computed(() => ({
   width: `${effectiveMapLayout.value.width}px`,
   height: `${effectiveMapLayout.value.height}px`
 }))
+const renderedMapDocument = computed<MapDocument | null>(() => {
+  if (!mapDocument.value || !localImagery.appearance.value) return mapDocument.value
+  return { ...mapDocument.value, appearance: localImagery.appearance.value }
+})
 let mounted = true
+
+function activateMapDocument(document: MapDocument): void {
+  mapDocument.value = document
+  localImagery.setDocument(document)
+}
 
 onMounted(async () => {
   try {
     const result = await activeMapSource.load()
     if (mounted) {
       initialLoad.value = result
-      mapDocument.value = result.document
+      activateMapDocument(result.document)
     }
   } catch (cause) {
     if (mounted) loadError.value = cause instanceof Error ? cause.message : String(cause)
@@ -37,6 +48,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   mounted = false
+  localImagery.reset()
   visualSettings.resetVisualSession()
 })
 </script>
@@ -52,17 +64,17 @@ onBeforeUnmount(() => {
       />
     </template>
     <ChongqingMap3D
-      v-if="mapDocument"
+      v-if="renderedMapDocument"
       class="pos-map"
       :style="mapStyle"
-      :document="mapDocument"
+      :document="renderedMapDocument"
       :focus="authoringFocus"
     />
     <div v-else-if="loadError" class="map-load-error" role="alert">{{ loadError }}</div>
     <MapLoaderView
       v-if="initialLoad"
       :initial-load="initialLoad"
-      @map-activated="mapDocument = $event"
+      @map-activated="activateMapDocument"
       @authoring-focus="authoringFocus = $event ?? ''"
     />
   </div>

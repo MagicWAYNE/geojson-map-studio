@@ -8,6 +8,7 @@ import hudRotatingUrl from '@/assets/images/map-hud/hud-disc-v3809z30i-rotating.
 import {
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS,
   DEFAULT_REGION_BAR_RUNTIME_STATUS,
+  MAP_CAMERA_DEFAULT,
   useMapVisualSettings
 } from '@/composables/useMapVisualSettings'
 import { useMapDistrictCarousel } from '@/composables/useMapDistrictCarousel'
@@ -18,6 +19,7 @@ import {
   classifyBoundarySegments
 } from './mapGeometry'
 import type { MapDocument } from './mapDocument'
+import { configureProjectedTexture } from './mapProjectedTexture'
 import {
   applyDistrictBarConfig,
   createDistrictBarLayer,
@@ -74,9 +76,6 @@ const props = withDefaults(defineProps<{
 })
 
 const DEPTH = 4 // 挤出厚度
-const INITIAL_CAMERA_POSITION = [-89.4, 117.0, 56.4] as const
-const INITIAL_CAMERA_TARGET = [2.7, -2.9, 7.0] as const
-
 const container = ref<HTMLElement | null>(null)
 const error = ref('')
 const fps = ref(0)
@@ -460,12 +459,16 @@ function buildRegions(
   const [cx, cy] = projected.center
   const scale = projected.scale
 
-  if (document.appearance.kind === 'terrain-texture') {
-    if (!terrainTex) throw new Error('内置地图纹理未加载')
+  if (document.appearance.kind !== 'tech-blue') {
+    if (!terrainTex) throw new Error('地图纹理未加载')
+    if (document.appearance.kind === 'local-imagery') {
+      configureProjectedTexture(terrainTex, projected, document.appearance.projectedBounds)
+    } else {
     // 顶面 UV 是 shape 平面坐标（ExtrudeGeometry 默认），用纹理变换把它映射回地形图像素。
-    const texImg = terrainTex.image as { width: number; height: number }
-    terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
-    terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
+      const texImg = terrainTex.image as { width: number; height: number }
+      terrainTex.repeat.set(1 / (scale * texImg.width), 1 / (scale * texImg.height))
+      terrainTex.offset.set(cx / texImg.width, 1 - cy / texImg.height)
+    }
   }
 
   const topColor = document.appearance.kind === 'tech-blue'
@@ -599,7 +602,7 @@ function setupScene(mapGroup: THREE.Group) {
     scene.add(rim)
 
     camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 1, 1000)
-    camera.position.set(...INITIAL_CAMERA_POSITION)
+    camera.position.set(...MAP_CAMERA_DEFAULT.pos)
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(el.clientWidth, el.clientHeight, false)
@@ -648,7 +651,7 @@ function setupScene(mapGroup: THREE.Group) {
     el.prepend(renderer.domElement)
 
     controls = new OrbitControls(camera, renderer.domElement)
-    controls.target.set(...INITIAL_CAMERA_TARGET)
+    controls.target.set(...MAP_CAMERA_DEFAULT.target)
     controls.enableDamping = true
     controls.dampingFactor = 0.12
     // 视角实时上报到调试抽屉，用户调好后复制参数即可回填为默认视角
@@ -898,7 +901,7 @@ async function init(generation: number) {
     }
   }
   pendingInitCleanup = cleanupPendingTexture
-  const terrainTexturePromise = props.document.appearance.kind === 'terrain-texture'
+  const terrainTexturePromise = props.document.appearance.kind !== 'tech-blue'
     ? new THREE.TextureLoader()
         .loadAsync(props.document.appearance.textureUrl)
         .then((texture) => {
@@ -969,9 +972,15 @@ onMounted(() => {
 })
 
 function documentGeometryKey(document: MapDocument): string {
-  return document.source.kind === 'geojson'
+  const geometryKey = document.source.kind === 'geojson'
     ? document.source.identity
     : `builtin:${document.source.displayName}`
+  const appearanceKey = document.appearance.kind === 'tech-blue'
+    ? 'tech-blue'
+    : document.appearance.kind === 'local-imagery'
+      ? `${document.appearance.datasetId}:${document.appearance.textureUrl}:${document.appearance.projectedBounds.join(',')}`
+      : `terrain:${document.appearance.textureUrl}`
+  return `${geometryKey}|${appearanceKey}`
 }
 
 let currentGeometryKey = documentGeometryKey(props.document)

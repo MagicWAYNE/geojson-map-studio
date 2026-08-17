@@ -76,6 +76,10 @@ function persistedPackage(value: unknown): StoredMapPackage | null {
       typeof value.regionKeyProperty !== 'string' || !value.regionKeyProperty ||
       typeof value.displayNameProperty !== 'string' || !value.displayNameProperty
     )) ||
+    (value.imageryTargetId !== undefined && (
+      typeof value.imageryTargetId !== 'string' ||
+      !/^(?:country|province|prefecture):\d{6}$/.test(value.imageryTargetId)
+    )) ||
     (value.version === 1 && value.metricsText !== undefined && typeof value.metricsText !== 'string') ||
     ((value.version === 2 || value.version === 3) && value.metricsText !== undefined)
   ) return null
@@ -91,7 +95,8 @@ function persistedPackage(value: unknown): StoredMapPackage | null {
       geometryText: value.geometryText,
       geometryFileName: value.geometryFileName,
       regionKeyProperty,
-      displayNameProperty
+      displayNameProperty,
+      ...(typeof value.imageryTargetId === 'string' ? { imageryTargetId: value.imageryTargetId } : {})
     },
     legacy: value.version !== 3
   }
@@ -159,7 +164,8 @@ export function createActiveMapSource(
           geometryText: storedPackage.persisted.geometryText,
           geometryFileName: storedPackage.persisted.geometryFileName,
           regionKeyProperty: storedPackage.persisted.regionKeyProperty,
-          displayNameProperty: storedPackage.persisted.displayNameProperty
+          displayNameProperty: storedPackage.persisted.displayNameProperty,
+          imageryTargetId: storedPackage.persisted.imageryTargetId
         })
         const visualization = dependencies.session.read(prepared.document.source) ?? prepared.visualization
         const warnings: MapSourceWarning[] = []
