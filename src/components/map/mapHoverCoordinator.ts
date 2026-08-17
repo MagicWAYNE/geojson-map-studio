@@ -3,8 +3,8 @@ import { createMapDistrictHoverCarousel } from './mapDistrictHoverCarousel'
 export interface MapHoverCoordinator {
   current(): string | null
   tick(now: number): string | null
-  pointerEnter(): string | null
-  pointerMove(name: string | null): string | null
+  pointerEnter(now: number): string | null
+  pointerMove(name: string | null, now: number): string | null
   pointerLeave(now: number): string | null
   setAuthoringFocus(name: string | null, now: number): string | null
   setCarouselEnabled(enabled: boolean, now: number): string | null
@@ -18,14 +18,11 @@ export function createMapHoverCoordinator(
 ): MapHoverCoordinator {
   const keys = new Set(regionKeys)
   const carousel = createMapDistrictHoverCarousel(regionKeys, carouselEnabled, createdAt)
-  let pointerInside = false
   let pointerKey: string | null = null
   let authoringKey: string | null = null
   let carouselKey = carousel.current()
 
-  const effective = () => pointerInside
-    ? pointerKey
-    : authoringKey ?? carouselKey
+  const effective = () => pointerKey ?? authoringKey ?? carouselKey
 
   return {
     current: effective,
@@ -33,20 +30,17 @@ export function createMapHoverCoordinator(
       carouselKey = carousel.tick(now)
       return effective()
     },
-    pointerEnter() {
-      pointerInside = true
+    pointerEnter(now) {
       pointerKey = null
-      carousel.pointerEnter()
+      carouselKey = carousel.pointerEnter(now)
       return effective()
     },
-    pointerMove(name) {
-      pointerInside = true
+    pointerMove(name, now) {
       pointerKey = name !== null && keys.has(name) ? name : null
-      carousel.pointerMove(pointerKey)
+      carouselKey = carousel.pointerMove(pointerKey, now)
       return effective()
     },
     pointerLeave(now) {
-      pointerInside = false
       pointerKey = null
       carouselKey = carousel.pointerLeave(now)
       return effective()

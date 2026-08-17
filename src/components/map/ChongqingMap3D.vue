@@ -139,6 +139,7 @@ let glowStatusPublicationPending = false
 let districtBarFailureWarned = false
 let districtBarOverlayFailureWarned = false
 let pointerInsideMap = false
+let lastPointerPosition: { clientX: number; clientY: number } | null = null
 
 function clearDistrictBarOverlay(): void {
   districtBarOverlayLayout.value = EMPTY_LAYOUT
@@ -731,7 +732,7 @@ function updateRegionVisuals(deltaMs: number, force = false): boolean {
   return glowStatusPublicationPending
 }
 
-function pick(e: PointerEvent): RegionVisual | null {
+function pick(e: Pick<PointerEvent, 'clientX' | 'clientY'>): RegionVisual | null {
   const el = container.value
   if (!el || !camera) return null
   const rect = el.getBoundingClientRect()
@@ -744,17 +745,21 @@ function pick(e: PointerEvent): RegionVisual | null {
 
 function onPointerMove(e: PointerEvent) {
   pointerInsideMap = true
+  lastPointerPosition = { clientX: e.clientX, clientY: e.clientY }
   const visual = pick(e)
   const name = visual?.name
   const hover = hoverCoordinator
-  setEffectiveHover(hover ? hover.pointerMove(name ?? null) : name ?? null)
+  setEffectiveHover(hover ? hover.pointerMove(name ?? null, performance.now()) : name ?? null)
   if (container.value) container.value.style.cursor = visual ? 'pointer' : 'default'
 }
 
-function onPointerEnter() {
+function onPointerEnter(e: PointerEvent) {
   pointerInsideMap = true
+  lastPointerPosition = { clientX: e.clientX, clientY: e.clientY }
+  const visual = pick(e)
   const hover = hoverCoordinator
-  if (hover) setEffectiveHover(hover.pointerEnter())
+  if (hover) setEffectiveHover(hover.pointerMove(visual?.name ?? null, performance.now()))
+  if (container.value) container.value.style.cursor = visual ? 'pointer' : 'default'
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -771,6 +776,7 @@ function onClick(e: PointerEvent) {
 
 function onPointerLeave() {
   pointerInsideMap = false
+  lastPointerPosition = null
   const hover = hoverCoordinator
   setEffectiveHover(hover ? hover.pointerLeave(performance.now()) : null)
   if (container.value) container.value.style.cursor = 'default'
@@ -950,7 +956,10 @@ async function init(generation: number) {
       performance.now()
     )
     hoverCoordinator.setAuthoringFocus(props.focus || null, performance.now())
-    if (pointerInsideMap) hoverCoordinator.pointerEnter()
+    if (pointerInsideMap) {
+      const visual = lastPointerPosition ? pick(lastPointerPosition) : null
+      hoverCoordinator.pointerMove(visual?.name ?? null, performance.now())
+    }
     setEffectiveHover(hoverCoordinator.current())
 
     const el = container.value
@@ -1058,6 +1067,7 @@ function cleanupScene(fallbackRoot?: THREE.Object3D): void {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   hoverCoordinator = null
   pointerInsideMap = false
+  lastPointerPosition = null
   clearDistrictBarOverlay()
   districtBarOverlayFailureWarned = false
   ro?.disconnect()
