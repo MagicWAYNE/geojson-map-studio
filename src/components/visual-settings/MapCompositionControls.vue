@@ -198,6 +198,9 @@ onMounted(() => {
           @input="updateRange(field.key, $event)"
         />
       </div>
+      <p class="composition-offset" data-composition-sidebar-offset>
+        侧栏宽度偏移：{{ session.sidebarWidthOffset.value }}px；当前实际地图宽度：{{ session.effectiveMapLayout.value.width }}px。
+      </p>
     </section>
 
     <ul v-if="session.compositionWarnings.value.length" class="composition-warning" role="status">
@@ -262,6 +265,7 @@ onMounted(() => {
 .field-heading, .group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #cfe6ff; font-size: 14px; }
 .number-input { width: 96px; padding: 5px 8px; color: #00deff; text-align: right; background: rgba(36, 131, 255, 0.12); border: 1px solid rgba(36, 131, 255, 0.5); border-radius: 4px; }
 .range-input { width: 100%; accent-color: #00deff; }
+.composition-offset { margin: 2px 0 0; color: #8fd9ff; font-size: 11px; line-height: 1.5; }
 .composition-warning { margin: 0; padding: 12px 14px 12px 32px; color: #ffd39c; font-size: 13px; line-height: 1.6; background: rgba(109, 67, 16, 0.26); border: 1px solid rgba(255, 186, 91, 0.42); border-radius: 6px; }
 pre { margin: 0; padding: 10px 12px; overflow: auto; color: #8fd9ff; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(0, 0, 0, 0.35); border: 1px dashed rgba(36, 131, 255, 0.4); border-radius: 4px; }
 button { padding: 7px 11px; color: #dff9ff; cursor: pointer; background: rgba(22, 111, 180, 0.58); border: 1px solid rgba(75, 203, 255, 0.58); border-radius: 4px; }

@@ -59,7 +59,7 @@ import {
 import { copyTextToClipboard } from '@/utils/copyText'
 
 export type VisualSettingsPageId = 'composition' | 'effects' | 'charts' | 'hud' | 'engineering'
-export type VisualWorkspaceMode = 'data' | 'visual'
+export type VisualWorkspaceMode = 'data' | 'visual' | 'guide'
 export type VisualCopyKey = 'composition-css' | 'camera' | 'effect' | 'bars' | 'overlay' | 'hud'
 export type VisualCopyStatus = 'idle' | 'success' | 'error'
 
@@ -173,9 +173,11 @@ export const VISUAL_SETTINGS_PAGES: readonly VisualSettingsPage[] = [
 export const MAP_LAYOUT_DEFAULT: Readonly<MapLayout> = {
   left: 0,
   top: 0,
-  width: 1280,
+  width: 1920,
   height: 1080
 }
+
+export const MAP_SIDEBAR_WIDTH_OFFSET = -600
 
 export const MAP_CAMERA_DEFAULT = {
   pos: [-19.3, 146.5, 97.9],
@@ -256,8 +258,17 @@ const regionOverlayJson = computed(() => JSON.stringify(
   null,
   2
 ))
+const sidebarWidthOffset = computed(() => sidebarCollapsed.value ? 0 : MAP_SIDEBAR_WIDTH_OFFSET)
 const effectiveMapLayout = computed<MapLayout>(() => {
-  if (!sidebarCollapsed.value) return { ...layout }
+  if (!sidebarCollapsed.value) {
+    return {
+      ...layout,
+      width: Math.max(
+        MAP_LAYOUT_FIELD_BOUNDS.width.safetyMin ?? 0,
+        layout.width + sidebarWidthOffset.value
+      )
+    }
+  }
   return {
     left: (1920 - layout.width) / 2,
     top: (1080 - layout.height) / 2,
@@ -294,15 +305,17 @@ const visualDirty = computed(() =>
 
 const compositionWarnings = computed<string[]>(() => {
   const warnings: string[] = []
-  const right = layout.left + layout.width
-  const bottom = layout.top + layout.height
-  if (layout.left < 0 || layout.top < 0 || right > 1920 || bottom > 1080) {
+  const effective = effectiveMapLayout.value
+  const right = effective.left + effective.width
+  const bottom = effective.top + effective.height
+  if (effective.left < 0 || effective.top < 0 || right > 1920 || bottom > 1080) {
     warnings.push('地图超出 1920×1080 设计视口')
   }
   const sidebar = { left: 1176, top: 24, right: 1896, bottom: 1056 }
-  const overlapsSidebar = layout.left < sidebar.right
+  const overlapsSidebar = !sidebarCollapsed.value
+    && effective.left < sidebar.right
     && right > sidebar.left
-    && layout.top < sidebar.bottom
+    && effective.top < sidebar.bottom
     && bottom > sidebar.top
   if (overlapsSidebar) warnings.push('地图与右侧设置栏发生重叠')
   return warnings
@@ -860,6 +873,7 @@ export function useMapVisualSettings() {
     workspaceMode,
     activeVisualPage,
     sidebarCollapsed,
+    sidebarWidthOffset,
     layout,
     effectiveMapLayout,
     backgroundLayerVisibility,

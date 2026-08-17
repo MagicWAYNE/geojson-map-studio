@@ -85,22 +85,25 @@ describe('HomeView same-page map authoring', () => {
     const map = root.querySelector<HTMLElement>('.map-stub')!
     expect(map.style.left).toBe('0px')
     expect(map.style.top).toBe('0px')
+    expect(map.style.width).toBe('1320px')
     session.layout.left = 81
     session.layout.width = 1000
     await nextTick()
     expect(map.style.left).toBe('81px')
-    expect(map.style.width).toBe('1000px')
+    expect(map.style.width).toBe('400px')
     session.setSidebarCollapsed(true)
     await nextTick()
     expect(map.style.left).toBe('460px')
     expect(map.style.top).toBe('0px')
+    expect(map.style.width).toBe('1000px')
     session.setSidebarCollapsed(false)
     await nextTick()
     expect(map.style.left).toBe('81px')
     expect(map.style.top).toBe('0px')
+    expect(map.style.width).toBe('400px')
     app.unmount()
     expect(session.layout.left).toBe(0)
-    expect(session.layout.width).toBe(1280)
+    expect(session.layout.width).toBe(1920)
   })
 
   it('replaces the uploaded background image for this session', async () => {

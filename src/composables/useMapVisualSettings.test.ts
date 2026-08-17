@@ -23,7 +23,7 @@ describe('visual-settings session', () => {
     } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
 
-    expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 0, top: 0, width: 1280, height: 1080 })
+    expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 0, top: 0, width: 1920, height: 1080 })
     expect(MAP_CAMERA_DEFAULT).toEqual({
       pos: [-19.3, 146.5, 97.9],
       target: [6.5, -2.5, 7.4]
@@ -92,7 +92,7 @@ describe('visual-settings session', () => {
     expect(session.effectDraft.base.outerGlowWidth).toBe(91)
   })
 
-  it('centers the current map size while the sidebar is collapsed and restores authored position', async () => {
+  it('applies the sidebar width offset while expanded and restores the authored width when collapsed', async () => {
     const { useMapVisualSettings } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
     session.resetVisualSession()
@@ -101,7 +101,16 @@ describe('visual-settings session', () => {
     session.layout.width = 1000
     session.layout.height = 800
 
+    expect(session.sidebarWidthOffset.value).toBe(-600)
+    expect(session.effectiveMapLayout.value).toEqual({
+      left: 81,
+      top: 93,
+      width: 400,
+      height: 800
+    })
+
     session.setSidebarCollapsed(true)
+    expect(session.sidebarWidthOffset.value).toBe(0)
     expect(session.effectiveMapLayout.value).toEqual({
       left: 460,
       top: 140,
@@ -112,7 +121,8 @@ describe('visual-settings session', () => {
 
     session.toggleSidebar()
     expect(session.sidebarCollapsed.value).toBe(false)
-    expect(session.effectiveMapLayout.value).toEqual({ left: 81, top: 93, width: 1000, height: 800 })
+    expect(session.sidebarWidthOffset.value).toBe(-600)
+    expect(session.effectiveMapLayout.value).toEqual({ left: 81, top: 93, width: 400, height: 800 })
   })
 
   it('owns a session-only background file and revokes replaced or reset files', async () => {
@@ -230,7 +240,7 @@ describe('visual-settings session', () => {
     const { MAP_LAYOUT_DEFAULT, useMapVisualSettings } = await import('./useMapVisualSettings')
     const session = useMapVisualSettings()
 
-    session.workspaceMode.value = 'visual'
+    session.workspaceMode.value = 'guide'
     session.layout.left = 400
     session.effect.base.outerGlowWidth = 99
     session.hud.anchor.x = 18

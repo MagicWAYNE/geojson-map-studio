@@ -34,7 +34,7 @@ describe('useMapVisualSettings layout defaults', () => {
       setItem
     })
     const { MAP_LAYOUT_DEFAULT, useMapVisualSettings } = await import('./useMapVisualSettings')
-    const expected = { left: 0, top: 0, width: 1280, height: 1080 }
+    const expected = { left: 0, top: 0, width: 1920, height: 1080 }
     const debug = useMapVisualSettings()
 
     expect(MAP_LAYOUT_DEFAULT).toEqual(expected)

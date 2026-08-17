@@ -144,7 +144,7 @@ describe('MapLoaderView', () => {
     app.unmount()
   })
 
-  it('在同一右侧栏切换数据与视觉功能时保留区域编辑草稿和焦点', async () => {
+  it('在同一右侧栏切换三个顶层功能时保留区域编辑草稿和焦点', async () => {
     const onAuthoringFocus = vi.fn()
     const { app, root } = await mountView({ onAuthoringFocus })
     chooseFile(
@@ -165,6 +165,12 @@ describe('MapLoaderView', () => {
     expect(root.querySelector('[data-workspace-page="visual"]')).not.toBeNull()
     expect(root.textContent).toContain('构图与视角')
     expect(root.querySelectorAll('canvas')).toHaveLength(0)
+
+    root.querySelector<HTMLButtonElement>('[data-workspace-mode="guide"]')!.click()
+    await nextTick()
+    expect(root.querySelector('[data-workspace-page="guide"]')).not.toBeNull()
+    expect(root.textContent).toContain('指引 & 关于')
+    expect(root.textContent).toContain('基于 Three.js 的数据地图项目')
 
     root.querySelector<HTMLButtonElement>('[data-workspace-mode="data"]')!.click()
     await nextTick()
