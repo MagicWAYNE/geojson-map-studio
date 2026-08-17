@@ -21,6 +21,10 @@ describe('GuideAboutPanel', () => {
     expect(root.textContent).toContain('鼠标中键拖动可调整缩放')
     expect(root.textContent).toContain('鼠标右键拖动可调整位置')
 
+    const steps = root.querySelector<HTMLOListElement>('.guide-about__steps')!
+    expect(steps.tagName).toBe('OL')
+    expect(steps.querySelectorAll(':scope > li')).toHaveLength(4)
+
     const dataV = root.querySelector<HTMLAnchorElement>(
       'a[href="https://datav.aliyun.com/portal/school/atlas/area_selector"]'
     )!
@@ -30,14 +34,14 @@ describe('GuideAboutPanel', () => {
     app.unmount()
   })
 
-  it('keeps the service message directly above three accessible contact icons', () => {
+  it('keeps three accessible contact icons without the removed service message', () => {
     const root = document.createElement('div')
     const app = createApp(GuideAboutPanel)
     app.mount(root)
 
     const footer = root.querySelector('footer')!
-    expect(footer.querySelector('p')?.textContent)
-      .toBe('如需定制化服务可以通过以下方式联系我。')
+    expect(root.textContent).not.toContain('如需定制化服务可以通过以下方式联系我。')
+    expect(footer.querySelector('p')).toBeNull()
     const links = [...footer.querySelectorAll<HTMLAnchorElement>('a')]
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       'https://github.com/MagicWAYNE/geojson-map-studio',
