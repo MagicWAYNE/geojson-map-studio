@@ -1,0 +1,10 @@
+.claude/
+.scratch/
+.env
+.env.*
+!.env.example
+dist/
+node_modules/
+output/
+orignal-assets/
+scripts/temporary-*

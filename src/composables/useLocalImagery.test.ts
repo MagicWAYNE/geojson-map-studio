@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { LocalImageryLibrary, LocalImageryResolution } from '@/components/map/localImageryLibrary'
 import type { MapDocument } from '@/components/map/mapDocument'
 import { createLocalImageryRuntime } from './useLocalImagery'
@@ -39,14 +39,14 @@ describe('local imagery runtime', () => {
     expect(runtime.state.value).toBe('idle')
     runtime.enabled.value = true
     await Promise.resolve()
-    runtime.setDocument(document('prefecture:130100'))
+    runtime.setDocument(document('province:310000'))
     await Promise.resolve()
     resolvers.get('province:130000')?.(resolution('province:130000'))
     await Promise.resolve()
     expect(runtime.appearance.value).toBeNull()
-    resolvers.get('prefecture:130100')?.(resolution('prefecture:130100'))
+    resolvers.get('province:310000')?.(resolution('province:310000'))
     await Promise.resolve()
-    expect(runtime.appearance.value?.textureUrl).toBe('/images/prefecture:130100.jpg')
+    expect(runtime.appearance.value?.textureUrl).toBe('/images/province:310000.jpg')
     expect(runtime.state.value).toBe('ready')
   })
 
@@ -58,5 +58,15 @@ describe('local imagery runtime', () => {
     runtime.setDocument(document())
     expect(runtime.enabled.value).toBe(false)
     expect(runtime.appearance.value).toBeNull()
+  })
+
+  it('keeps prefecture imagery explicitly unsupported without resolving the library', async () => {
+    const resolve = vi.fn(async (id: string) => resolution(id))
+    const runtime = createLocalImageryRuntime({ resolve })
+    runtime.setDocument(document('prefecture:130100'))
+    expect(runtime.available.value).toBe(false)
+    expect(runtime.state.value).toBe('unsupported')
+    expect(runtime.message.value).toContain('仅支持全国与省级')
+    expect(resolve).not.toHaveBeenCalled()
   })
 })

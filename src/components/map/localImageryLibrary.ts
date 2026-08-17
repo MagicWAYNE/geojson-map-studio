@@ -75,7 +75,16 @@ function bounds(value: unknown): [number, number, number, number] {
   return result
 }
 
-export function parseLocalImageryManifest(value: unknown, expectedTargetCount = 377): LocalImageryManifest {
+export const LOCAL_IMAGERY_RUNTIME_TARGET_COUNT = 35
+
+export function isLocalImageryTargetSupported(targetId: string | null): boolean {
+  return targetId !== null && /^(?:country|province):\d{6}$/.test(targetId)
+}
+
+export function parseLocalImageryManifest(
+  value: unknown,
+  expectedTargetCount = LOCAL_IMAGERY_RUNTIME_TARGET_COUNT
+): LocalImageryManifest {
   assert(isRecord(value) && value.schemaVersion === 1, '本地影像清单版本不受支持')
   assert(value.datasetId === LOCAL_IMAGERY_DATASET_ID, '本地影像数据集版本不匹配')
   assert(value.projection === 'EPSG:3857', '本地影像投影必须是 EPSG:3857')

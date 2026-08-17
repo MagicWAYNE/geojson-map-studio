@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createLocalImageryLibrary,
   digestSha256,
+  isLocalImageryTargetSupported,
   localImageryTargetId,
   parseLocalImageryManifest,
   sha256Hex
@@ -48,6 +49,13 @@ describe('local imagery library', () => {
     expect(localImageryTargetId({ kind: 'province-children', provinceGb: '156130000' })).toBe('province:130000')
     expect(localImageryTargetId({ kind: 'province-counties', provinceGb: '156130000' })).toBe('province:130000')
     expect(localImageryTargetId({ kind: 'prefecture-counties', provinceGb: '156130000', prefectureGb: '156130100' })).toBe('prefecture:130100')
+  })
+
+  it('limits the deployed imagery tier to country and province targets', () => {
+    expect(isLocalImageryTargetSupported('country:100000')).toBe(true)
+    expect(isLocalImageryTargetSupported('province:130000')).toBe(true)
+    expect(isLocalImageryTargetSupported('prefecture:130100')).toBe(false)
+    expect(isLocalImageryTargetSupported(null)).toBe(false)
   })
 
   it('resolves same-origin paths from the manifest and caches the manifest', async () => {

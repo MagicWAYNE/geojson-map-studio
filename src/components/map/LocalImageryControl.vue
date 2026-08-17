@@ -7,7 +7,8 @@ const defaultLegalNoticeUrl = 'https://sentinels.copernicus.eu/documents/247904/
 const attribution = computed(() => imagery.appearance.value?.attribution ?? 'Contains modified Copernicus Sentinel data 2025')
 const legalNoticeUrl = computed(() => imagery.appearance.value?.legalNoticeUrl ?? defaultLegalNoticeUrl)
 const statusText = computed(() => {
-  if (!imagery.available.value) return '请先从区域库加载全国、省级或地市级地图。'
+  if (imagery.targetId.value?.startsWith('prefecture:')) return '当前部署仅支持全国与省级 Sentinel-2 影像，地市级暂不提供。'
+  if (!imagery.available.value) return '请先从区域库加载全国或省级地图。'
   if (!imagery.enabled.value) return '关闭时沿用科技蓝地图效果。'
   if (imagery.state.value === 'loading') return '正在读取本地影像清单…'
   return imagery.message.value
@@ -33,7 +34,7 @@ const statusText = computed(() => {
           </svg>
         </button>
         <span id="local-imagery-source-tooltip" class="local-imagery-control__tooltip" role="tooltip">
-          数据来源：Copernicus Sentinel-2 Level-3 Quarterly Mosaics（2025）。主季度为 2025-Q2，质量不达标时依次回退至 2025-Q4、2025-Q3；地图仅使用已生成的本地静态 JPEG。
+          数据来源：Copernicus Sentinel-2 Level-3 Quarterly Mosaics（2025）。主季度为 2025-Q2，质量不达标时依次回退至 2025-Q4、2025-Q3；当前部署提供全国与省级本地静态 JPEG，不提供地市级影像。
           <a :href="legalNoticeUrl" target="_blank" rel="noreferrer">{{ attribution }}</a>
         </span>
       </span>
