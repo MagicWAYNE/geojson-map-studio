@@ -35,6 +35,7 @@ const mapDebugMocks = vi.hoisted(() => ({
   effect: null as MapEffectConfig | null,
   hud: null as MapHudConfig | null,
   effectRuntimeStatus: null as typeof runtimeStatusDefault | null,
+  fpsVisible: null as import('vue').Ref<boolean> | null,
   updateEffectRuntimeStatus: vi.fn(),
   updateRegionBarRuntimeStatus: vi.fn(),
   updateCameraView: vi.fn(),
@@ -162,8 +163,8 @@ vi.mock('@/composables/useMapVisualSettings', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   DEFAULT_REGION_BAR_RUNTIME_STATUS: regionBarRuntimeStatusDefault,
   MAP_CAMERA_DEFAULT: {
-    pos: [-6.5, 127.6, 97.4],
-    target: [2.7, -2.9, 7]
+    pos: [-19.3, 146.5, 97.9],
+    target: [6.5, -2.5, 7.4]
   },
   useMapVisualSettings: () => {
     const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
@@ -176,7 +177,9 @@ vi.mock('@/composables/useMapVisualSettings', () => ({
     })
     mapDebugMocks.hud = hud
     const effectRuntimeStatus = reactive({ ...runtimeStatusDefault })
+    const fpsVisible = shallowRef(true)
     mapDebugMocks.effectRuntimeStatus = effectRuntimeStatus
+    mapDebugMocks.fpsVisible = fpsVisible
     mapDebugMocks.updateEffectRuntimeStatus.mockImplementation((next) => {
       Object.assign(effectRuntimeStatus, next)
       return true
@@ -185,6 +188,7 @@ vi.mock('@/composables/useMapVisualSettings', () => ({
       cameraView: { value: '' },
       effect,
       hud,
+      fpsVisible,
       effectRuntimeStatus,
       updateEffectRuntimeStatus: mapDebugMocks.updateEffectRuntimeStatus,
       regionBarRuntimeStatus: { renderedCount: 0, dataMin: null, dataMax: null, degraded: false },
@@ -229,6 +233,7 @@ afterEach(() => {
   mapDebugMocks.effect = null
   mapDebugMocks.hud = null
   mapDebugMocks.effectRuntimeStatus = null
+  mapDebugMocks.fpsVisible = null
   if (carouselMocks.enabled) carouselMocks.enabled.value = false
   carouselMocks.toggle.mockReset()
   routerMocks.push.mockReset()
@@ -1033,9 +1038,25 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.runFrame()
     const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
 
-    expect(camera.position.toArray()).toEqual([-6.5, 127.6, 97.4])
-    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(2.7, -2.9, 7.0)
+    expect(camera.position.toArray()).toEqual([-19.3, 146.5, 97.9])
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(6.5, -2.5, 7.4)
 
+    mounted.app.unmount()
+  })
+
+  it('shows and hides the FPS overlay without recreating the renderer', async () => {
+    const mounted = await mountInitializedMap()
+    expect(mounted.root.querySelector('[data-map-fps]')).not.toBeNull()
+    const renderer = mounted.renderer
+
+    mapDebugMocks.fpsVisible!.value = false
+    await nextTick()
+    expect(mounted.root.querySelector('[data-map-fps]')).toBeNull()
+    expect(mounted.renderer).toBe(renderer)
+
+    mapDebugMocks.fpsVisible!.value = true
+    await nextTick()
+    expect(mounted.root.querySelector('[data-map-fps]')).not.toBeNull()
     mounted.app.unmount()
   })
 

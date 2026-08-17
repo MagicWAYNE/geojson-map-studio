@@ -87,6 +87,7 @@ const {
   effect,
   hud: hudConfig,
   effectRuntimeStatus,
+  fpsVisible,
   updateEffectRuntimeStatus,
   updateRegionBarRuntimeStatus,
   updateCameraView,
@@ -1125,7 +1126,7 @@ onBeforeUnmount(() => {
       :metric-labels="document.metricLabels"
       @sizes-change="handleDistrictBarOverlaySizesChange"
     />
-    <div class="hud">{{ fps }} FPS</div>
+    <div v-if="fpsVisible" class="hud" data-map-fps>{{ fps }} FPS</div>
     <div v-if="error" class="err">{{ error }}</div>
   </div>
 </template>

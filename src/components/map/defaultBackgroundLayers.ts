@@ -1,21 +1,12 @@
-import bgMain from '@/assets/images/bg-main.png'
-import bgTerrain from '@/assets/images/bg-terrain.png'
+import bgMain from '@/assets/images/bg-1.jpg'
 
 export const DEFAULT_BACKGROUND_LAYERS = [
   {
     id: 'main',
-    label: '背景遮罩',
-    help: '建议为带透明度的PNG文件',
-    url: bgMain,
-    filename: 'bg-main.png',
-    defaultVisible: true
-  },
-  {
-    id: 'terrain',
     label: '背景底图',
     help: '',
-    url: bgTerrain,
-    filename: 'bg-terrain.png',
+    url: bgMain,
+    filename: 'bg-1.jpg',
     defaultVisible: true
   }
 ] as const

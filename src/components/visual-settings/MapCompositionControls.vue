@@ -13,13 +13,10 @@ import {
 const session = useMapVisualSettings()
 const defaultBackgroundLayers = DEFAULT_BACKGROUND_LAYERS
 const backgroundFileInputs: Partial<Record<DefaultBackgroundLayerId, HTMLInputElement>> = {}
-const backgroundStatus = computed(() => {
-  const { main, terrain } = session.backgroundLayerVisibility
-  if (main && terrain) return '当前显示背景遮罩与背景底图'
-  if (main) return '当前仅显示背景遮罩'
-  if (terrain) return '当前仅显示背景底图'
-  return '背景两层均已关闭'
-})
+const backgroundStatus = computed(() => session.backgroundLayerVisibility.main
+  ? '当前显示背景底图'
+  : '背景底图已关闭'
+)
 const FIELDS: ReadonlyArray<{
   key: keyof MapLayout
   label: string
@@ -85,7 +82,7 @@ onMounted(() => {
   <div class="composition-controls" data-visual-page-content="composition">
     <section class="setting-group">
       <h2>画布背景</h2>
-      <p>背景遮罩与背景底图可以分别开关或替换文件。上传内容仅在当前创作会话生效，刷新页面后恢复内置源文件。</p>
+      <p>背景底图可以开关或替换文件。上传内容仅在当前创作会话生效，刷新页面后恢复内置源文件。</p>
       <div class="background-layer-list" aria-label="背景图层">
         <div
           v-for="layer in defaultBackgroundLayers"

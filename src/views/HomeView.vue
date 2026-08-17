@@ -82,8 +82,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .home { position: absolute; inset: 0; overflow: hidden; }
-.bg-main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
-.bg-terrain { position: absolute; left: 0; top: 0; width: 1482px; height: 1080px; opacity: 0.9; }
+.bg-main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; }
 
 .pos-map { position: absolute; z-index: 1; }
 .map-load-error {

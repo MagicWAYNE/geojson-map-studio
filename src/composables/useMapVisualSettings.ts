@@ -172,17 +172,18 @@ export const VISUAL_SETTINGS_PAGES: readonly VisualSettingsPage[] = [
 /** Home rendering and reset intentionally consume this single source of truth. */
 export const MAP_LAYOUT_DEFAULT: Readonly<MapLayout> = {
   left: 0,
-  top: 80,
+  top: 0,
   width: 1280,
-  height: 1000
+  height: 1080
 }
 
 export const MAP_CAMERA_DEFAULT = {
-  pos: [-6.5, 127.6, 97.4],
-  target: [2.7, -2.9, 7]
+  pos: [-19.3, 146.5, 97.9],
+  target: [6.5, -2.5, 7.4]
 } as const
 
 export const DEFAULT_CAMERA_VIEW = JSON.stringify(MAP_CAMERA_DEFAULT)
+export const DEFAULT_FPS_VISIBLE = true
 
 export const DEFAULT_MAP_EFFECT_RUNTIME_STATUS: MapEffectRuntimeStatus = {
   targetWidth: 1,
@@ -226,6 +227,7 @@ const regionBarRuntimeStatus = reactive<RegionBarRuntimeStatus>({
 })
 const cameraView = ref(DEFAULT_CAMERA_VIEW)
 const fps = ref(0)
+const fpsVisible = ref(DEFAULT_FPS_VISIBLE)
 const numericDrafts = reactive<Partial<Record<VisualNumericFieldId, string>>>({})
 const committedNumericDrafts = new Map<VisualNumericFieldId, string>()
 const numericFieldBindings = new Map<VisualNumericFieldId, VisualNumericField>()
@@ -287,6 +289,7 @@ const visualDirty = computed(() =>
     (layer) => backgroundLayerVisibility[layer.id] !== layer.defaultVisible
   )
   || Object.keys(backgroundLayerOverrides).length > 0
+  || fpsVisible.value !== DEFAULT_FPS_VISIBLE
 )
 
 const compositionWarnings = computed<string[]>(() => {
@@ -786,6 +789,14 @@ function updateFps(next: number): void {
   fps.value = Math.max(0, Math.round(next))
 }
 
+function setFpsVisible(visible: boolean): void {
+  fpsVisible.value = visible
+}
+
+function resetFpsVisibility(): void {
+  fpsVisible.value = DEFAULT_FPS_VISIBLE
+}
+
 function sameEffectRuntimeStatus(next: MapEffectRuntimeStatus): boolean {
   return next.targetWidth === effectRuntimeStatus.targetWidth
     && next.targetHeight === effectRuntimeStatus.targetHeight
@@ -832,6 +843,7 @@ function resetVisualSession(): void {
   Object.assign(regionBarRuntimeStatus, DEFAULT_REGION_BAR_RUNTIME_STATUS)
   cameraView.value = DEFAULT_CAMERA_VIEW
   fps.value = 0
+  resetFpsVisibility()
   for (const key of Object.keys(numericDrafts) as VisualNumericFieldId[]) delete numericDrafts[key]
   committedNumericDrafts.clear()
   for (const key of Object.keys(copyFeedback) as VisualCopyKey[]) {
@@ -874,6 +886,7 @@ export function useMapVisualSettings() {
     regionBarRuntimeStatus,
     cameraView,
     fps,
+    fpsVisible,
     compositionCss,
     compositionWarnings,
     numericDrafts,
@@ -890,6 +903,8 @@ export function useMapVisualSettings() {
     setBackgroundLayerVisibility,
     replaceBackgroundLayerImage,
     resetBackgroundLayerImage,
+    setFpsVisible,
+    resetFpsVisibility,
     resetEffect,
     resetHud,
     resetVisualSession,
