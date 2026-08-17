@@ -180,8 +180,8 @@ export const MAP_LAYOUT_DEFAULT: Readonly<MapLayout> = {
 export const MAP_SIDEBAR_WIDTH_OFFSET = -600
 
 export const MAP_CAMERA_DEFAULT = {
-  pos: [-19.3, 146.5, 97.9],
-  target: [6.5, -2.5, 7.4]
+  pos: [-76.5, 115.3, 74.4],
+  target: [2.3, -6.0, 12.6]
 } as const
 
 export const DEFAULT_CAMERA_VIEW = JSON.stringify(MAP_CAMERA_DEFAULT)
