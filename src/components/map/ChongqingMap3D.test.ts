@@ -163,8 +163,8 @@ vi.mock('@/composables/useMapVisualSettings', () => ({
   DEFAULT_MAP_EFFECT_RUNTIME_STATUS: runtimeStatusDefault,
   DEFAULT_REGION_BAR_RUNTIME_STATUS: regionBarRuntimeStatusDefault,
   MAP_CAMERA_DEFAULT: {
-    pos: [-19.3, 146.5, 97.9],
-    target: [6.5, -2.5, 7.4]
+    pos: [-76.5, 115.3, 74.4],
+    target: [2.3, -6.0, 12.6]
   },
   useMapVisualSettings: () => {
     const effect = reactive<MapEffectConfig>(cloneMapEffectConfig(MAP_EFFECT_DEFAULTS))
@@ -1038,8 +1038,8 @@ describe('ChongqingMap3D effect wiring', () => {
     mounted.runFrame()
     const camera = pipelineMocks.instance.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera
 
-    expect(camera.position.toArray()).toEqual([-19.3, 146.5, 97.9])
-    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(6.5, -2.5, 7.4)
+    expect(camera.position.toArray()).toEqual([-76.5, 115.3, 74.4])
+    expect(sceneSetupMocks.controlsTargetSet).toHaveBeenCalledWith(2.3, -6.0, 12.6)
 
     mounted.app.unmount()
   })

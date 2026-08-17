@@ -91,7 +91,7 @@ describe('MapCompositionControls', () => {
     ))
     buttons.find((button) => button.textContent?.includes('复制相机参数'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '{"pos":[-19.3,146.5,97.9],"target":[6.5,-2.5,7.4]}'
+      '{"pos":[-76.5,115.3,74.4],"target":[2.3,-6,12.6]}'
     ))
     app.unmount()
   })

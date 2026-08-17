@@ -25,8 +25,8 @@ describe('visual-settings session', () => {
 
     expect(MAP_LAYOUT_DEFAULT).toEqual({ left: 0, top: 0, width: 1920, height: 1080 })
     expect(MAP_CAMERA_DEFAULT).toEqual({
-      pos: [-19.3, 146.5, 97.9],
-      target: [6.5, -2.5, 7.4]
+      pos: [-76.5, 115.3, 74.4],
+      target: [2.3, -6.0, 12.6]
     })
     expect({ ...session.layout }).toEqual(MAP_LAYOUT_DEFAULT)
     expect(session.cameraView.value).toBe(DEFAULT_CAMERA_VIEW)
