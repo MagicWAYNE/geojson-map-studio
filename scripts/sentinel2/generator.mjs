@@ -404,40 +404,61 @@ async function stitchRgbTiles(tilePlan, tiles, target) {
     .toBuffer()
 }
 
-async function composeCountryFromRegionalImages({
+function localCompositionSpec(manifest, target) {
+  if (target.targetKind === 'country') {
+    return {
+      mode: 'local-prefecture-mask-composite-v2',
+      sources: manifest.targets.filter((candidate) => candidate.targetKind === 'prefecture')
+    }
+  }
+  if (target.targetKind === 'province') {
+    const sources = manifest.targets.filter((candidate) =>
+      candidate.targetKind === 'prefecture' &&
+      candidate.selection?.provinceGb === target.catalogGb
+    )
+    if (sources.length === 0) return null
+    return {
+      mode: 'local-prefecture-mask-composite-v1',
+      sources
+    }
+  }
+  return null
+}
+
+async function composeFromRegionalImages({
   manifest,
   target,
   checkpoint,
   outputRoot,
   catalogRoot
 }) {
-  assert(catalogRoot, 'country composition requires the geometry catalog root')
-  const sources = manifest.targets.filter((candidate) =>
-    candidate.targetKind === 'prefecture' &&
-    checkpoint.entries[candidate.id]?.status === 'complete'
-  )
-  assert(sources.length >= 340, 'country composition does not have complete prefecture sources')
-  const [countryMinX, countryMinY, countryMaxX, countryMaxY] = target.projectedBounds
-  const countrySpanX = countryMaxX - countryMinX
-  const countrySpanY = countryMaxY - countryMinY
+  assert(catalogRoot, `${target.id}: local composition requires the geometry catalog root`)
+  const spec = localCompositionSpec(manifest, target)
+  assert(spec, `${target.id}: target does not support local regional composition`)
+  assert(spec.sources.length > 0, `${target.id}: local composition has no prefecture sources`)
+  const incomplete = spec.sources.filter((source) => checkpoint.entries[source.id]?.status !== 'complete')
+  assert(incomplete.length === 0, `${target.id}: local composition has incomplete prefecture sources: ${incomplete.map((source) => source.id).join(', ')}`)
+  const [targetMinX, targetMinY, targetMaxX, targetMaxY] = target.projectedBounds
+  const targetSpanX = targetMaxX - targetMinX
+  const targetSpanY = targetMaxY - targetMinY
   const composites = []
   const constituents = []
-  for (const sourceTarget of sources) {
+  for (const sourceTarget of spec.sources) {
     const state = checkpoint.entries[sourceTarget.id]
     const [minX, minY, maxX, maxY] = sourceTarget.projectedBounds
-    const left = Math.round((minX - countryMinX) / countrySpanX * target.width)
-    const right = Math.round((maxX - countryMinX) / countrySpanX * target.width)
-    const top = Math.round((countryMaxY - maxY) / countrySpanY * target.height)
-    const bottom = Math.round((countryMaxY - minY) / countrySpanY * target.height)
-    assert(left >= 0 && top >= 0 && right <= target.width && bottom <= target.height, `${sourceTarget.id}: country composition placement is outside the target`)
+    const left = Math.round((minX - targetMinX) / targetSpanX * target.width)
+    const right = Math.round((maxX - targetMinX) / targetSpanX * target.width)
+    const top = Math.round((targetMaxY - maxY) / targetSpanY * target.height)
+    const bottom = Math.round((targetMaxY - minY) / targetSpanY * target.height)
+    assert(left >= 0 && top >= 0 && right <= target.width && bottom <= target.height, `${sourceTarget.id}: local composition placement is outside the target`)
     const width = right - left
     const height = bottom - top
-    assert(width > 0 && height > 0, `${sourceTarget.id}: country composition placement is empty`)
+    assert(width > 0 && height > 0, `${sourceTarget.id}: local composition placement is empty`)
     const tileBounds = [
-      countryMinX + left / target.width * countrySpanX,
-      countryMaxY - bottom / target.height * countrySpanY,
-      countryMinX + right / target.width * countrySpanX,
-      countryMaxY - top / target.height * countrySpanY
+      targetMinX + left / target.width * targetSpanX,
+      targetMaxY - bottom / target.height * targetSpanY,
+      targetMinX + right / target.width * targetSpanX,
+      targetMaxY - top / target.height * targetSpanY
     ]
     const geometry = await targetGeometry(sourceTarget, catalogRoot)
     const polygons = projectedPolygonsFromGeoJson(geometry, sourceTarget.id)
@@ -476,7 +497,7 @@ async function composeCountryFromRegionalImages({
     .composite(composites)
     .jpeg({ quality: 90, chromaSubsampling: '4:2:0', mozjpeg: false })
     .toBuffer()
-  return { bytes, constituents }
+  return { bytes, constituents, compositionMode: spec.mode }
 }
 
 export async function runImageGeneration({
@@ -497,8 +518,9 @@ export async function runImageGeneration({
   const checkpoint = await loadOrCreateCheckpoint(checkpointPath, { kind: 'image-generation', planSha256 })
   const allowed = targetIds ? new Set(targetIds) : null
   const selectedTargets = allowed ? manifest.targets.filter((target) => allowed.has(target.id)) : manifest.targets
+  const generationRank = { prefecture: 0, province: 1, country: 2 }
   const targets = [...selectedTargets].sort((left, right) =>
-    Number(left.targetKind === 'country') - Number(right.targetKind === 'country')
+    generationRank[left.targetKind] - generationRank[right.targetKind]
   )
   for (const target of targets) {
     const quality = qualityCheckpoint.entries[target.id]
@@ -520,8 +542,9 @@ export async function runImageGeneration({
     }
     const existingState = checkpoint.entries[target.id]
     const outputPath = path.join(outputRoot, target.assetPath)
-    if (target.targetKind === 'country') {
-      if (existingState?.status === 'complete' && existingState.compositionMode === 'local-prefecture-mask-composite-v2') {
+    const composition = localCompositionSpec(manifest, target)
+    if (composition) {
+      if (existingState?.status === 'complete' && existingState.compositionMode === composition.mode) {
         try {
           await verifyExistingImage(outputPath, target, existingState)
           onProgress({ target, state: existingState, resumed: true })
@@ -545,7 +568,7 @@ export async function runImageGeneration({
           rejectedDirectGeneration.rejectionReason = 'visual-review-black-no-data-blocks'
         }
       }
-      const composed = await composeCountryFromRegionalImages({
+      const composed = await composeFromRegionalImages({
         manifest,
         target,
         checkpoint,
@@ -553,7 +576,7 @@ export async function runImageGeneration({
         catalogRoot
       })
       const dimensions = jpegDimensions(composed.bytes)
-      assert(dimensions.width === target.width && dimensions.height === target.height, `${target.id}: composed country dimensions changed`)
+      assert(dimensions.width === target.width && dimensions.height === target.height, `${target.id}: composed regional dimensions changed`)
       await writeAtomic(outputPath, composed.bytes)
       const constituentQuarters = [...new Set(composed.constituents.map((item) => item.chosenQuarter))].sort()
       checkpoint.entries[target.id] = {
@@ -570,12 +593,12 @@ export async function runImageGeneration({
         sourceWidth: target.width,
         sourceHeight: target.height,
         tileCount: 0,
-        requestSetSha256: hash('local-prefecture-mask-composite-v2\n'),
+        requestSetSha256: hash(`${composed.compositionMode}\n`),
         responseSetSha256: hash(`${composed.constituents.map((item) => item.sha256).join('\n')}\n`),
         evalscriptSha256: manifest.sourceContract.colorTransformSha256,
         retryCount: 0,
         actualProcessingUnits: 0,
-        compositionMode: 'local-prefecture-mask-composite-v2',
+        compositionMode: composed.compositionMode,
         constituents: composed.constituents,
         ...(rejectedDirectGeneration ? { rejectedDirectGeneration } : {})
       }

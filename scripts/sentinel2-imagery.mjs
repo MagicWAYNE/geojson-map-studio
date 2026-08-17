@@ -484,11 +484,14 @@ async function quality(options) {
   process.stdout.write(`Quality checkpoint: ${checkpointPath} (${terminalCount}/${targets.length} selected targets terminal)\n`)
 }
 
-function imageBudget(targets) {
+function imageBudget(targets, manifest) {
   let requestCount = 0
   let pixels = 0
   for (const target of targets) {
-    if (target.targetKind === 'country') continue
+    const hasPrefectureSources = target.targetKind === 'province' && manifest.targets.some((candidate) =>
+      candidate.targetKind === 'prefecture' && candidate.selection?.provinceGb === target.catalogGb
+    )
+    if (target.targetKind === 'country' || hasPrefectureSources) continue
     const tilePlan = planRgbTiles(target)
     requestCount += tilePlan.tiles.length
     pixels += tilePlan.sourceWidth * tilePlan.sourceHeight
@@ -505,7 +508,7 @@ async function fetchImages(options) {
   const inputs = await loadProbeInputs(configPath, options)
   const manifest = verifyImageryJobManifest(JSON.parse(inputs.planText))
   const targets = generationTargets(manifest, inputs.pilots, options)
-  const budget = imageBudget(targets)
+  const budget = imageBudget(targets, manifest)
   const maximumPu = budgetLimit(inputs.config, options)
   if (budget.requestCount > inputs.config.processing.maximumRequests) {
     throw new Error(`image request budget exceeded: ${budget.requestCount}`)
