@@ -135,12 +135,17 @@ const visualSettings = useMapVisualSettings()
 const {
   effectEditTarget: editTarget,
   effectLivePreview: livePreview,
-  effectRuntimeStatus
+  effectRuntimeStatus,
+  fpsVisible
 } = visualSettings
 const HEX = /^#[0-9a-f]{6}$/i
 
 function changeLivePreview(event: Event): void {
   visualSettings.setEffectLivePreview((event.target as HTMLInputElement).checked)
+}
+
+function changeFpsVisibility(event: Event): void {
+  visualSettings.setFpsVisible((event.target as HTMLInputElement).checked)
 }
 
 function applyDraft(): void {
@@ -368,6 +373,7 @@ function resetGroup(channel: GlowChannel | undefined): void {
 
 function resetCurrentTarget(): void {
   visualSettings.resetEditableEffect()
+  visualSettings.resetFpsVisibility()
 }
 
 async function copyEffect(): Promise<void> {
@@ -401,6 +407,24 @@ onBeforeUnmount(() => {
       <div v-if="!livePreview" class="effect-actions">
         <button class="btn" data-visual-action="effect.apply" @click="applyDraft">应用参数</button>
         <button class="btn ghost" data-visual-action="effect.discard" @click="discardDraft">放弃草稿</button>
+      </div>
+    </section>
+
+    <section class="effect-group">
+      <h3>性能显示</h3>
+      <div class="field" data-control-path="runtime.fpsVisible">
+        <div class="field-head">
+          <label for="effect-fps-visible">显示 FPS</label>
+          <input
+            id="effect-fps-visible"
+            data-visual-action="effect.fps-visible"
+            class="checkbox"
+            type="checkbox"
+            :checked="fpsVisible"
+            @change="changeFpsVisibility"
+          />
+        </div>
+        <p class="field-hint">控制地图区域左下角 FPS 数值的显示与隐藏。</p>
       </div>
     </section>
 
@@ -540,7 +564,7 @@ onBeforeUnmount(() => {
   background: rgba(36, 131, 255, 0.05);
 }
 .effect-group h3 { margin: 0; font-size: 14px; font-weight: normal; color: #fff; }
-.editing-hint, .performance-warning { margin: 0; font-size: 11px; line-height: 1.5; color: #edd892; }
+.editing-hint, .performance-warning, .field-hint { margin: 0; font-size: 11px; line-height: 1.5; color: #edd892; }
 .runtime-status { display: grid; gap: 4px; font-size: 11px; line-height: 1.45; color: #8fd9ff; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }

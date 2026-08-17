@@ -80,16 +80,16 @@ describe('MapCompositionControls', () => {
 
     buttons.find((button) => button.textContent?.includes('复制 CSS'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '.pos-map { left: 0px; top: 80px; width: 1280px; height: 1000px; }'
+      '.pos-map { left: 0px; top: 0px; width: 1280px; height: 1080px; }'
     ))
     buttons.find((button) => button.textContent?.includes('复制相机参数'))!.click()
     await vi.waitFor(() => expect(clipboard.copy).toHaveBeenCalledWith(
-      '{"pos":[-6.5,127.6,97.4],"target":[2.7,-2.9,7]}'
+      '{"pos":[-19.3,146.5,97.9],"target":[6.5,-2.5,7.4]}'
     ))
     app.unmount()
   })
 
-  it('uploads each layer independently and makes its current file downloadable', async () => {
+  it('uploads the background image and makes its current file downloadable', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:background')
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const root = document.createElement('div')
@@ -98,7 +98,6 @@ describe('MapCompositionControls', () => {
     await nextTick()
     const session = useMapVisualSettings()
     const mainRow = root.querySelector<HTMLElement>('[data-background-layer="main"]')!
-    const terrainRow = root.querySelector<HTMLElement>('[data-background-layer="terrain"]')!
     const input = mainRow.querySelector<HTMLInputElement>('[data-background-upload="main"]')!
     const inputClick = vi.spyOn(input, 'click')
 
@@ -111,79 +110,49 @@ describe('MapCompositionControls', () => {
     })
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await vi.waitFor(() => expect(session.backgroundLayerSources.value.main.url).toBe('blob:background'))
-    expect(session.backgroundLayerSources.value.terrain.custom).toBe(false)
-    expect(mainRow.textContent).toContain('背景遮罩：custom.png')
+    expect(mainRow.textContent).toContain('背景底图：custom.png')
     expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('href')).toBe('blob:background')
     expect(mainRow.querySelector<HTMLAnchorElement>('a')?.getAttribute('download')).toBe('custom.png')
     expect(input.value).toBe('')
     expect(root.querySelector('#background-image-file')).toBeNull()
     expect(root.querySelector('[data-action="reset-background"]')).toBeNull()
 
-    const terrainInput = terrainRow.querySelector<HTMLInputElement>('[data-background-upload="terrain"]')!
-    Object.defineProperty(terrainInput, 'files', {
-      configurable: true,
-      value: [new File(['text'], 'notes.txt', { type: 'text/plain' })]
-    })
-    terrainInput.dispatchEvent(new Event('change', { bubbles: true }))
-    await nextTick()
-    expect(terrainRow.querySelector('[role="alert"]')?.textContent).toContain('PNG')
-    expect(session.backgroundLayerSources.value.main.url).toBe('blob:background')
-
     session.resetVisualSession()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:background')
     app.unmount()
   })
 
-  it('keeps each layer name, inline filename download, tooltip, and upload action on one row', async () => {
+  it('keeps the single background name, filename download, and upload action on one row', async () => {
     const root = document.createElement('div')
     const app = createApp(MapCompositionControls)
     app.mount(root)
     await nextTick()
     const session = useMapVisualSettings()
     const mainRow = root.querySelector<HTMLElement>('[data-background-layer="main"]')!
-    const terrainRow = root.querySelector<HTMLElement>('[data-background-layer="terrain"]')!
     const mainToggle = mainRow.querySelector<HTMLInputElement>('input[type="checkbox"]')!
-    const terrainToggle = terrainRow.querySelector<HTMLInputElement>('input[type="checkbox"]')!
 
     expect(mainToggle.checked).toBe(true)
-    expect(terrainToggle.checked).toBe(true)
-    expect(mainRow.textContent).toContain('背景遮罩：bg-main.png')
-    expect(terrainRow.textContent).toContain('背景底图：bg-terrain.png')
-    expect(mainRow.querySelector('.background-layer__help')?.getAttribute('title')).toBe('建议为带透明度的PNG文件')
-    expect(mainRow.querySelector('.background-layer__help')?.getAttribute('aria-label')).toBe('建议为带透明度的PNG文件')
-    expect(mainRow.querySelector('[data-icon="info"]')).not.toBeNull()
+    expect(mainRow.textContent).toContain('背景底图：bg-1.jpg')
+    expect(root.querySelector('[data-background-layer="terrain"]')).toBeNull()
+    expect(mainRow.querySelector('.background-layer__help')).toBeNull()
+    expect(mainRow.querySelector('[data-icon="info"]')).toBeNull()
     expect(mainRow.querySelector('[data-icon="download"]')).not.toBeNull()
-    expect(terrainRow.querySelector('[data-icon="download"]')).not.toBeNull()
-    expect(terrainRow.querySelector('.background-layer__help')).toBeNull()
     expect(root.textContent).not.toContain('ℹ️')
     expect(root.textContent).not.toContain('⬇️')
     expect(mainRow.textContent).toContain('上传背景文件')
     expect(mainRow.textContent).not.toContain('当前文件：')
     expect(mainRow.textContent).not.toContain('下载源文件')
     const mainFilename = mainRow.querySelector<HTMLAnchorElement>('.background-layer__filename')!
-    const terrainFilename = terrainRow.querySelector<HTMLAnchorElement>('.background-layer__filename')!
-    expect(mainFilename.getAttribute('href')).toContain('bg-main')
-    expect(mainFilename.getAttribute('download')).toBe('bg-main.png')
-    expect(terrainFilename.getAttribute('href')).toContain('bg-terrain')
-    expect(terrainFilename.getAttribute('download')).toBe('bg-terrain.png')
+    expect(mainFilename.getAttribute('href')).toContain('bg-1')
+    expect(mainFilename.getAttribute('download')).toBe('bg-1.jpg')
     expect(mainFilename.closest('.background-layer__row')).toBe(
       mainRow.querySelector('[data-action="upload-background-main"]')?.closest('.background-layer__row')
     )
-    expect(terrainFilename.closest('.background-layer__row')).toBe(
-      terrainRow.querySelector('[data-action="upload-background-terrain"]')?.closest('.background-layer__row')
-    )
-
-    terrainToggle.checked = false
-    terrainToggle.dispatchEvent(new Event('change', { bubbles: true }))
-    await nextTick()
-    expect(session.backgroundLayerVisibility.terrain).toBe(false)
-    expect(root.textContent).toContain('当前仅显示背景遮罩')
-
     mainToggle.checked = false
     mainToggle.dispatchEvent(new Event('change', { bubbles: true }))
     await nextTick()
     expect(session.backgroundLayerVisibility.main).toBe(false)
-    expect(root.textContent).toContain('背景两层均已关闭')
+    expect(root.textContent).toContain('背景底图已关闭')
     app.unmount()
   })
 })

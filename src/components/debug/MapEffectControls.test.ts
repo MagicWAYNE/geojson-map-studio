@@ -14,6 +14,7 @@ type MountedControls = {
   setItem: ReturnType<typeof vi.fn>
   updateEffectRuntimeStatus: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['updateEffectRuntimeStatus']
   resetEffect: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['resetEffect']
+  fpsVisible: ReturnType<typeof import('@/composables/useMapVisualSettings')['useMapVisualSettings']>['fpsVisible']
 }
 
 const EFFECT_STORAGE_KEYS = new Set([
@@ -49,7 +50,8 @@ async function mountControls(): Promise<MountedControls> {
     effect: debug.effect,
     setItem,
     updateEffectRuntimeStatus: debug.updateEffectRuntimeStatus,
-    resetEffect: debug.resetEffect
+    resetEffect: debug.resetEffect,
+    fpsVisible: debug.fpsVisible
   }
 }
 
@@ -106,6 +108,26 @@ afterEach(() => {
 })
 
 describe('MapEffectControls', () => {
+  it('toggles the map FPS overlay as session-only visual state', async () => {
+    const { app, root, fpsVisible, setItem } = await mountControls()
+    const toggle = root.querySelector<HTMLInputElement>('#effect-fps-visible')!
+
+    expect(toggle.checked).toBe(true)
+    expect(root.textContent).toContain('控制地图区域左下角 FPS 数值的显示与隐藏')
+
+    toggle.checked = false
+    toggle.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(fpsVisible.value).toBe(false)
+    expectNoEffectStorageWrites(setItem)
+
+    button(root, '恢复全部默认值').click()
+    await nextTick()
+    expect(fpsVisible.value).toBe(true)
+    expect(toggle.checked).toBe(true)
+    app.unmount()
+  })
+
   it('keeps draft edits, presets, group reset, and all reset out of effective state and storage', async () => {
     const { app, root, effect, setItem } = await mountControls()
     const toggle = root.querySelector<HTMLInputElement>('#effect-live-preview')!
@@ -334,6 +356,7 @@ describe('MapEffectControls', () => {
     const group = (title: string) => groups.find((element) => element.querySelector('h3')?.textContent === title)!
 
     expect(groups.map((element) => element.querySelector('h3')?.textContent)).toEqual([
+      '性能显示',
       '常态边界',
       '常态外扩柔光',
       '常态内扩柔光',
