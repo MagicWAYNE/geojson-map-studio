@@ -19,18 +19,18 @@ Planning snapshot: `ae202fb`
 | Gate | Required evidence | Status |
 | --- | --- | --- |
 | Planner inventory | 377 unique targets: 1 country, 34 province-level, 342 prefecture-level | Passed: 1/34/342 |
-| Determinism | Byte-identical job and runtime manifests from identical inputs | Passed; planner SHA `f343185a8a41fb984e6a8a76dd86d688bdc289fff4086738d7d7af7f19bbc98e`, runtime manifest SHA `5f45eedc3dde7740131d2e3e6b96b4991f880e0b9f22a4b95b52441a12657d24` |
+| Determinism | Byte-identical job and runtime manifests from identical inputs | Passed; planner SHA `f343185a8a41fb984e6a8a76dd86d688bdc289fff4086738d7d7af7f19bbc98e`, repaired runtime manifest SHA `2c10d906af4e8b827b9224fe7339116ab89682b3fb888421196dd0a2e1f118b2` |
 | Dimensions | 8% projected padding, longest side 2000, all dimensions <=2500 | Passed for all 377 targets |
-| Budget | Request, pixel and PU estimate below approved cap before live calls | Passed; final generator excludes country from Process budget: 376 worst-case requests and <=4,576.826 estimated PU. Actual promoted PU 4,560.331; rejected direct-country PU 92.865; total 4,653.196 |
+| Budget | Request, pixel and PU estimate below approved cap before live calls | Passed; repaired generator excludes country and 33 locally composed provinces from Process budget; Macau has no prefecture source and remains direct: 343 worst-case requests and <=4,173.053 estimated PU. Historical actual promoted PU 4,560.331; rejected direct-country PU 92.865; total 4,653.196 |
 | Credentials | Token reuse/expiry and redacted 401/429/error tests | Passed: 3 focused OAuth tests |
 | Quality policy | Fixed primary quarter and deterministic threshold/fallback behavior | Passed: 15 quality probes + 15 accepted RGB previews; 2% threshold |
-| Generator safety | Dry-run, execute gate, retry, checkpoint, resume, corrupt response and atomic rename | Passed: 5 generator tests plus authenticated resume with zero Process requests |
-| Package | Hash, attribution, source identity, safe path, missing/orphan/corrupt detection | Passed: 377 entries, 375 images, 2 waivers, 378 files; inventory SHA `a124ca0837d0cc4de84ed3da902b5a44cae7e9a56f1a2c9ae2e07225d36b7ebc` |
+| Generator safety | Dry-run, execute gate, retry, checkpoint, resume, corrupt response and atomic rename | Passed: 7 generator tests, including province local-composition and no-prefecture direct-path regressions, plus authenticated resume with zero Process requests |
+| Package | Hash, attribution, source identity, safe path, missing/orphan/corrupt detection | Passed: 377 entries, 375 images, 2 waivers, 378 files; repaired inventory SHA `21f36dea914f49f4d2b5c98afd04c99d7903f4fba7c4c51a3c2b0db7618ad0fe` |
 | Runtime source | Manifest parsing and selection resolution; no path reconstruction in views | Passed by focused tests and browser resource inventory |
 | UV mapping | Shared EPSG:3857 bounds for polygons, multipolygons, holes and islands | Passed by focused tests and 1920x1080 Hebei/Xiamen visual review |
 | Failure atomicity | 404/decode/hash/stale failures retain valid geometry/rendering | Passed by unit cases and real-browser missing-JPEG/Hainan controls |
 | Resource lifecycle | Replaced textures/materials disposed; one canvas remains | Passed by disposal tests and repeated browser toggles/map changes |
-| Regression | Full source tests, typecheck and build | Passed: 68 files/476 tests, typecheck and production build |
+| Regression | Full source tests, typecheck and build | Passed after province repair: 68 files/480 tests, typecheck and production build |
 
 ## Authenticated pilot matrix
 
@@ -49,7 +49,7 @@ Record for every cell: request hash, output dimensions, bytes, no-data ratio, ac
 | --- | --- | --- |
 | Default rendering | Current tech-blue composition is unchanged before opt-in | Passed; reload resets the session-only switch to off |
 | Country imagery | Country geometry resolves and loads exactly one local texture | Passed: nationwide 34-province geometry loaded same-origin `images/country/100000.jpg`, aligned without rejected black blocks, and retained one canvas |
-| Province imagery | Representative province resolves correct local entry and UVs | Passed: Hebei loaded same-origin `images/provinces/130000.jpg` and aligned |
+| Province imagery | Representative province resolves correct local entry and UVs | Passed: 32 available provinces with prefecture sources were locally recomposed; Hainan remains unavailable under the quality policy; Inner Mongolia, Xinjiang, Tibet and Gansu same-origin textures were browser-reviewed without rectangular no-data blocks; Macau retained its verified direct texture |
 | Prefecture imagery | Compact, typical and large targets render without stretch/misalignment | Passed for Xiamen in browser; Xiamen/Hulunbuir/Nanning final JPEGs visually reviewed |
 | Offline operation | Upstream blocked/network disabled; local catalog and texture still load | Passed as upstream-disconnected local-host operation: after clean reload every observed resource origin was `http://localhost:5174` |
 | Missing asset | Error is visible; last valid geometry/rendering remains | Passed with temporary missing Shanxi JPEG; honest error and tech-blue fallback, then package restored and reverified |

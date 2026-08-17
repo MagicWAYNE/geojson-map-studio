@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import sharp from 'sharp'
@@ -157,5 +157,141 @@ describe('resumable imagery generator transport', () => {
     })).rejects.toThrow(/JPEG/)
     await expect(readFile(path.join(root, 'images', target.assetPath))).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(checkpointPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('replaces a direct province request with a masked local prefecture composite', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'sentinel2-province-composite-'))
+    temporaryDirectories.push(root)
+    const outputRoot = path.join(root, 'images')
+    const catalogRoot = path.join(root, 'catalog')
+    const checkpointPath = path.join(root, 'checkpoint.json')
+    await mkdir(path.join(outputRoot, 'prefectures'), { recursive: true })
+    await mkdir(path.join(outputRoot, 'provinces'), { recursive: true })
+    await mkdir(catalogRoot, { recursive: true })
+
+    const longitude = (metres: number) => metres / 6_378_137 * 180 / Math.PI
+    const latitude = (metres: number) => (2 * Math.atan(Math.exp(metres / 6_378_137)) - Math.PI / 2) * 180 / Math.PI
+    const geometryText = (minX: number, maxX: number) => `${JSON.stringify({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature', properties: {}, geometry: {
+          type: 'Polygon', coordinates: [[
+            [longitude(minX), latitude(0)], [longitude(maxX), latitude(0)],
+            [longitude(maxX), latitude(1000)], [longitude(minX), latitude(1000)],
+            [longitude(minX), latitude(0)]
+          ]]
+        }
+      }]
+    })}\n`
+    const leftGeometry = geometryText(0, 1000)
+    const rightGeometry = geometryText(1000, 2000)
+    await writeFile(path.join(catalogRoot, 'left.geojson'), leftGeometry)
+    await writeFile(path.join(catalogRoot, 'right.geojson'), rightGeometry)
+
+    const red = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#c83232' } }).jpeg({ quality: 95 }).toBuffer()
+    const green = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#32c832' } }).jpeg({ quality: 95 }).toBuffer()
+    await writeFile(path.join(outputRoot, 'prefectures/130100.jpg'), red)
+    await writeFile(path.join(outputRoot, 'prefectures/130200.jpg'), green)
+    const rejectedDirect = await sharp({ create: { width: 64, height: 32, channels: 3, background: '#000000' } }).jpeg().toBuffer()
+    await writeFile(path.join(outputRoot, 'provinces/130000.jpg'), rejectedDirect)
+
+    const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
+    const province = {
+      id: 'province:130000', targetKind: 'province', catalogGb: '156130000',
+      width: 64, height: 32, projectedBounds: [0, 0, 2000, 1000], assetPath: 'provinces/130000.jpg'
+    }
+    const prefectures = [
+      {
+        id: 'prefecture:130100', targetKind: 'prefecture', selection: { provinceGb: '156130000' },
+        width: 32, height: 32, projectedBounds: [0, 0, 1000, 1000], assetPath: 'prefectures/130100.jpg',
+        geometrySource: { assetPath: 'left.geojson', sha256: digest(leftGeometry) }
+      },
+      {
+        id: 'prefecture:130200', targetKind: 'prefecture', selection: { provinceGb: '156130000' },
+        width: 32, height: 32, projectedBounds: [1000, 0, 2000, 1000], assetPath: 'prefectures/130200.jpg',
+        geometrySource: { assetPath: 'right.geojson', sha256: digest(rightGeometry) }
+      }
+    ]
+    const planText = '{"fixture":"province-composite"}\n'
+    const planSha256 = digest(planText)
+    const colorTransformSha256 = '8bda611d6f4aa245df450f0d0077647b9b6b6372ef6004296fe2f9db5e971154'
+    const imageEntries = {
+      [province.id]: {
+        status: 'complete', chosenQuarter: '2025-Q2', width: 64, height: 32,
+        bytes: rejectedDirect.length, sha256: digest(rejectedDirect)
+      },
+      [prefectures[0].id]: { status: 'complete', chosenQuarter: '2025-Q2', sha256: digest(red) },
+      [prefectures[1].id]: { status: 'complete', chosenQuarter: '2025-Q2', sha256: digest(green) }
+    }
+    await writeFile(checkpointPath, `${JSON.stringify({
+      schemaVersion: 1, kind: 'image-generation', planSha256, entries: imageEntries
+    })}\n`)
+    const qualityCheckpoint = {
+      schemaVersion: 1, kind: 'quality-selection', planSha256,
+      entries: {
+        [province.id]: { status: 'available', chosenQuarter: '2025-Q2', fallbackUsed: false, noDataRatio: 0 }
+      }
+    }
+    const oauthClient = { authorizedFetch: vi.fn(() => { throw new Error('network must not be used') }) }
+    const checkpoint = await runImageGeneration({
+      manifest: {
+        sourceContract: { sourceDecisionState: 'pinned', primaryQuarter: '2025-Q2', colorTransformSha256 },
+        targets: [province, ...prefectures]
+      },
+      planText, qualityCheckpoint, oauthClient, processEndpoint: 'https://process.example',
+      checkpointPath, outputRoot, catalogRoot, targetIds: [province.id]
+    })
+
+    expect(oauthClient.authorizedFetch).not.toHaveBeenCalled()
+    expect(checkpoint.entries[province.id]).toMatchObject({
+      status: 'complete', compositionMode: 'local-prefecture-mask-composite-v1',
+      tileCount: 0, actualProcessingUnits: 0
+    })
+    expect(checkpoint.entries[province.id].constituents).toHaveLength(2)
+    expect(await readdir(path.join(outputRoot, 'provinces'))).toContain('130000.jpg.corrupt-1')
+    const pixels = await sharp(path.join(outputRoot, province.assetPath)).raw().toBuffer()
+    const leftPixel = pixels.subarray((16 * 64 + 16) * 3, (16 * 64 + 16) * 3 + 3)
+    const rightPixel = pixels.subarray((16 * 64 + 48) * 3, (16 * 64 + 48) * 3 + 3)
+    expect(leftPixel[0]).toBeGreaterThan(leftPixel[1] + 80)
+    expect(rightPixel[1]).toBeGreaterThan(rightPixel[0] + 80)
+  })
+
+  it('keeps a province without prefecture sources on the verified direct-image path', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'sentinel2-direct-province-'))
+    temporaryDirectories.push(root)
+    const outputRoot = path.join(root, 'images')
+    const checkpointPath = path.join(root, 'checkpoint.json')
+    await mkdir(path.join(outputRoot, 'provinces'), { recursive: true })
+    const jpeg = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#3264c8' } }).jpeg().toBuffer()
+    await writeFile(path.join(outputRoot, 'provinces/820000.jpg'), jpeg)
+    const planText = '{"fixture":"direct-province"}\n'
+    const planSha256 = createHash('sha256').update(planText).digest('hex')
+    const target = {
+      id: 'province:820000', targetKind: 'province', catalogGb: '156820000',
+      width: 32, height: 32, projectedBounds: [0, 0, 1000, 1000], assetPath: 'provinces/820000.jpg'
+    }
+    await writeFile(checkpointPath, `${JSON.stringify({
+      schemaVersion: 1, kind: 'image-generation', planSha256,
+      entries: {
+        [target.id]: {
+          status: 'complete', chosenQuarter: '2025-Q2', width: 32, height: 32,
+          bytes: jpeg.length, sha256: createHash('sha256').update(jpeg).digest('hex')
+        }
+      }
+    })}\n`)
+    const oauthClient = { authorizedFetch: vi.fn(() => { throw new Error('network must not be used') }) }
+    const checkpoint = await runImageGeneration({
+      manifest: {
+        sourceContract: { sourceDecisionState: 'pinned' }, targets: [target]
+      },
+      planText,
+      qualityCheckpoint: {
+        schemaVersion: 1, kind: 'quality-selection', planSha256,
+        entries: { [target.id]: { status: 'available', chosenQuarter: '2025-Q2', noDataRatio: 0 } }
+      },
+      oauthClient, processEndpoint: 'https://process.example', checkpointPath, outputRoot
+    })
+    expect(oauthClient.authorizedFetch).not.toHaveBeenCalled()
+    expect(checkpoint.entries[target.id]).not.toHaveProperty('compositionMode')
   })
 })
