@@ -30,7 +30,7 @@ Planning snapshot: `ae202fb`
 | UV mapping | Shared EPSG:3857 bounds for polygons, multipolygons, holes and islands | Passed by focused tests and 1920x1080 Hebei/Xiamen visual review |
 | Failure atomicity | 404/decode/hash/stale failures retain valid geometry/rendering | Passed by unit cases and real-browser missing-JPEG/Hainan controls |
 | Resource lifecycle | Replaced textures/materials disposed; one canvas remains | Passed by disposal tests and repeated browser toggles/map changes |
-| Regression | Full source tests, typecheck and build | Passed after province repair: 68 files/480 tests, typecheck and production build |
+| Regression | Full source tests, typecheck and build | Passed after LAN HTTP digest repair: 68 files/481 tests, typecheck and production build |
 
 ## Authenticated pilot matrix
 
@@ -57,7 +57,7 @@ Record for every cell: request hash, output dimensions, bytes, no-data ratio, ac
 | Visual regressions | Hover, editor, metrics, bars, badges, effects, HUD and camera remain correct | Passed by source regression suite and live visual inspection; selected-region overlay remained functional over texture |
 | Reset | Built-in reset cancels texture work and restores current behavior | Passed by tests and browser reload/session reset |
 | Resources | Exactly one canvas; repeated toggles do not grow textures/materials | Passed; one canvas after success, waiver, fault, reload and repeated toggles |
-| Network/console | No Copernicus/TianDiTu runtime request; no unhandled errors or WebGL warnings | Passed for country/province/prefecture flows: all observed resource origins were `http://localhost:5174`; no warnings/errors |
+| Network/console | No Copernicus/TianDiTu runtime request; no unhandled errors or WebGL warnings | Passed for country/province/prefecture flows and `http://192.168.1.132:5174`: the LAN HTTP origin used the SHA-256 fallback, loaded the country texture, and produced no warnings/errors |
 
 Browser evidence is real 1920x1080 application behavior. “Offline” means disconnected from all upstream providers while the local application server and its same-origin static package remain available; the page asset inventory proves there is no external origin to satisfy at runtime. Automated tests separately cover the narrow stale-load race and texture/material disposal counters that cannot be inferred from canvas count alone.
 

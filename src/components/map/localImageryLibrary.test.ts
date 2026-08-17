@@ -1,8 +1,11 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createLocalImageryLibrary,
+  digestSha256,
   localImageryTargetId,
-  parseLocalImageryManifest
+  parseLocalImageryManifest,
+  sha256Hex
 } from './localImageryLibrary'
 
 function manifest(status: 'available' | 'unavailable' = 'available') {
@@ -27,6 +30,19 @@ function manifest(status: 'available' | 'unavailable' = 'available') {
 }
 
 describe('local imagery library', () => {
+  it('keeps SHA-256 verification available without secure-context Web Crypto', async () => {
+    const fixtures = [
+      new Uint8Array(),
+      new TextEncoder().encode('abc'),
+      Uint8Array.from({ length: 257 }, (_, index) => (index * 37) % 256)
+    ]
+    for (const bytes of fixtures) {
+      const expected = createHash('sha256').update(bytes).digest('hex')
+      expect(sha256Hex(bytes)).toBe(expected)
+      expect(await digestSha256(bytes.buffer as ArrayBuffer, null)).toBe(expected)
+    }
+  })
+
   it('maps all catalog selection kinds to stable runtime identities', () => {
     expect(localImageryTargetId({ kind: 'country-provinces' })).toBe('country:100000')
     expect(localImageryTargetId({ kind: 'province-children', provinceGb: '156130000' })).toBe('province:130000')
