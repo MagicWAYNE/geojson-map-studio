@@ -34,7 +34,7 @@ describe('GuideAboutPanel', () => {
     app.unmount()
   })
 
-  it('keeps three accessible contact icons without the removed service message', () => {
+  it('keeps four accessible contact icons without the removed service message', () => {
     const root = document.createElement('div')
     const app = createApp(GuideAboutPanel)
     app.mount(root)
@@ -46,14 +46,16 @@ describe('GuideAboutPanel', () => {
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       'https://github.com/MagicWAYNE/geojson-map-studio',
       'https://x.com/Wolfrid10888630',
+      'https://xhslink.cn/m/2fNBjXFHMN3',
       'mailto:wei.mingda@outlook.com'
     ])
     expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
       '在 GitHub 查看本项目',
       '在 X 联系我',
+      '在小红书联系我',
       '发送邮件至 wei.mingda@outlook.com'
     ])
-    expect(footer.querySelectorAll('svg')).toHaveLength(3)
+    expect(footer.querySelectorAll('svg')).toHaveLength(4)
     app.unmount()
   })
 })
